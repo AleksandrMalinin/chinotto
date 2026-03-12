@@ -27,3 +27,9 @@ CREATE TRIGGER IF NOT EXISTS entries_au AFTER UPDATE ON entries BEGIN
   INSERT INTO entries_fts(entries_fts, rowid, text) VALUES('delete', old.rowid, old.text);
   INSERT INTO entries_fts(rowid, text) VALUES (new.rowid, new.text);
 END;
+
+-- Embeddings for semantic similarity (vector = 384 f32, stored as BLOB)
+CREATE TABLE IF NOT EXISTS entry_embeddings (
+  entry_id TEXT PRIMARY KEY REFERENCES entries(id) ON DELETE CASCADE,
+  embedding BLOB NOT NULL
+);
