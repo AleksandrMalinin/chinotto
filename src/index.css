@@ -113,7 +113,7 @@ body {
   height: 55vmax;
   left: 10%;
   top: 20%;
-  background: rgba(124, 58, 237, 0.22);
+  background: rgba(124, 58, 237, 0.14);
   animation: intro-blob-drift-1 50s ease-in-out infinite;
 }
 
@@ -123,7 +123,7 @@ body {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  background: rgba(6, 182, 212, 0.2);
+  background: rgba(6, 182, 212, 0.12);
   animation: intro-blob-drift-2 55s ease-in-out infinite;
 }
 
@@ -132,7 +132,7 @@ body {
   height: 48vmax;
   right: 15%;
   top: 60%;
-  background: rgba(249, 115, 22, 0.18);
+  background: rgba(249, 115, 22, 0.11);
   animation: intro-blob-drift-3 45s ease-in-out infinite;
 }
 
@@ -172,7 +172,7 @@ body {
   position: relative;
   z-index: 1;
   margin-top: 6rem;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: "Outfit", system-ui, sans-serif;
   text-align: center;
   max-width: 20em;
   transition: opacity 0.4s ease-out;
