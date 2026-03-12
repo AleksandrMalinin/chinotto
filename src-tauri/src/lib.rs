@@ -276,6 +276,24 @@ fn search_entries(db: tauri::State<Db>, query: String) -> Result<Vec<SearchEntry
         .collect())
 }
 
+#[tauri::command]
+fn pin_entry(db: tauri::State<Db>, entry_id: String) -> Result<(), String> {
+    db.get_entry_by_id(&entry_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "entry not found".to_string())?;
+    db.insert_pinned(&entry_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn unpin_entry(db: tauri::State<Db>, entry_id: String) -> Result<(), String> {
+    db.remove_pinned(&entry_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_pinned_entry_ids(db: tauri::State<Db>) -> Result<Vec<String>, String> {
+    db.list_pinned_entry_ids().map_err(|e| e.to_string())
+}
+
 #[derive(serde::Serialize)]
 struct EntryPayload {
     id: String,
@@ -332,6 +350,9 @@ pub fn run() {
             find_similar_entries,
             get_resurfaced_entry,
             get_thought_trail,
+            pin_entry,
+            unpin_entry,
+            get_pinned_entry_ids,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

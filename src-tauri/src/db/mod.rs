@@ -168,6 +168,44 @@ impl Db {
         Ok(out)
     }
 
+    pub fn insert_pinned(&self, entry_id: &str) -> Result<(), rusqlite::Error> {
+        let pinned_at = chrono::Utc::now().to_rfc3339();
+        let conn = self.0.lock().unwrap();
+        conn.execute(
+            "INSERT INTO pinned_entries (entry_id, pinned_at) VALUES (?1, ?2)",
+            [entry_id, &pinned_at],
+        )?;
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM pinned_entries",
+            [],
+            |r| r.get(0),
+        )?;
+        if count > 5 {
+            conn.execute(
+                "DELETE FROM pinned_entries WHERE entry_id = (
+                  SELECT entry_id FROM pinned_entries ORDER BY pinned_at ASC LIMIT 1
+                )",
+                [],
+            )?;
+        }
+        Ok(())
+    }
+
+    pub fn remove_pinned(&self, entry_id: &str) -> Result<(), rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        conn.execute("DELETE FROM pinned_entries WHERE entry_id = ?1", [entry_id])?;
+        Ok(())
+    }
+
+    pub fn list_pinned_entry_ids(&self) -> Result<Vec<String>, rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT entry_id FROM pinned_entries ORDER BY pinned_at DESC",
+        )?;
+        let rows = stmt.query_map([], |r| r.get(0))?;
+        rows.collect()
+    }
+
     pub fn search_entries(&self, query: &str) -> Result<Vec<SearchEntryRow>, rusqlite::Error> {
         if query.trim().is_empty() {
             let rows = self.list_entries()?;

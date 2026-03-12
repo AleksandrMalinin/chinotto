@@ -33,3 +33,9 @@ CREATE TABLE IF NOT EXISTS entry_embeddings (
   entry_id TEXT PRIMARY KEY REFERENCES entries(id) ON DELETE CASCADE,
   embedding BLOB NOT NULL
 );
+
+-- Pinned thoughts (max 5; order by pinned_at desc = most recent first)
+CREATE TABLE IF NOT EXISTS pinned_entries (
+  entry_id TEXT PRIMARY KEY REFERENCES entries(id) ON DELETE CASCADE,
+  pinned_at TEXT NOT NULL
+);
