@@ -1,0 +1,24 @@
+---
+description: Commit message convention for Chinotto; use when writing or amending commit messages
+globs: 
+alwaysApply: false
+---
+
+# Commit messages (Chinotto)
+
+When suggesting or writing commit messages for this repo, follow the convention in **docs/COMMIT_CONVENTION.md**.
+
+**Format:** `type(scope): imperative subject` — e.g. `feat(entries): submit on Enter`.
+
+**Allowed types:** `feat` | `fix` | `refactor` | `perf` | `chore` | `docs` | `style` | `test`.
+
+**Rules:**
+- One logical change per commit; no "and" in the subject.
+- Imperative, present tense; lowercase after colon; no period.
+- No vague wording ("fix bug", "update stuff"), no emotional/filler ("finally", "WIP", "small").
+- Scope only when it helps (e.g. `entries`, `search`, `tauri`, `db`).
+
+**Good:** `fix(search): refresh list when query is cleared`  
+**Bad:** `fix: fix search bug` or `WIP search`
+
+Refer to docs/COMMIT_CONVENTION.md for full rules, granularity, and examples.

@@ -1,0 +1,13 @@
+---
+description: Code editing behavior: read first, preserve contracts, match patterns
+alwaysApply: true
+---
+
+# Code editing
+
+- **Read before changing.** Check `docs/`, existing code paths, and Tauri command usage. Verify; do not assume.
+- **Preserve contracts.** Do not change `create_entry`, `list_entries`, `search_entries`, or Entry shape without an explicit requirement.
+- **Match existing patterns.** Same invocation style, component structure, naming. New code in the right feature or `lib`; no ad-hoc new top-level folders.
+- **One concern per change.** One feature slice, one fix, or one refactor. No mixing (e.g. “add X and refactor Y”) unless the user asked for both.
+- **No filler in code.** No comments that restate what the code does. Comment only when the “why” or contract is non-obvious. No “awesome”, “nice”, “just”, “simply” in comments or strings.
+- **Errors.** Handle so the app stays usable (e.g. clear state or message). Do not silently swallow failures the user should see. Do not add speculative edge-case handling beyond the current feature or a known bug.

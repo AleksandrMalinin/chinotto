@@ -1,0 +1,11 @@
+---
+description: Documentation: when to update docs and how to write them
+alwaysApply: true
+---
+
+# Documentation
+
+- **In-code:** Comment only when the “why” or contract is not obvious. No restating the code. No long-lived TODOs without a clear next step or owner.
+- **Repo docs:** `docs/` is source of truth for product and architecture. Update `docs/architecture.md` when stack or high-level design changes; update `docs/product-spec.md` when scope or constraints change. Keep README aligned with run instructions and MVP scope.
+- **Tone:** Factual. No marketing speak, no “awesome” or “simple but powerful”.
+- **Rule files and COMMIT_CONVENTION:** Treat as binding. When editing them, keep them strict and practical; do not add generic advice or dilute.

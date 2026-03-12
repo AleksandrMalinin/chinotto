@@ -1,0 +1,22 @@
+---
+description: Stack and structure for Chinotto; where code lives and how front/back communicate
+alwaysApply: true
+---
+
+# Architecture
+
+**Stack:** Tauri 2 (desktop), React + TypeScript (UI), SQLite + FTS5 (storage and search). See `docs/architecture.md`.
+
+**Layout:**
+- `src/` – React: `features/entries`, `types`, `lib`, `ui`
+- `src-tauri/` – Rust: app entry, Tauri setup, `db` (schema + commands)
+- `docs/` – Product and architecture
+
+**Contract (do not change without explicit requirement):**
+- Frontend calls Tauri via `invoke()`: `create_entry`, `list_entries`, `search_entries`
+- Entry: `id`, `text`, `created_at` (string ISO 8601 UTC)
+- Data: local SQLite only; no network for core flows
+
+**New code:** Place in the appropriate feature or `lib`; follow existing patterns (e.g. how entries are created, how search is invoked). No new top-level folders or vague “utils”/“helpers” without a clear boundary.
+
+**Structural changes** (new layers, new runtimes, data model changes): Out of scope unless the user explicitly requests. If a task implies one, describe the implication and confirm before proceeding. Update `docs/architecture.md` when the design changes.

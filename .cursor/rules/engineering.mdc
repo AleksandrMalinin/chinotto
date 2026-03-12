@@ -1,0 +1,14 @@
+---
+description: Engineering principles for Chinotto; simplicity, dependencies, refactors
+alwaysApply: true
+---
+
+# Engineering
+
+- **Simple and debuggable.** Prefer explicit over clever. A human must trace data flow and state without hunting through layers. No premature abstraction.
+- **Smallest change.** Implement what’s asked. No “while I’m here” refactors or extra features. Refactor only when the user asks or the task is explicitly refactor-only.
+- **Dependencies.** Default is no new dependency. Add only when a concrete feature or fix needs it. Justify: what problem, why current stack can’t. Prefer std lib and existing deps; avoid heavy or abandoned packages.
+- **One logical change per commit.** Follow `docs/COMMIT_CONVENTION.md`. No bundling unrelated edits.
+- **Leave the tree buildable and runnable.** No broken imports, no dead commented code, no half-finished work. Stubs: say so briefly.
+
+Challenge naive feature additions: if the request implies scope creep (tags, folders, sync, new platforms), flag it or choose the minimal in-scope option.

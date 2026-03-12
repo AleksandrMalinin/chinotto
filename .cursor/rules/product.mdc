@@ -1,0 +1,19 @@
+---
+description: Product boundaries for Chinotto; what to build and what not to build
+alwaysApply: true
+---
+
+# Product (Chinotto)
+
+Chinotto is a **desktop-first personal thinking tool**: fast capture, context return, minimal UI, local-first. One stream, one entity (Entry). Capture first, structure later.
+
+**Do not implement or propose:**
+- Notion-like model: blocks, pages, databases, rich docs
+- Collaboration: multi-user, sharing, real-time
+- Overdesigned PKM: graphs, “second brain” scaffolding, mandatory structure
+- AI-first or gimmicky AI: vague “AI-powered” features; app must stay clearly useful without AI
+- Heavy editor: markdown editor, WYSIWYG, plugins, templates, tasks, kanban
+
+**When asked for a feature that crosses these boundaries:** Choose the minimal interpretation that fits (e.g. “search” = FTS over entries, not “smart” or embedded AI), or state the conflict and ask.
+
+**Reference:** `docs/product-spec.md`, `docs/architecture.md`.

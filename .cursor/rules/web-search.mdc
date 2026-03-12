@@ -1,15 +1,14 @@
 ---
-description: How to use web search: prefer official docs, recent sources, avoid tutorial sites
+description: Web search: prefer official docs and latest stable APIs; avoid tutorials and SEO noise
 alwaysApply: true
 ---
 
-# Web search rules
+# Web search
 
-When using web search:
+- Prefer **official documentation** (Tauri, React, SQLite, MDN, etc.) over tutorials and blog posts.
+- Prefer **latest stable APIs** and current docs; do not assume old versions.
+- **Do not append years** (e.g. 2024, 2025) to search queries unless you need version- or time-specific results.
+- Prefer **specs and source docs** over third-party tutorials. Prefer GitHub repos and official sites.
+- Avoid low-signal SEO: listicles, “X ways to…”, Medium, dev.to unless they are the only useful source for a narrow topic.
 
-- Always prefer **official documentation** over tutorials
-- Prefer **GitHub repositories** and **official docs**
-- Ignore results **older than 2024**
-- Prefer docs **updated in 2025 or later**
-- Avoid Medium, dev.to, and SEO tutorial sites
-- If a documentation **version** is available, always choose the **latest stable version**
+When a version is relevant, choose the **latest stable**; avoid outdated tutorial-driven code.
