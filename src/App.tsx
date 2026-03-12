@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { IntroScreen } from "@/components/IntroScreen";
 import { LogoTransition } from "@/components/LogoTransition";
 import { ChinottoLogo } from "@/components/ChinottoLogo";
+import { ChinottoCard } from "@/components/ChinottoCard";
 import { EntryInput, type EntryInputRef } from "./features/entries/EntryInput";
 import { EntryStream } from "./features/entries/EntryStream";
 import { EntryDetail } from "./features/entries/EntryDetail";
@@ -14,6 +15,9 @@ import {
   searchEntries,
   generateEmbedding,
   getResurfacedEntry,
+  getPinnedEntryIds,
+  pinEntry,
+  unpinEntry,
 } from "./features/entries/entryApi";
 import type { Entry } from "./types/entry";
 
@@ -66,15 +70,17 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isChinottoCardOpen, setIsChinottoCardOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
   const [resurfaced, setResurfaced] = useState<{
     entry: Entry;
     reason: string;
   } | null>(null);
   const [justAddedEntryId, setJustAddedEntryId] = useState<string | null>(null);
+  const [pinnedIds, setPinnedIds] = useState<string[]>([]);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const entryInputRef = useRef<EntryInputRef>(null);
-  const headerLogoRef = useRef<HTMLDivElement>(null);
+  const headerLogoRef = useRef<HTMLButtonElement>(null);
   const triedResurfaceRef = useRef(false);
   const justAddedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [logoEndRect, setLogoEndRect] = useState<{
@@ -89,6 +95,10 @@ export default function App() {
     try {
       const list = await loadEntries(search);
       setEntries(list);
+      if (!search.trim()) {
+        const ids = await getPinnedEntryIds();
+        setPinnedIds(ids);
+      }
     } finally {
       setLoading(false);
     }
@@ -183,6 +193,24 @@ export default function App() {
     setSearch("");
   }
 
+  const refreshPinned = useCallback(() => {
+    getPinnedEntryIds().then(setPinnedIds);
+  }, []);
+
+  const handlePin = useCallback(
+    (entry: Entry) => {
+      pinEntry(entry.id).then(refreshPinned);
+    },
+    [refreshPinned]
+  );
+
+  const handleUnpin = useCallback(
+    (entry: Entry) => {
+      unpinEntry(entry.id).then(refreshPinned);
+    },
+    [refreshPinned]
+  );
+
   const handleLogoTransitionEnd = useCallback(() => {
     setIntroDismissed(true);
     setIntroTransitioning(false);
@@ -232,9 +260,16 @@ export default function App() {
             className={`app-header ${introDismissed ? "app-header-visible" : ""}`}
             aria-hidden={!introDismissed}
           >
-            <div ref={headerLogoRef} className="app-header-logo">
+            <button
+              ref={headerLogoRef}
+              type="button"
+              className="app-header-logo"
+              onClick={() => introDismissed && setIsChinottoCardOpen(true)}
+              aria-label="About Chinotto"
+              tabIndex={introDismissed ? 0 : -1}
+            >
               <ChinottoLogo size={32} />
-            </div>
+            </button>
             {import.meta.env.DEV && introDismissed && (
               <Button
                 type="button"
@@ -288,12 +323,42 @@ export default function App() {
         />
       ) : (
         <>
-          <EntryStream
-            entries={entries}
-            showHighlights={!!search.trim()}
-            justAddedEntryId={justAddedEntryId}
-            onEntryClick={setSelectedEntry}
-          />
+          {!search.trim() && (() => {
+            const pinnedEntries = pinnedIds
+              .map((id) => entries.find((e) => e.id === id))
+              .filter((e): e is Entry => e != null);
+            const streamEntries = entries.filter((e) => !pinnedIds.includes(e.id));
+            return (
+              <>
+                {pinnedEntries.length > 0 && (
+                  <EntryStream
+                    entries={pinnedEntries}
+                    showHighlights={false}
+                    justAddedEntryId={null}
+                    onEntryClick={setSelectedEntry}
+                    sectionTitle="Pinned"
+                    isPinnedSection
+                    onPinToggle={handleUnpin}
+                  />
+                )}
+                <EntryStream
+                  entries={streamEntries}
+                  showHighlights={!!search.trim()}
+                  justAddedEntryId={justAddedEntryId}
+                  onEntryClick={setSelectedEntry}
+                  onPinToggle={handlePin}
+                />
+              </>
+            );
+          })()}
+          {search.trim() && (
+            <EntryStream
+              entries={entries}
+              showHighlights={true}
+              justAddedEntryId={null}
+              onEntryClick={setSelectedEntry}
+            />
+          )}
         </>
       )}
         </div>
@@ -307,6 +372,9 @@ export default function App() {
             onTransitionEnd={handleLogoTransitionEnd}
           />
         </>
+      )}
+      {isChinottoCardOpen && (
+        <ChinottoCard onClose={() => setIsChinottoCardOpen(false)} />
       )}
       {resurfaced && (
         <ResurfacedOverlay
