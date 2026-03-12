@@ -1,3 +1,5 @@
+<img width="128" height="128" alt="image" src="https://github.com/user-attachments/assets/1e297ecd-c51c-48c6-9b18-f431835470d4" />
+
 # Chinotto
 
 Chinotto is a minimal desktop thinking tool for instantly capturing thoughts and recovering context later. It is designed for people who deal with a lot of information, flows, decisions, and ideas every day, and need a simple place to dump thoughts without organizing them up front.
