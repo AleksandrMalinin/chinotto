@@ -1,12 +1,21 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useImperativeHandle, forwardRef } from "react";
+import { Textarea } from "@/components/ui/textarea";
 
 type Props = {
   onSubmit: (text: string) => void;
-  disabled?: boolean;
 };
 
-export function EntryInput({ onSubmit, disabled }: Props) {
+export type EntryInputRef = { focus: () => void };
+
+export const EntryInput = forwardRef<EntryInputRef, Props>(function EntryInput(
+  { onSubmit },
+  ref
+) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => inputRef.current?.focus(),
+  }));
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -22,14 +31,14 @@ export function EntryInput({ onSubmit, disabled }: Props) {
   }
 
   return (
-    <textarea
-      ref={inputRef}
-      className="entry-input"
-      placeholder="Type a thought and press Enter…"
-      onKeyDown={handleKeyDown}
-      disabled={disabled}
-      rows={2}
-      aria-label="New entry"
-    />
+    <div className="entry-input-area">
+      <Textarea
+        ref={inputRef}
+        placeholder="Type a thought and press Enter…"
+        onKeyDown={handleKeyDown}
+        rows={2}
+        aria-label="New entry"
+      />
+    </div>
   );
-}
+});
