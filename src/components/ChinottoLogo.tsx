@@ -1,0 +1,31 @@
+type Props = {
+  size?: number;
+  className?: string;
+};
+
+export function ChinottoLogo({ size = 64, className }: Props) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 64 64"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden
+    >
+      <circle
+        cx="32"
+        cy="32"
+        r="28"
+        stroke="currentColor"
+        strokeWidth="2"
+        fill="none"
+      />
+      <circle cx="32" cy="20" r="6" fill="currentColor" />
+      <circle cx="22" cy="34" r="5" fill="currentColor" />
+      <circle cx="42" cy="34" r="5" fill="currentColor" />
+      <circle cx="32" cy="44" r="4" fill="currentColor" />
+    </svg>
+  );
+}
