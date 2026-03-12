@@ -1,0 +1,109 @@
+:root {
+  --bg: #1a1a1a;
+  --fg: #e5e5e5;
+  --muted: #737373;
+  --border: #2a2a2a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  min-height: 100vh;
+}
+
+.app {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.app-header {
+  margin-bottom: 1rem;
+}
+
+.app-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9375rem;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+}
+
+.search-input::placeholder {
+  color: var(--muted);
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--muted);
+}
+
+.entry-input {
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 1rem;
+  font-family: inherit;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  resize: vertical;
+  min-height: 4rem;
+}
+
+.entry-input::placeholder {
+  color: var(--muted);
+}
+
+.entry-input:focus {
+  outline: none;
+  border-color: var(--muted);
+}
+
+.entry-stream {
+  list-style: none;
+  margin: 1.5rem 0 0;
+  padding: 0;
+}
+
+.entry-item {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.entry-item:last-child {
+  border-bottom: none;
+}
+
+.entry-text {
+  display: block;
+  margin-bottom: 0.25rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.entry-time {
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.stream-empty,
+.stream-loading {
+  margin: 1.5rem 0 0;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}

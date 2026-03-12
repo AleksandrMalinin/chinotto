@@ -1,0 +1,15 @@
+---
+description: How to use web search: prefer official docs, recent sources, avoid tutorial sites
+alwaysApply: true
+---
+
+# Web search rules
+
+When using web search:
+
+- Always prefer **official documentation** over tutorials
+- Prefer **GitHub repositories** and **official docs**
+- Ignore results **older than 2024**
+- Prefer docs **updated in 2025 or later**
+- Avoid Medium, dev.to, and SEO tutorial sites
+- If a documentation **version** is available, always choose the **latest stable version**
