@@ -1,5 +1,6 @@
-import { useMemo, memo } from "react";
+import { useMemo, memo, useState } from "react";
 import { motion } from "framer-motion";
+import { Pin } from "lucide-react";
 import type { Entry } from "../../types/entry";
 
 type SectionKey = "Today" | "Yesterday" | "Earlier";
@@ -22,11 +23,17 @@ function toHighlightHtml(highlighted: string): string {
     .replace(new RegExp(HIGHLIGHT_END, "g"), "</mark>");
 }
 
-type Props = {
+export type EntryStreamProps = {
   entries: Entry[];
   showHighlights?: boolean;
   justAddedEntryId?: string | null;
   onEntryClick?: (entry: Entry) => void;
+  /** Custom section title (e.g. "Pinned") instead of date-based */
+  sectionTitle?: string;
+  /** If true, entries show pin icon (filled) and click unpins */
+  isPinnedSection?: boolean;
+  /** Toggle pin: in stream = pin, in pinned section = unpin */
+  onPinToggle?: (entry: Entry) => void;
 };
 
 function getSectionKey(iso: string): SectionKey {
@@ -69,24 +76,51 @@ const EntryRow = memo(function EntryRow({
   entry,
   showHighlights,
   onEntryClick,
+  isPinned,
+  onPinToggle,
 }: {
   entry: Entry;
   showHighlights: boolean;
   onEntryClick?: (entry: Entry) => void;
+  isPinned?: boolean;
+  onPinToggle?: (entry: Entry) => void;
 }) {
+  const [hover, setHover] = useState(false);
+  const showPin = onPinToggle && (isPinned || hover);
+
   const useHighlight =
     showHighlights && entry.highlighted != null && entry.highlighted.length > 0;
   const content = useHighlight ? toHighlightHtml(entry.highlighted!) : entry.text;
 
   const row = (
     <>
-      <p id={`entry-${entry.id}`} className="entry-row-text">
-        {useHighlight ? (
-          <span dangerouslySetInnerHTML={{ __html: content }} />
-        ) : (
-          content
+      <div className="entry-row-main">
+        <p id={`entry-${entry.id}`} className="entry-row-text">
+          {useHighlight ? (
+            <span dangerouslySetInnerHTML={{ __html: content }} />
+          ) : (
+            content
+          )}
+        </p>
+        {showPin && (
+          <button
+            type="button"
+            className={`entry-row-pin ${isPinned ? "entry-row-pin-pinned" : ""}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onPinToggle?.(entry);
+            }}
+            aria-label={isPinned ? "Unpin" : "Pin"}
+            title={isPinned ? "Unpin" : "Pin"}
+          >
+            <Pin
+              size={14}
+              strokeWidth={isPinned ? 2.5 : 2}
+              className={isPinned ? "entry-row-pin-icon-filled" : ""}
+            />
+          </button>
         )}
-      </p>
+      </div>
       <time className="entry-row-time" dateTime={entry.created_at}>
         {formatTime(entry.created_at)}
       </time>
@@ -96,6 +130,7 @@ const EntryRow = memo(function EntryRow({
   const articleClass = [
     "entry-row",
     onEntryClick && "entry-row-clickable",
+    isPinned && "entry-row-pinned",
   ]
     .filter(Boolean)
     .join(" ");
@@ -114,6 +149,8 @@ const EntryRow = memo(function EntryRow({
             onEntryClick(entry);
           }
         }}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
       >
         {row}
       </article>
@@ -133,12 +170,16 @@ function StreamSection({
   showHighlights,
   justAddedEntryId,
   onEntryClick,
+  isPinned,
+  onPinToggle,
 }: {
-  section: SectionKey;
+  section: SectionKey | string;
   entries: Entry[];
   showHighlights: boolean;
   justAddedEntryId: string | null | undefined;
   onEntryClick?: (entry: Entry) => void;
+  isPinned?: boolean;
+  onPinToggle?: (entry: Entry) => void;
 }) {
   return (
     <section className="stream-section" aria-label={section}>
@@ -166,6 +207,8 @@ function StreamSection({
                 entry={entry}
                 showHighlights={showHighlights}
                 onEntryClick={onEntryClick}
+                isPinned={isPinned}
+                onPinToggle={onPinToggle}
               />
             </motion.li>
           );
@@ -175,15 +218,23 @@ function StreamSection({
   );
 }
 
-export const EntryStream = memo(function EntryStream({
+export const EntryStream = memo<EntryStreamProps>(function EntryStream({
   entries,
   showHighlights = false,
   justAddedEntryId = null,
   onEntryClick,
-}: Props) {
-  const sections = useMemo(() => groupEntriesBySection(entries), [entries]);
+  sectionTitle,
+  isPinnedSection = false,
+  onPinToggle,
+}) {
+  const sections = useMemo(() => {
+    if (sectionTitle) {
+      return [{ section: sectionTitle, entries }];
+    }
+    return groupEntriesBySection(entries);
+  }, [entries, sectionTitle]);
 
-  if (entries.length === 0) {
+  if (entries.length === 0 && !sectionTitle) {
     return (
       <p className="stream-empty" aria-live="polite">
         No entries yet. Type above and press Enter to add one.
@@ -191,8 +242,12 @@ export const EntryStream = memo(function EntryStream({
     );
   }
 
+  if (entries.length === 0 && sectionTitle) {
+    return null;
+  }
+
   return (
-    <div className="entry-stream" role="feed" aria-label="Entries">
+    <div className="entry-stream" role="feed" aria-label={sectionTitle ?? "Entries"}>
       {sections.map(({ section, entries: sectionEntries }) => (
         <StreamSection
           key={section}
@@ -201,6 +256,8 @@ export const EntryStream = memo(function EntryStream({
           showHighlights={showHighlights}
           justAddedEntryId={justAddedEntryId}
           onEntryClick={onEntryClick}
+          isPinned={isPinnedSection}
+          onPinToggle={onPinToggle}
         />
       ))}
     </div>
