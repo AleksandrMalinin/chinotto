@@ -235,7 +235,7 @@ body {
   z-index: 1;
   max-width: 1100px;
   margin: 0 auto;
-  padding: 56px 48px 2.5rem;
+  padding: 36px 32px 2.5rem;
 }
 
 .app-header {
@@ -245,7 +245,7 @@ body {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.25s ease-out;
-  margin-bottom: 0.5rem;
+  margin-bottom: 1.5rem;
 }
 
 .app-header.app-header-visible {
@@ -256,6 +256,18 @@ body {
 .app-header-logo {
   display: inline-block;
   line-height: 0;
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+}
+
+.app-header-logo:focus-visible {
+  outline: 1px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
 .app-header .chinotto-logo {
@@ -377,9 +389,10 @@ body.welcome .app-bg {
 
 .search-trigger-inline {
   flex-shrink: 0;
-  font-size: 13px;
+  font-size: 15px;
   padding: 0.25rem 0.4rem;
   min-height: auto;
+  margin-top: -0.8rem;
 }
 
 .search-overlay {
@@ -407,10 +420,10 @@ body.welcome .app-bg {
   letter-spacing: 0.01em;
   line-height: 1.4;
   color: rgba(255, 255, 255, 0.95);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  border: 0.5px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
-  transition: border-color var(--transition), box-shadow var(--transition);
+  transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
 }
 
 .search-center input::placeholder {
@@ -436,6 +449,168 @@ body.welcome .app-bg {
     opacity: 1;
     transform: scale(1) translateY(0);
   }
+}
+
+/* Chinotto Card – dark glass identity modal (logo click) */
+.chinotto-card-overlay {
+  --chinotto-glass: rgba(12, 12, 20, 0.82);
+  --chinotto-border: rgba(120, 130, 200, 0.12);
+  --chinotto-glow-violet: rgba(100, 110, 180, 0.22);
+  --chinotto-glow-blue: rgba(70, 100, 180, 0.14);
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: rgba(6, 6, 12, 0.62);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  animation: chinotto-card-overlay-in 0.4s ease-out both;
+}
+
+.chinotto-card-overlay[data-closing] {
+  animation: chinotto-card-overlay-out 0.3s ease-in forwards;
+}
+
+.chinotto-card-overlay[data-closing] .chinotto-card {
+  animation: chinotto-card-out 0.28s ease-in forwards;
+}
+
+@keyframes chinotto-card-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes chinotto-card-overlay-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.chinotto-card {
+  width: 100%;
+  max-width: 380px;
+  padding: 2.25rem 2rem;
+  text-align: center;
+  background: var(--chinotto-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--chinotto-border);
+  border-radius: 22px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.03) inset,
+    0 0 48px -8px var(--chinotto-glow-violet),
+    0 0 80px -24px var(--chinotto-glow-blue),
+    0 24px 48px -16px rgba(0, 0, 0, 0.45);
+  animation: chinotto-card-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both;
+}
+
+@keyframes chinotto-card-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-12px);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.03) inset,
+      0 0 24px -12px rgba(100, 110, 180, 0.1),
+      0 0 40px -20px rgba(70, 100, 180, 0.06),
+      0 24px 48px -16px rgba(0, 0, 0, 0.3);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.03) inset,
+      0 0 48px -8px var(--chinotto-glow-violet),
+      0 0 80px -24px var(--chinotto-glow-blue),
+      0 24px 48px -16px rgba(0, 0, 0, 0.45);
+  }
+}
+
+@keyframes chinotto-card-out {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.98) translateY(-6px);
+  }
+}
+
+.chinotto-card-logo {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+  color: rgba(255, 255, 255, 0.92);
+  /* Very subtle warm accent near logo */
+  filter: drop-shadow(0 0 20px rgba(180, 170, 150, 0.06));
+}
+
+.chinotto-card-title {
+  margin: 0 0 0.4rem;
+  font-size: 1.5rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--fg);
+}
+
+.chinotto-card-tagline {
+  margin: 0 0 1.75rem;
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.chinotto-card-section {
+  text-align: left;
+  margin: 0 0 1.5rem;
+}
+
+.chinotto-card-section-title {
+  margin: 0 0 0.6rem;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--meta-fg);
+}
+
+.chinotto-card-shortcuts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1.9;
+  color: var(--fg-dim);
+}
+
+.chinotto-card-shortcuts li {
+  margin: 0;
+}
+
+.chinotto-card-shortcuts kbd {
+  display: inline-block;
+  padding: 0.15em 0.4em;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 500;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 6px;
+}
+
+.chinotto-card-version {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--meta-fg);
 }
 
 /* Resurfaced overlay – calm moment of reflection (launch) */
@@ -607,25 +782,32 @@ body.welcome .app-bg {
 
 /* Entry input – compact editor */
 
+.entry-input-area .entry-input,
 .entry-input {
   width: 100%;
-  padding: 0.4rem 0;
+  padding: 0 0 0 0;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
   font-size: 18px;
   font-weight: 500;
   letter-spacing: 0.01em;
-  line-height: 1.5;
+  line-height: 1.1;
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--border);
   border-radius: 0;
   color: var(--fg);
   resize: none;
-  min-height: 2.5rem;
+  min-height: 1.4rem;
   transition: border-color var(--transition), box-shadow var(--transition);
+  box-sizing: border-box;
 }
 
 .entry-input::placeholder {
   color: var(--muted);
+  font-weight: 400;
+  font-size: 15px;
+  line-height: 1.1;
 }
 
 .entry-input:hover {
@@ -750,28 +932,37 @@ body.welcome .app-bg {
 }
 
 .entry-row {
-  padding: 0.5rem 0;
+  --row-padding-y: 0.5rem;
+  --row-padding-x: 0;
+  padding: var(--row-padding-y) var(--row-padding-x);
   border-bottom: 1px solid var(--border);
-  transition: background var(--transition), color var(--transition);
+  transition:
+    background 220ms ease-out,
+    color var(--transition),
+    padding 220ms ease-out,
+    box-shadow 220ms ease-out;
 }
 
 .stream-section-list > li:last-child .entry-row {
   border-bottom: none;
 }
 
+/* Clickable row: generous horizontal padding, expands on hover */
 .entry-row-clickable {
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 8px;
   margin: 0;
-  padding: 0.5rem 0;
+  --row-padding-x: 0.75rem;
 }
 
 .entry-row-clickable:hover {
-  background: var(--accent-subtle);
+  --row-padding-x: 1.25rem;
+  --row-padding-y: 0.6rem;
+  background: rgba(128, 138, 188, 0.06);
 }
 
 .entry-row-clickable:active {
-  background: rgba(130, 138, 190, 0.06);
+  background: rgba(128, 138, 188, 0.04);
 }
 
 .entry-row-clickable:hover .entry-row-text {
@@ -781,6 +972,41 @@ body.welcome .app-bg {
 .entry-row-clickable:focus-visible {
   outline: 1px solid var(--border-focus);
   outline-offset: 2px;
+}
+
+/* Pinned: soft illuminated surface, cool tint, no card feel */
+.entry-row-pinned {
+  --row-padding-x: 0.85rem;
+  --row-padding-y: 0.6rem;
+  background: linear-gradient(
+    135deg,
+    rgba(72, 88, 132, 0.07) 0%,
+    rgba(90, 108, 156, 0.05) 50%,
+    rgba(72, 88, 132, 0.06) 100%
+  );
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+
+.entry-row-pinned.entry-row-clickable:hover {
+  background: linear-gradient(
+    135deg,
+    rgba(72, 88, 132, 0.1) 0%,
+    rgba(90, 108, 156, 0.07) 50%,
+    rgba(72, 88, 132, 0.08) 100%
+  );
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+.entry-row-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.entry-row-main .entry-row-text {
+  flex: 1;
+  min-width: 0;
 }
 
 .entry-row-text {
@@ -801,11 +1027,59 @@ body.welcome .app-bg {
   color: inherit;
 }
 
+.entry-row-pin {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  padding: 0.25rem;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    color 220ms ease-out,
+    background 220ms ease-out,
+    opacity 220ms ease-out;
+  opacity: 0.65;
+}
+
+.entry-row-pin:hover {
+  color: var(--fg-dim);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.entry-row-pin:focus-visible {
+  outline: 1px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.entry-row-pin-pinned {
+  opacity: 0.95;
+  color: var(--meta-fg);
+}
+
+/* Faint warm accent near pin when pinned */
+.entry-row-pinned .entry-row-pin-pinned {
+  background: rgba(180, 170, 150, 0.04);
+}
+
+.entry-row-pin-pinned:hover {
+  color: var(--fg-dim);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.entry-row-pinned .entry-row-main {
+  padding-left: 0;
+  margin-left: 0;
+  border-left: none;
+}
+
 .entry-row-time {
   font-size: 13px;
   font-weight: 400;
   letter-spacing: 0.02em;
   color: var(--meta-fg);
+  transition: color var(--transition);
 }
 
 .stream-empty,
@@ -947,7 +1221,7 @@ body.welcome .app-bg {
 
 .entry-detail-related {
   margin-top: 2rem;
-  padding-top: 1rem;
+  padding-top: 1.5rem;
   border-top: 1px solid var(--border);
 }
 
@@ -981,7 +1255,7 @@ body.welcome .app-bg {
 .entry-detail-related-item {
   display: block;
   width: 100%;
-  padding: 0.75rem 0.25rem;
+  padding: 0.6rem 0.75rem;
   text-align: left;
   font: inherit;
   color: var(--fg);
@@ -989,8 +1263,8 @@ body.welcome .app-bg {
   border: none;
   border-bottom: 1px solid var(--border);
   cursor: pointer;
-  border-radius: 4px;
-  margin: 0 -0.25rem 0 0;
+  border-radius: 8px;
+  margin: 0;
   transition: background var(--transition), color var(--transition);
 }
 

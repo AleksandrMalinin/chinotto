@@ -34,6 +34,7 @@ export const EntryInput = forwardRef<EntryInputRef, Props>(function EntryInput(
     <div className="entry-input-area">
       <Textarea
         ref={inputRef}
+        className="entry-input !py-0"
         placeholder="Type a thought and press Enter…"
         onKeyDown={handleKeyDown}
         rows={2}
