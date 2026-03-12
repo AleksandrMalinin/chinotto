@@ -1,22 +1,19 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 
 const MIN_DISPLAY_MS = 5500;
-const EXIT_DURATION_MS = 500;
 const MIN_DRAG_PX = 40;
 
 type ExitDirection = "up" | "left" | "right";
 
 type Props = {
   onDismissRequest: () => void;
-  onDismiss: () => void;
 };
 
-export function IntroScreen({ onDismissRequest, onDismiss }: Props) {
+export function IntroScreen({ onDismissRequest }: Props) {
   const [canDismiss, setCanDismiss] = useState(false);
   const [exiting, setExiting] = useState(false);
   const [exitDirection, setExitDirection] = useState<ExitDirection>("up");
   const dragStart = useRef<{ x: number; y: number } | null>(null);
-  const exitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setCanDismiss(true), MIN_DISPLAY_MS);
@@ -29,19 +26,9 @@ export function IntroScreen({ onDismissRequest, onDismiss }: Props) {
       setExiting(true);
       setExitDirection(direction);
       onDismissRequest();
-      exitTimeoutRef.current = setTimeout(() => {
-        onDismiss();
-        exitTimeoutRef.current = null;
-      }, EXIT_DURATION_MS);
     },
-    [canDismiss, exiting, onDismissRequest, onDismiss]
+    [canDismiss, exiting, onDismissRequest]
   );
-
-  useEffect(() => {
-    return () => {
-      if (exitTimeoutRef.current) clearTimeout(exitTimeoutRef.current);
-    };
-  }, []);
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {

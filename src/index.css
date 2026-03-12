@@ -43,8 +43,6 @@ body {
 .app-shell {
   position: relative;
   min-height: 100vh;
-  padding-left: 56px;
-  padding-right: 56px;
 }
 
 /* Main app background – radial gradients (lighter tone) */
@@ -158,33 +156,36 @@ body {
   75% { transform: translate(-2%, -5%); }
 }
 
-.intro-screen-exiting.intro-screen-exit-up {
-  transform: translateY(-100%);
+.intro-screen-exiting {
   opacity: 0;
+  transition: opacity 0.35s ease-out;
+  pointer-events: none;
 }
 
-.intro-screen-exiting.intro-screen-exit-left {
-  transform: translateX(-100%);
-  opacity: 0;
-}
-
+.intro-screen-exiting.intro-screen-exit-up,
+.intro-screen-exiting.intro-screen-exit-left,
 .intro-screen-exiting.intro-screen-exit-right {
-  transform: translateX(100%);
-  opacity: 0;
+  transform: none;
 }
 
 .intro-screen-copy {
   position: relative;
   z-index: 1;
+  margin-top: 6rem;
   font-family: "Nunito", system-ui, sans-serif;
   text-align: center;
   max-width: 20em;
   transition: opacity 0.4s ease-out;
 }
 
+.intro-screen-exiting .intro-screen-copy {
+  opacity: 0;
+  transition: opacity 0.2s ease-out;
+}
+
 .intro-screen-exiting .intro-screen-copy .intro-screen-line {
   opacity: 0;
-  transition: opacity 0.25s ease-out;
+  transition: opacity 0.2s ease-out;
 }
 
 .intro-screen-line {
@@ -259,15 +260,83 @@ body {
 .app {
   position: relative;
   z-index: 1;
-  max-width: 700px;
-  margin: 0;
-  padding: 1.25rem 0 2.5rem;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 56px 48px 2.5rem;
 }
 
-.app-search-corner {
-  position: absolute;
-  top: 0;
-  right: 0;
+.app-header {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease-out;
+  margin-bottom: 0.5rem;
+}
+
+.app-header.app-header-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.app-header-logo {
+  display: inline-block;
+  line-height: 0;
+}
+
+.app-header .chinotto-logo {
+  color: var(--fg-dim);
+}
+
+/* Logo transition: flying logo from center to header (position/size set in JS) */
+.logo-transition {
+  pointer-events: none;
+}
+
+.logo-transition svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+/* Chinotto logo – intro animation (stroke draw, dots, breathing) */
+.chinotto-logo-animated .chinotto-logo-outer {
+  stroke-dasharray: 138;
+  stroke-dashoffset: 138;
+  animation: chinotto-stroke-draw 1.1s ease-out forwards;
+}
+
+@keyframes chinotto-stroke-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+.chinotto-logo-animated .chinotto-logo-dot {
+  opacity: 0;
+  transform: scale(0.88);
+  transform-origin: center;
+  animation: chinotto-dot-in 0.4s ease-out forwards;
+}
+
+.chinotto-logo-animated .chinotto-logo-dot-1 { animation-delay: 1.05s; }
+.chinotto-logo-animated .chinotto-logo-dot-2 { animation-delay: 1.28s; }
+.chinotto-logo-animated .chinotto-logo-dot-3 { animation-delay: 1.51s; }
+.chinotto-logo-animated .chinotto-logo-dot-4 { animation-delay: 1.74s; }
+
+@keyframes chinotto-dot-in {
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.chinotto-logo-animated {
+  animation: chinotto-breathe 5s ease-in-out infinite;
+  animation-delay: 2.2s;
+  animation-fill-mode: both;
+}
+
+@keyframes chinotto-breathe {
+  0%, 100% { opacity: 1; filter: drop-shadow(0 0 0 transparent); }
+  50% { opacity: 0.97; filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.06)); }
 }
 
 @keyframes welcome-wordmark {
@@ -318,7 +387,20 @@ body.welcome .app-bg {
   animation: welcome-wordmark 0.4s ease-out both;
 }
 
-.search-trigger-corner {
+.entry-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 32px;
+}
+
+.entry-input-row .entry-input-area {
+  flex: 1;
+  min-width: 0;
+}
+
+.search-trigger-inline {
+  flex-shrink: 0;
   font-size: 13px;
   padding: 0.25rem 0.4rem;
   min-height: auto;
@@ -467,9 +549,6 @@ body.welcome .app-bg {
 }
 
 /* Entry input – compact editor */
-.entry-input-area {
-  margin-bottom: 0;
-}
 
 .entry-input {
   width: 100%;
@@ -504,9 +583,9 @@ body.welcome .app-bg {
 
 /* Resurfaced card – subtle surface, no heavy card */
 .resurfaced-card {
-  margin-top: 1.5rem;
+  margin-top: 32px;
   margin-bottom: 0.875rem;
-  padding: 0.75rem 0 0.75rem 0.875rem;
+  padding: 0.75rem 0;
   border-radius: 0;
   border-left: 1px solid var(--border);
   transition: border-color var(--transition);
@@ -584,7 +663,7 @@ body.welcome .app-bg {
 
 /* Stream */
 .entry-stream {
-  margin-top: 1.25rem;
+  margin-top: 32px;
 }
 
 .stream-section {
@@ -626,9 +705,8 @@ body.welcome .app-bg {
 .entry-row-clickable {
   cursor: pointer;
   border-radius: 6px;
-  margin: 0 -0.5rem;
-  padding-left: 0.5rem;
-  padding-right: 0.5rem;
+  margin: 0;
+  padding: 0.5rem 0;
 }
 
 .entry-row-clickable:hover {
@@ -675,7 +753,7 @@ body.welcome .app-bg {
 
 .stream-empty,
 .stream-loading {
-  margin: 1.25rem 0 0;
+  margin: 0;
   font-size: 13px;
   font-weight: 400;
   letter-spacing: 0.02em;

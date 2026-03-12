@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { IntroScreen } from "@/components/IntroScreen";
+import { LogoTransition } from "@/components/LogoTransition";
+import { ChinottoLogo } from "@/components/ChinottoLogo";
 import { EntryInput, type EntryInputRef } from "./features/entries/EntryInput";
 import { EntryStream } from "./features/entries/EntryStream";
 import { EntryDetail } from "./features/entries/EntryDetail";
@@ -34,8 +36,15 @@ export default function App() {
   const [justAddedEntryId, setJustAddedEntryId] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const entryInputRef = useRef<EntryInputRef>(null);
+  const headerLogoRef = useRef<HTMLDivElement>(null);
   const triedResurfaceRef = useRef(false);
   const justAddedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [logoEndRect, setLogoEndRect] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -124,6 +133,28 @@ export default function App() {
     setSearch("");
   }
 
+  const handleLogoTransitionEnd = useCallback(() => {
+    setIntroDismissed(true);
+    setIntroTransitioning(false);
+    setLogoEndRect(null);
+    entryInputRef.current?.focus();
+  }, []);
+
+  const handleIntroDismissRequest = useCallback(() => {
+    setIntroTransitioning(true);
+    const rect = headerLogoRef.current?.getBoundingClientRect();
+    if (rect) {
+      setLogoEndRect({
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+      });
+    } else {
+      setTimeout(handleLogoTransitionEnd, 400);
+    }
+  }, [handleLogoTransitionEnd]);
+
   const mainAppClass = [
     "app-shell",
     !introDismissed && !introTransitioning && "main-app-behind",
@@ -137,18 +168,14 @@ export default function App() {
       <div className={mainAppClass}>
         <div className="app-bg" aria-hidden="true" />
         <div className="app">
-          <div className="app-search-corner">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="search-trigger-corner text-[var(--muted)] hover:text-[var(--fg-dim)]"
-              onClick={() => setIsSearchOpen(true)}
-              aria-label="Search (⌘K)"
-            >
-              ⌘K
-            </Button>
-          </div>
+          <header
+            className={`app-header ${introDismissed ? "app-header-visible" : ""}`}
+            aria-hidden={!introDismissed}
+          >
+            <div ref={headerLogoRef} className="app-header-logo">
+              <ChinottoLogo size={32} />
+            </div>
+          </header>
           {isSearchOpen && (
             <div
               className="search-overlay"
@@ -166,7 +193,19 @@ export default function App() {
               </div>
             </div>
           )}
-          <EntryInput ref={entryInputRef} onSubmit={handleSubmit} />
+          <div className="entry-input-row">
+            <EntryInput ref={entryInputRef} onSubmit={handleSubmit} />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="search-trigger-inline text-[var(--muted)] hover:text-[var(--fg-dim)]"
+              onClick={() => setIsSearchOpen(true)}
+              aria-label="Search (⌘K)"
+            >
+              ⌘K
+            </Button>
+          </div>
       {loading ? (
         <p className="stream-loading">Loading…</p>
       ) : selectedEntry ? (
@@ -199,14 +238,14 @@ export default function App() {
         </div>
       </div>
       {!introDismissed && (
-        <IntroScreen
-          onDismissRequest={() => setIntroTransitioning(true)}
-          onDismiss={() => {
-            setIntroDismissed(true);
-            setIntroTransitioning(false);
-            entryInputRef.current?.focus();
-          }}
-        />
+        <>
+          <IntroScreen onDismissRequest={handleIntroDismissRequest} />
+          <LogoTransition
+            transitioning={introTransitioning}
+            targetRect={logoEndRect}
+            onTransitionEnd={handleLogoTransitionEnd}
+          />
+        </>
       )}
     </>
   );
