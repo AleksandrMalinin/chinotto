@@ -1,7 +1,9 @@
 mod db;
 mod embeddings;
+mod keywords;
 
 use db::Db;
+use keywords::{extract_keywords, keyword_overlap, thought_trail_candidates, thought_trail_min_overlap};
 use std::fs;
 use tauri::Manager;
 
@@ -76,13 +78,18 @@ fn find_similar_entries(
         .into_iter()
         .map(|r| (r.id.clone(), r))
         .collect();
+    let limit = keywords::default_topic_limit();
     let out: Vec<EntryPayload> = top_ids
         .into_iter()
         .filter_map(|id| by_id.get(&id))
-        .map(|r| EntryPayload {
-            id: r.id.clone(),
-            text: r.text.clone(),
-            created_at: r.created_at.clone(),
+        .map(|r| {
+            let topics = extract_keywords(&r.text, limit);
+            EntryPayload {
+                id: r.id.clone(),
+                text: r.text.clone(),
+                created_at: r.created_at.clone(),
+                topics: if topics.is_empty() { None } else { Some(topics) },
+            }
         })
         .collect();
     Ok(out)
@@ -91,12 +98,17 @@ fn find_similar_entries(
 #[tauri::command]
 fn list_entries(db: tauri::State<Db>) -> Result<Vec<EntryPayload>, String> {
     let rows = db.list_entries().map_err(|e| e.to_string())?;
+    let limit = keywords::default_topic_limit();
     Ok(rows
         .into_iter()
-        .map(|r| EntryPayload {
-            id: r.id,
-            text: r.text,
-            created_at: r.created_at,
+        .map(|r| {
+            let topics = extract_keywords(&r.text, limit);
+            EntryPayload {
+                id: r.id,
+                text: r.text,
+                created_at: r.created_at,
+                topics: if topics.is_empty() { None } else { Some(topics) },
+            }
         })
         .collect())
 }
@@ -105,7 +117,7 @@ fn list_entries(db: tauri::State<Db>) -> Result<Vec<EntryPayload>, String> {
 fn get_resurfaced_entry(db: tauri::State<Db>) -> Result<Option<ResurfacedPayload>, String> {
     use rand::seq::SliceRandom;
     let now = chrono::Utc::now();
-    let cutoff = (now - chrono::Duration::days(7)).to_rfc3339();
+    let cutoff = (now - chrono::Duration::days(1)).to_rfc3339();
     let older = db
         .get_entries_with_embeddings_older_than(&cutoff)
         .map_err(|e| e.to_string())?;
@@ -178,26 +190,88 @@ fn get_resurfaced_entry(db: tauri::State<Db>) -> Result<Option<ResurfacedPayload
         "You wrote this {}.",
         format_ago(parse_created_at(&picked.created_at).unwrap_or(now), now)
     );
+    let topics = extract_keywords(&picked.text, keywords::default_topic_limit());
     Ok(Some(ResurfacedPayload {
         entry: EntryPayload {
             id: picked.id.clone(),
             text: picked.text.clone(),
             created_at: picked.created_at.clone(),
+            topics: if topics.is_empty() { None } else { Some(topics) },
         },
         reason,
     }))
 }
 
 #[tauri::command]
+fn get_thought_trail(db: tauri::State<Db>, entry_id: String) -> Result<Vec<EntryPayload>, String> {
+    let current = db
+        .get_entry_by_id(&entry_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "entry not found".to_string())?;
+    let all = db.list_entries().map_err(|e| e.to_string())?;
+    let candidates = all
+        .into_iter()
+        .filter(|r| r.id != entry_id)
+        .take(thought_trail_candidates())
+        .collect::<Vec<_>>();
+    let min_overlap = thought_trail_min_overlap();
+    let current_keywords = extract_keywords(&current.text, 15);
+    if current_keywords.is_empty() {
+        let limit = keywords::default_topic_limit();
+        let topics = extract_keywords(&current.text, limit);
+        return Ok(vec![EntryPayload {
+            id: current.id,
+            text: current.text.clone(),
+            created_at: current.created_at.clone(),
+            topics: if topics.is_empty() { None } else { Some(topics) },
+        }]);
+    }
+    let mut with_overlap: Vec<(db::EntryRow, usize)> = candidates
+        .into_iter()
+        .map(|r| {
+            let n = keyword_overlap(&current.text, &r.text);
+            (r, n)
+        })
+        .filter(|(_, n)| *n >= min_overlap)
+        .collect();
+    with_overlap.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| b.0.created_at.cmp(&a.0.created_at)));
+    let limit = keywords::default_topic_limit();
+    let mut out = vec![EntryPayload {
+        id: current.id.clone(),
+        text: current.text.clone(),
+        created_at: current.created_at.clone(),
+        topics: {
+            let t = extract_keywords(&current.text, limit);
+            if t.is_empty() { None } else { Some(t) }
+        },
+    }];
+    for (row, _) in with_overlap.into_iter().take(8) {
+        let topics = extract_keywords(&row.text, limit);
+        out.push(EntryPayload {
+            id: row.id,
+            text: row.text,
+            created_at: row.created_at,
+            topics: if topics.is_empty() { None } else { Some(topics) },
+        });
+    }
+    Ok(out)
+}
+
+#[tauri::command]
 fn search_entries(db: tauri::State<Db>, query: String) -> Result<Vec<SearchEntryPayload>, String> {
     let rows = db.search_entries(&query).map_err(|e| e.to_string())?;
+    let limit = keywords::default_topic_limit();
     Ok(rows
         .into_iter()
-        .map(|r| SearchEntryPayload {
-            id: r.id,
-            text: r.text,
-            created_at: r.created_at,
-            highlighted: r.highlighted,
+        .map(|r| {
+            let topics = extract_keywords(&r.text, limit);
+            SearchEntryPayload {
+                id: r.id,
+                text: r.text,
+                created_at: r.created_at,
+                highlighted: r.highlighted,
+                topics: if topics.is_empty() { None } else { Some(topics) },
+            }
         })
         .collect())
 }
@@ -207,6 +281,8 @@ struct EntryPayload {
     id: String,
     text: String,
     created_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    topics: Option<Vec<String>>,
 }
 
 #[derive(serde::Serialize)]
@@ -216,6 +292,8 @@ struct SearchEntryPayload {
     created_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     highlighted: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    topics: Option<Vec<String>>,
 }
 
 #[derive(serde::Serialize)]
@@ -253,6 +331,7 @@ pub fn run() {
             generate_embedding,
             find_similar_entries,
             get_resurfaced_entry,
+            get_thought_trail,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

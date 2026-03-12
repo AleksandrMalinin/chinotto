@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import type { Entry } from "../../types/entry";
 import { Button } from "@/components/ui/button";
-import { findSimilarEntries } from "./entryApi";
+import { findSimilarEntries, getThoughtTrail } from "./entryApi";
 
 type Props = {
   entry: Entry;
@@ -24,6 +24,8 @@ function truncate(text: string, maxLen: number): string {
 export function EntryDetail({ entry, onBack, onSelectEntry }: Props) {
   const [related, setRelated] = useState<Entry[]>([]);
   const [relatedLoading, setRelatedLoading] = useState(true);
+  const [trail, setTrail] = useState<Entry[]>([]);
+  const [trailLoading, setTrailLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -34,6 +36,21 @@ export function EntryDetail({ entry, onBack, onSelectEntry }: Props) {
       })
       .finally(() => {
         if (!cancelled) setRelatedLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [entry.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setTrailLoading(true);
+    getThoughtTrail(entry.id)
+      .then((list) => {
+        if (!cancelled) setTrail(list);
+      })
+      .finally(() => {
+        if (!cancelled) setTrailLoading(false);
       });
     return () => {
       cancelled = true;
@@ -56,6 +73,39 @@ export function EntryDetail({ entry, onBack, onSelectEntry }: Props) {
         {formatTimestamp(entry.created_at)}
       </time>
       <div className="entry-detail-text">{entry.text}</div>
+      {trailLoading ? null : trail.length > 1 ? (
+        <section className="entry-detail-trail" aria-label="Thought trail">
+          <h2 className="entry-detail-trail-title">Thought trail</h2>
+          <div className="entry-detail-trail-chain">
+            {trail.map((e, i) => (
+              <div key={e.id} className="entry-detail-trail-item-wrap">
+                <button
+                  type="button"
+                  className="entry-detail-trail-item"
+                  onClick={() => onSelectEntry(e)}
+                  disabled={e.id === entry.id}
+                  aria-label={e.id === entry.id ? "Current entry" : `Open: ${truncate(e.text, 60)}`}
+                >
+                  <span className="entry-detail-trail-text">
+                    {truncate(e.text, 80)}
+                  </span>
+                  <time
+                    className="entry-detail-trail-time"
+                    dateTime={e.created_at}
+                  >
+                    {formatTimestamp(e.created_at)}
+                  </time>
+                </button>
+                {i < trail.length - 1 && (
+                  <span className="entry-detail-trail-arrow" aria-hidden="true">
+                    ↓
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
       <section className="entry-detail-related" aria-label="Related entries">
         <h2 className="entry-detail-related-title">Related entries</h2>
         {relatedLoading ? (

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 
-const MIN_DISPLAY_MS = 5500;
+const MIN_DISPLAY_MS = 7500;
 const MIN_DRAG_PX = 40;
 
 type ExitDirection = "up" | "left" | "right";
@@ -97,10 +97,6 @@ export function IntroScreen({ onDismissRequest }: Props) {
       <div className="intro-screen-copy">
         <p className="intro-screen-line intro-screen-line-1">Capture first.</p>
         <p className="intro-screen-line intro-screen-line-2">Understand later.</p>
-        <span
-          className={`intro-screen-cursor ${exiting ? "intro-screen-cursor-to-editor" : ""}`}
-          aria-hidden="true"
-        />
       </div>
     </div>
   );

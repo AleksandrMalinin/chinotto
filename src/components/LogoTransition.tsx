@@ -1,9 +1,9 @@
 import { ChinottoLogo } from "@/components/ChinottoLogo";
 
-const INTRO_LOGO_SIZE = 96;
+const INTRO_LOGO_SIZE = 128;
 
-const LOGO_PAUSE_MS = 220;
-const LOGO_MOVE_MS = 720;
+const LOGO_PAUSE_MS = 500;
+const LOGO_MOVE_MS = 1100;
 const LOGO_TRANSITION_TOTAL_MS = LOGO_PAUSE_MS + LOGO_MOVE_MS;
 
 export { LOGO_TRANSITION_TOTAL_MS };

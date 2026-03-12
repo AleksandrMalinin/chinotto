@@ -5,7 +5,7 @@ import { ChinottoLogo } from "@/components/ChinottoLogo";
 import { EntryInput, type EntryInputRef } from "./features/entries/EntryInput";
 import { EntryStream } from "./features/entries/EntryStream";
 import { EntryDetail } from "./features/entries/EntryDetail";
-import { ResurfacedCard } from "./features/entries/ResurfacedCard";
+import { ResurfacedOverlay } from "./features/entries/ResurfacedOverlay";
 import { SearchInput } from "./features/entries/SearchInput";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,8 +17,46 @@ import {
 } from "./features/entries/entryApi";
 import type { Entry } from "./types/entry";
 
+const RESURFACED_RECENT_KEY = "chinotto-resurfaced-recent";
+const RESURFACED_RECENT_MAX = 3;
+
+function getRecentlyShownIds(): string[] {
+  try {
+    const raw = localStorage.getItem(RESURFACED_RECENT_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.slice(0, RESURFACED_RECENT_MAX) : [];
+  } catch {
+    return [];
+  }
+}
+
+function markAsShown(id: string): void {
+  const recent = getRecentlyShownIds();
+  const next = [id, ...recent.filter((x) => x !== id)].slice(0, RESURFACED_RECENT_MAX);
+  try {
+    localStorage.setItem(RESURFACED_RECENT_KEY, JSON.stringify(next));
+  } catch {
+    /* ignore */
+  }
+}
+
 function loadEntries(query: string): Promise<Entry[]> {
   return query.trim() ? searchEntries(query) : listEntries();
+}
+
+/** Dev-only: mock resurfaced entry so the overlay can be previewed when backend returns nothing */
+function devMockResurfaced(): { entry: Entry; reason: string } {
+  const d = new Date();
+  d.setDate(d.getDate() - 3);
+  return {
+    entry: {
+      id: "dev-mock-resurfaced",
+      text: "This is a sample thought from the past. Click the card to open it, or press Enter / Esc to continue to the main screen.",
+      created_at: d.toISOString(),
+    },
+    reason: "You wrote this 3 days ago.",
+  };
 }
 
 export default function App() {
@@ -67,6 +105,13 @@ export default function App() {
           e.preventDefault();
           window.location.reload();
         }
+        /* Force-show resurfaced overlay for testing: Ctrl+Shift+R (Cmd+Shift+R on Mac) */
+        if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "R") {
+          e.preventDefault();
+          getResurfacedEntry().then((r) => {
+            if (r) setResurfaced(r);
+          });
+        }
       }
       window.addEventListener("keydown", onKeyDown);
       return () => window.removeEventListener("keydown", onKeyDown);
@@ -75,6 +120,7 @@ export default function App() {
 
   useEffect(() => {
     if (
+      !introDismissed ||
       selectedEntry !== null ||
       loading ||
       search.trim() !== "" ||
@@ -88,9 +134,13 @@ export default function App() {
     }
     triedResurfaceRef.current = true;
     getResurfacedEntry().then((r) => {
-      if (r) setResurfaced(r);
+      if (!r) return;
+      const recent = getRecentlyShownIds();
+      if (recent.includes(r.entry.id)) return;
+      markAsShown(r.entry.id);
+      setResurfaced(r);
     });
-  }, [selectedEntry, loading, search]);
+  }, [introDismissed, selectedEntry, loading, search]);
 
   useEffect(() => {
     if (isSearchOpen) {
@@ -140,6 +190,16 @@ export default function App() {
     entryInputRef.current?.focus();
   }, []);
 
+  const handleDevPreviewResurface = useCallback(() => {
+    getResurfacedEntry().then((r) => {
+      if (r) {
+        setResurfaced(r);
+      } else if (import.meta.env.DEV) {
+        setResurfaced(devMockResurfaced());
+      }
+    });
+  }, []);
+
   const handleIntroDismissRequest = useCallback(() => {
     setIntroTransitioning(true);
     const rect = headerLogoRef.current?.getBoundingClientRect();
@@ -175,6 +235,18 @@ export default function App() {
             <div ref={headerLogoRef} className="app-header-logo">
               <ChinottoLogo size={32} />
             </div>
+            {import.meta.env.DEV && introDismissed && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="dev-preview-resurface text-[var(--muted)] hover:text-[var(--fg-dim)] text-xs"
+                onClick={handleDevPreviewResurface}
+                aria-label="Preview resurfaced overlay (dev)"
+              >
+                Preview resurface
+              </Button>
+            )}
           </header>
           {isSearchOpen && (
             <div
@@ -216,17 +288,6 @@ export default function App() {
         />
       ) : (
         <>
-          {resurfaced && (
-            <ResurfacedCard
-              entry={resurfaced.entry}
-              reason={resurfaced.reason}
-              onOpen={(entry) => {
-                setSelectedEntry(entry);
-                setResurfaced(null);
-              }}
-              onDismiss={() => setResurfaced(null)}
-            />
-          )}
           <EntryStream
             entries={entries}
             showHighlights={!!search.trim()}
@@ -246,6 +307,16 @@ export default function App() {
             onTransitionEnd={handleLogoTransitionEnd}
           />
         </>
+      )}
+      {resurfaced && (
+        <ResurfacedOverlay
+          entry={resurfaced.entry}
+          onOpen={(entry) => {
+            setSelectedEntry(entry);
+            setResurfaced(null);
+          }}
+          onDismiss={() => setResurfaced(null)}
+        />
       )}
     </>
   );

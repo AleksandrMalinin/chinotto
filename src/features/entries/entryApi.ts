@@ -32,3 +32,7 @@ export async function listEntries(): Promise<Entry[]> {
 export async function searchEntries(query: string): Promise<Entry[]> {
   return invoke<Entry[]>("search_entries", { query });
 }
+
+export async function getThoughtTrail(entryId: string): Promise<Entry[]> {
+  return invoke<Entry[]>("get_thought_trail", { entryId });
+}
