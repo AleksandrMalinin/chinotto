@@ -36,3 +36,15 @@ export async function searchEntries(query: string): Promise<Entry[]> {
 export async function getThoughtTrail(entryId: string): Promise<Entry[]> {
   return invoke<Entry[]>("get_thought_trail", { entryId });
 }
+
+export async function pinEntry(entryId: string): Promise<void> {
+  return invoke("pin_entry", { entryId });
+}
+
+export async function unpinEntry(entryId: string): Promise<void> {
+  return invoke("unpin_entry", { entryId });
+}
+
+export async function getPinnedEntryIds(): Promise<string[]> {
+  return invoke<string[]>("get_pinned_entry_ids");
+}
