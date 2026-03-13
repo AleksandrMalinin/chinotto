@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { IntroScreen } from "@/components/IntroScreen";
 import { LogoTransition } from "@/components/LogoTransition";
 import { ChinottoLogo } from "@/components/ChinottoLogo";
-import { ChevronLogo } from "@/components/ChevronLogo";
 import { ChinottoCard } from "@/components/ChinottoCard";
 import { EntryInput, type EntryInputRef } from "./features/entries/EntryInput";
 import { EntryStream } from "./features/entries/EntryStream";
@@ -19,8 +18,11 @@ import {
   getPinnedEntryIds,
   pinEntry,
   unpinEntry,
+  deleteEntry,
 } from "./features/entries/entryApi";
 import type { Entry } from "./types/entry";
+import { getStoredIconVariantId } from "@/lib/iconVariants";
+import { setDesktopIcon } from "@/lib/setDesktopIcon";
 
 const RESURFACED_RECENT_KEY = "chinotto-resurfaced-recent";
 const RESURFACED_RECENT_MAX = 3;
@@ -72,6 +74,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isChinottoCardOpen, setIsChinottoCardOpen] = useState(false);
+  const [iconVariantId, setIconVariantId] = useState(() => getStoredIconVariantId());
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
   const [resurfaced, setResurfaced] = useState<{
     entry: Entry;
@@ -79,6 +82,9 @@ export default function App() {
   } | null>(null);
   const [justAddedEntryId, setJustAddedEntryId] = useState<string | null>(null);
   const [pinnedIds, setPinnedIds] = useState<string[]>([]);
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [lastDeletedEntry, setLastDeletedEntry] = useState<Entry | null>(null);
+  const [hoveredEntryId, setHoveredEntryId] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const entryInputRef = useRef<EntryInputRef>(null);
   const headerLogoRef = useRef<HTMLButtonElement>(null);
@@ -136,6 +142,10 @@ export default function App() {
       document.body.classList.remove("chinotto-card-open");
     };
   }, [isChinottoCardOpen]);
+
+  useEffect(() => {
+    setDesktopIcon(getStoredIconVariantId()).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (import.meta.env.DEV) {
@@ -239,6 +249,76 @@ export default function App() {
     },
     [refreshPinned]
   );
+
+  const handleEntryDelete = useCallback((entry: Entry) => {
+    setDeletingIds((prev) => new Set(prev).add(entry.id));
+    setLastDeletedEntry(entry);
+    if (selectedEntry?.id === entry.id) setSelectedEntry(null);
+    deleteEntry(entry.id).catch(() => {
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(entry.id);
+        return next;
+      });
+      setLastDeletedEntry(null);
+    });
+  }, [selectedEntry?.id]);
+
+  const handleDeleteAnimationEnd = useCallback((entryId: string) => {
+    setEntries((prev) => prev.filter((e) => e.id !== entryId));
+    setPinnedIds((prev) => prev.filter((id) => id !== entryId));
+    setDeletingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(entryId);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey && lastDeletedEntry) {
+        e.preventDefault();
+        createEntry(lastDeletedEntry.text).then(() => {
+          setLastDeletedEntry(null);
+          refresh();
+        });
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [lastDeletedEntry, refresh]);
+
+  /* Cmd+Backspace: delete hovered entry (row only gets keydown when focused, so use global + hover) */
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || e.key !== "Backspace") return;
+      if (!hoveredEntryId) return;
+      const entry = entries.find((e) => e.id === hoveredEntryId);
+      if (entry) {
+        e.preventDefault();
+        handleEntryDelete(entry);
+        setHoveredEntryId(null);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [hoveredEntryId, entries, handleEntryDelete]);
+
+  /* Cmd+P: pin hovered entry (matches shortcut list in Chinotto Card) */
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "p") return;
+      if (!hoveredEntryId) return;
+      if (pinnedIds.includes(hoveredEntryId)) return; /* already pinned */
+      const entry = entries.find((e) => e.id === hoveredEntryId);
+      if (entry) {
+        e.preventDefault();
+        handlePin(entry);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [hoveredEntryId, entries, pinnedIds, handlePin]);
 
   const handleLogoTransitionEnd = useCallback(() => {
     setIntroDismissed(true);
@@ -368,6 +448,10 @@ export default function App() {
                     sectionTitle="Pinned"
                     isPinnedSection
                     onPinToggle={handleUnpin}
+                    onEntryDelete={handleEntryDelete}
+                    deletingIds={deletingIds}
+                    onDeleteAnimationEnd={handleDeleteAnimationEnd}
+                    onEntryHover={(entry) => setHoveredEntryId(entry ? entry.id : null)}
                   />
                 )}
                 <EntryStream
@@ -376,6 +460,10 @@ export default function App() {
                   justAddedEntryId={justAddedEntryId}
                   onEntryClick={setSelectedEntry}
                   onPinToggle={handlePin}
+                  onEntryDelete={handleEntryDelete}
+                  deletingIds={deletingIds}
+                  onDeleteAnimationEnd={handleDeleteAnimationEnd}
+                  onEntryHover={(entry) => setHoveredEntryId(entry ? entry.id : null)}
                 />
               </>
             );
@@ -386,13 +474,16 @@ export default function App() {
               showHighlights={true}
               justAddedEntryId={null}
               onEntryClick={setSelectedEntry}
+              onEntryDelete={handleEntryDelete}
+              deletingIds={deletingIds}
+              onDeleteAnimationEnd={handleDeleteAnimationEnd}
+              onEntryHover={(entry) => setHoveredEntryId(entry ? entry.id : null)}
             />
           )}
         </>
       )}
         </div>
         <div className="app-studio-signature" aria-hidden="true">
-          <ChevronLogo size={10} className="app-studio-signature-icon" />
           <span>Bogart Labs</span>
         </div>
       </div>
@@ -407,7 +498,11 @@ export default function App() {
         </>
       )}
       {isChinottoCardOpen && (
-        <ChinottoCard onClose={() => setIsChinottoCardOpen(false)} />
+        <ChinottoCard
+          onClose={() => setIsChinottoCardOpen(false)}
+          iconVariantId={iconVariantId}
+          onIconVariantChange={setIconVariantId}
+        />
       )}
       {resurfaced && (
         <ResurfacedOverlay

@@ -1,19 +1,37 @@
 import { useEffect, useCallback, useState } from "react";
 import { ChinottoLogo } from "@/components/ChinottoLogo";
+import {
+  getIconVariant,
+  SELECTABLE_ICON_VARIANT_IDS,
+  setStoredIconVariantId,
+} from "@/lib/iconVariants";
+import { setDesktopIcon } from "@/lib/setDesktopIcon";
 
 const SHORTCUTS = [
   { keys: "Enter", action: "Save thought" },
   { keys: "⌘ K", action: "Search" },
   { keys: "⌘ P", action: "Pin thought" },
   { keys: "⌘ N", action: "Focus input" },
+  { keys: "⌘ ⌫", action: "Delete thought" },
   { keys: "Esc", action: "Close overlays" },
 ] as const;
 
+const ICON_PREVIEW_SIZE = 36;
+
 type Props = {
   onClose: () => void;
+  iconVariantId: string;
+  onIconVariantChange: (id: string) => void;
 };
 
-export function ChinottoCard({ onClose }: Props) {
+const selectableVariants = SELECTABLE_ICON_VARIANT_IDS.map((id) => getIconVariant(id));
+
+export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Props) {
+  const handleVariantClick = (id: string) => {
+    setStoredIconVariantId(id);
+    onIconVariantChange(id);
+    setDesktopIcon(id).catch(() => {});
+  };
   const [isClosing, setIsClosing] = useState(false);
 
   const close = useCallback(() => {
@@ -54,13 +72,13 @@ export function ChinottoCard({ onClose }: Props) {
       onClick={handleOverlayClick}
       onAnimationEnd={handleAnimationEnd}
     >
-      <article
-        className="chinotto-card w-full max-w-[20rem] rounded-xl p-6 text-center border border-[var(--landing-card-border)]"
-        style={{ backgroundColor: "var(--landing-border-subtle)" }}
-        onClick={(e) => e.stopPropagation()}
-        role="document"
-      >
-        <div className="flex flex-col items-center gap-4">
+      <div className="chinotto-card-scroll">
+        <article
+          className="chinotto-card"
+          onClick={(e) => e.stopPropagation()}
+          role="document"
+        >
+        <div className="chinotto-card-head">
           <ChinottoLogo size={44} className="text-[var(--landing-foreground)]" />
           <div>
             <h1 className="text-xl font-semibold tracking-tight text-[var(--landing-foreground)]">
@@ -72,30 +90,55 @@ export function ChinottoCard({ onClose }: Props) {
           </div>
         </div>
 
-        <div className="mt-6 text-left">
-          <h2 className="text-[10px] font-medium uppercase tracking-wider text-[var(--landing-border)] mb-3">
-            Shortcuts
-          </h2>
-          <ul className="space-y-2">
+        <div className="chinotto-card-section">
+          <h2 className="chinotto-card-section-title">App icon</h2>
+          <p className="chinotto-card-section-desc">
+            Click a style to set the dock icon (macOS) or taskbar icon (Windows/Linux).
+          </p>
+          <div className="chinotto-card-icon-grid">
+            {selectableVariants.map((v) => {
+              const selected = v.id === iconVariantId;
+              return (
+                <div key={v.id} className="chinotto-card-icon-option">
+                  <button
+                    type="button"
+                    onClick={() => handleVariantClick(v.id)}
+                    className={`rounded-lg flex items-center justify-center p-2 transition-[box-shadow,outline] focus:outline-none focus-visible:outline focus-visible:outline-offset-1 focus-visible:outline-[var(--landing-border)] ${selected ? "ring-2 ring-[var(--landing-accent)] ring-offset-2 ring-offset-[var(--landing-border-subtle)]" : ""}`}
+                    style={{
+                      background: v.background,
+                      border: v.border ?? "1px solid transparent",
+                      boxShadow: v.boxShadow,
+                    }}
+                    title={v.name}
+                    aria-label={`Use ${v.name} icon`}
+                    aria-pressed={selected}
+                  >
+                    <span style={{ color: v.foreground }}>
+                      <ChinottoLogo size={ICON_PREVIEW_SIZE} />
+                    </span>
+                  </button>
+                  <span className="chinotto-card-icon-caption">{v.name}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="chinotto-card-section">
+          <h2 className="chinotto-card-section-title">Shortcuts</h2>
+          <ul className="chinotto-card-shortcuts-list">
             {SHORTCUTS.map(({ keys, action }) => (
-              <li
-                key={keys}
-                className="flex items-center gap-2.5 text-xs text-[var(--landing-muted)]"
-              >
-                <kbd className="chinotto-card-kbd inline-flex items-center justify-center min-w-[3.25rem] px-2 py-0.5 rounded border font-mono text-[11px] text-[var(--landing-foreground)]">
-                  {keys}
-                </kbd>
-                <span className="text-[var(--landing-muted)]">—</span>
-                <span className="text-[var(--landing-foreground-strong)]">
-                  {action}
-                </span>
+              <li key={keys} className="chinotto-card-shortcut">
+                <kbd className="chinotto-card-kbd">{keys}</kbd>
+                <span className="chinotto-card-shortcut-action">{action}</span>
               </li>
             ))}
           </ul>
         </div>
 
-        <p className="mt-6 text-[10px] text-[var(--landing-border)]">Version 0.1</p>
+        <p className="chinotto-card-version">Version 0.1</p>
       </article>
+      </div>
     </div>
   );
 }

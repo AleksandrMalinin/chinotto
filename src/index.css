@@ -104,14 +104,12 @@ body.chinotto-card-open {
   50% { opacity: 1; transform: scale(1.03); }
 }
 
-/* Studio signature – quiet mark, not a UI element */
+/* Studio signature – quiet mark, centered */
 .app-studio-signature {
-  display: flex;
-  align-items: center;
-  gap: 0.4em;
   position: absolute;
-  right: 24px;
+  left: 50%;
   bottom: 2rem;
+  transform: translateX(-50%);
   z-index: 1;
   font-family: inherit;
   font-size: 10px;
@@ -123,11 +121,6 @@ body.chinotto-card-open {
     0 0 6px rgba(120, 140, 255, 0.25),
     0 0 14px rgba(90, 110, 255, 0.15);
   pointer-events: none;
-}
-
-.app-studio-signature-icon {
-  flex-shrink: 0;
-  color: inherit;
 }
 
 /* Intro screen – own dark background + blobs */
@@ -510,7 +503,7 @@ body.welcome .app-bg {
   }
 }
 
-/* Chinotto Card – dark glass identity modal (logo click) */
+/* Chinotto Card – dark glass identity modal (logo click), scrollable for normal window heights */
 .chinotto-card-overlay {
   --chinotto-glass: rgba(12, 12, 20, 0.82);
   --chinotto-border: rgba(120, 130, 200, 0.12);
@@ -519,10 +512,6 @@ body.welcome .app-bg {
   position: fixed;
   inset: 0;
   z-index: 55;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
   background: rgba(6, 6, 12, 0.62);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
@@ -547,10 +536,20 @@ body.welcome .app-bg {
   to { opacity: 0; }
 }
 
+/* Scroll container: fit viewport, top-aligned content */
+.chinotto-card-scroll {
+  height: 100vh;
+  overflow-y: auto;
+  width: 100%;
+  padding: 2rem 1.5rem;
+}
+
+/* Card: horizontal center, max-width, generous vertical spacing */
 .chinotto-card {
   width: 100%;
-  max-width: 380px;
-  padding: 2.5rem;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 3rem;
   text-align: center;
   background: var(--landing-border-subtle);
   backdrop-filter: blur(20px);
@@ -564,15 +563,143 @@ body.welcome .app-bg {
   animation: chinotto-card-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both;
 }
 
-.neon-text {
+.chinotto-card-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.chinotto-card-head .chinotto-logo {
+  color: var(--landing-foreground);
+}
+
+.chinotto-card-head h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--landing-foreground);
+}
+
+.chinotto-card-head p {
+  margin: 0.375rem 0 0;
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--landing-muted);
+}
+
+.chinotto-card-head .neon-text {
   text-shadow:
     0 0 20px rgba(255, 255, 255, 0.08),
     0 0 40px rgba(160, 180, 240, 0.06);
 }
 
+.chinotto-card-section {
+  margin-top: 2rem;
+  text-align: left;
+}
+
+.chinotto-card-section-title {
+  margin: 0 0 0.75rem;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--landing-border);
+}
+
+.chinotto-card-section-desc {
+  margin: 0 0 0.75rem;
+  font-size: 11px;
+  color: var(--landing-muted);
+}
+
+.chinotto-card-icon-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chinotto-card-icon-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.chinotto-card-icon-caption {
+  font-size: 10px;
+  color: var(--landing-muted);
+}
+
+.chinotto-card-icon-grid button {
+  flex-shrink: 0;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: box-shadow 0.2s ease-out, outline 0.2s ease-out;
+}
+
+.chinotto-card-icon-grid button:focus {
+  outline: none;
+}
+
+.chinotto-card-icon-grid button:focus-visible {
+  outline: 1px solid var(--landing-border);
+  outline-offset: 2px;
+}
+
+.chinotto-card-icon-grid button[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px var(--landing-accent);
+  outline: none;
+}
+
+.chinotto-card-shortcuts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.chinotto-card-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-size: 12px;
+  color: var(--landing-muted);
+}
+
 .chinotto-card-kbd {
+  flex-shrink: 0;
+  min-width: 3.25rem;
+  padding: 0.25rem 0.5rem;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--landing-foreground);
   background: rgba(10, 10, 14, 0.8);
-  border-color: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+}
+
+.chinotto-card-shortcut-action {
+  color: var(--landing-foreground-strong);
+}
+
+.chinotto-card-version {
+  margin: 2rem 0 0;
+  font-size: 10px;
+  color: var(--landing-border);
+}
+
+.neon-text {
+  text-shadow:
+    0 0 20px rgba(255, 255, 255, 0.08),
+    0 0 40px rgba(160, 180, 240, 0.06);
 }
 
 @keyframes chinotto-card-in {
@@ -925,6 +1052,20 @@ body.welcome .app-bg {
   margin: 0;
 }
 
+/* Delete collapse: inner wrapper so height can transition from content to 0 (~150ms) */
+.entry-row-li-inner {
+  max-height: 400px;
+  overflow: visible;
+  transition: max-height 0.15s ease-out, opacity 0.15s ease-out, transform 0.15s ease-out;
+}
+
+.entry-row-li-inner-deleting {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transform: translateY(-4px);
+}
+
 .entry-row {
   --row-padding-y: 0.5rem;
   --row-padding-x: 0;
@@ -1024,20 +1165,21 @@ body.welcome .app-bg {
 .entry-row-pin {
   flex-shrink: 0;
   margin-top: 0.15rem;
-  padding: 0.25rem;
+  padding: 0.2rem;
   color: var(--muted);
   background: none;
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  opacity: 0.7;
   transition:
+    opacity 220ms ease-out,
     color 220ms ease-out,
-    background 220ms ease-out,
-    opacity 220ms ease-out;
-  opacity: 0.65;
+    background 220ms ease-out;
 }
 
 .entry-row-pin:hover {
+  opacity: 1;
   color: var(--fg-dim);
   background: rgba(255, 255, 255, 0.05);
 }
@@ -1066,6 +1208,36 @@ body.welcome .app-bg {
   padding-left: 0;
   margin-left: 0;
   border-left: none;
+}
+
+/* Delete: visible only on hover/focus, subtle by default */
+.entry-row-delete {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  padding: 0.2rem;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease-out, color 0.18s ease-out, background 0.18s ease-out;
+}
+
+.entry-row:hover .entry-row-delete,
+.entry-row:focus-within .entry-row-delete {
+  opacity: 0.7;
+}
+
+.entry-row-delete:hover {
+  opacity: 1;
+  color: var(--fg-dim);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.entry-row-delete:focus-visible {
+  outline: 1px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .entry-row-time {
