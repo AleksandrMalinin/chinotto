@@ -17,7 +17,9 @@
         "height": 600,
         "resizable": true,
         "fullscreen": false,
-        "theme": "Dark"
+        "theme": "Dark",
+        "titleBarStyle": "Transparent",
+        "backgroundColor": "#0a0a0e"
       }
     ],
     "security": {

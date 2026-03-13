@@ -21,10 +21,29 @@
   --meta-fg: rgba(255, 255, 255, 0.55);
   --accent-subtle: rgba(128, 138, 188, 0.08);
   --transition: 180ms ease-out;
+
+  /* Landing/card theme (aligns with PreviewPage) */
+  --landing-bg: #0a0a0e;
+  --landing-foreground: #e4e4e9;
+  --landing-foreground-strong: rgba(255, 255, 255, 0.92);
+  --landing-muted: #9b9fa9;
+  --landing-accent: rgba(160, 170, 255, 0.9);
+  --landing-border: rgba(255, 255, 255, 0.35);
+  --landing-border-subtle: rgba(18, 18, 26, 0.9);
+  --landing-card-border: rgba(120, 130, 200, 0.15);
 }
 
 * {
   box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
+}
+
+#root {
+  background: var(--bg);
+  min-height: 100%;
 }
 
 body {
@@ -40,9 +59,22 @@ body {
   position: relative;
 }
 
+html.intro-open,
+body.intro-open {
+  overflow: hidden;
+  height: 100%;
+}
+
+html.chinotto-card-open,
+body.chinotto-card-open {
+  overflow: hidden;
+  height: 100%;
+}
+
 .app-shell {
   position: relative;
   min-height: 100vh;
+  background: var(--bg);
 }
 
 /* Main app background – radial gradients (lighter tone) */
@@ -70,6 +102,32 @@ body {
 @keyframes ambient-glow {
   0%, 100% { opacity: 0.92; transform: scale(1); }
   50% { opacity: 1; transform: scale(1.03); }
+}
+
+/* Studio signature – quiet mark, not a UI element */
+.app-studio-signature {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  position: absolute;
+  right: 24px;
+  bottom: 2rem;
+  z-index: 1;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: rgba(160, 170, 255, 0.35);
+  opacity: 0.8;
+  text-shadow:
+    0 0 6px rgba(120, 140, 255, 0.25),
+    0 0 14px rgba(90, 110, 255, 0.15);
+  pointer-events: none;
+}
+
+.app-studio-signature-icon {
+  flex-shrink: 0;
+  color: inherit;
 }
 
 /* Intro screen – own dark background + blobs */
@@ -172,7 +230,8 @@ body {
   position: relative;
   z-index: 1;
   margin-top: 6rem;
-  font-family: "Outfit", system-ui, sans-serif;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-weight: 300;
   text-align: center;
   max-width: 20em;
   transition: opacity 0.4s ease-out;
@@ -191,7 +250,7 @@ body {
 .intro-screen-line {
   margin: 0;
   font-size: 20px;
-  font-weight: 400;
+  font-weight: 300;
   letter-spacing: 0.02em;
   line-height: 1.35;
   color: rgba(255, 255, 255, 0.92);
@@ -235,7 +294,7 @@ body {
   z-index: 1;
   max-width: 1100px;
   margin: 0 auto;
-  padding: 36px 32px 2.5rem;
+  padding: 36px 32px 4.5rem;
 }
 
 .app-header {
@@ -491,19 +550,29 @@ body.welcome .app-bg {
 .chinotto-card {
   width: 100%;
   max-width: 380px;
-  padding: 2.25rem 2rem;
+  padding: 2.5rem;
   text-align: center;
-  background: var(--chinotto-glass);
+  background: var(--landing-border-subtle);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--chinotto-border);
-  border-radius: 22px;
+  border-radius: 1rem;
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.03) inset,
-    0 0 48px -8px var(--chinotto-glow-violet),
-    0 0 80px -24px var(--chinotto-glow-blue),
-    0 24px 48px -16px rgba(0, 0, 0, 0.45);
+    0 0 32px -8px var(--chinotto-glow-violet),
+    0 0 56px -20px var(--chinotto-glow-blue),
+    0 20px 40px -16px rgba(0, 0, 0, 0.4);
   animation: chinotto-card-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both;
+}
+
+.neon-text {
+  text-shadow:
+    0 0 20px rgba(255, 255, 255, 0.08),
+    0 0 40px rgba(160, 180, 240, 0.06);
+}
+
+.chinotto-card-kbd {
+  background: rgba(10, 10, 14, 0.8);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 @keyframes chinotto-card-in {
@@ -536,81 +605,6 @@ body.welcome .app-bg {
     opacity: 0;
     transform: scale(0.98) translateY(-6px);
   }
-}
-
-.chinotto-card-logo {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 1rem;
-  color: rgba(255, 255, 255, 0.92);
-  /* Very subtle warm accent near logo */
-  filter: drop-shadow(0 0 20px rgba(180, 170, 150, 0.06));
-}
-
-.chinotto-card-title {
-  margin: 0 0 0.4rem;
-  font-size: 1.5rem;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  color: var(--fg);
-}
-
-.chinotto-card-tagline {
-  margin: 0 0 1.75rem;
-  font-size: 15px;
-  font-weight: 400;
-  letter-spacing: 0.01em;
-  line-height: 1.5;
-  color: var(--muted);
-}
-
-.chinotto-card-section {
-  text-align: left;
-  margin: 0 0 1.5rem;
-}
-
-.chinotto-card-section-title {
-  margin: 0 0 0.6rem;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--meta-fg);
-}
-
-.chinotto-card-shortcuts {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  font-size: 14px;
-  font-weight: 400;
-  letter-spacing: 0.02em;
-  line-height: 1.9;
-  color: var(--fg-dim);
-}
-
-.chinotto-card-shortcuts li {
-  margin: 0;
-}
-
-.chinotto-card-shortcuts kbd {
-  display: inline-block;
-  padding: 0.15em 0.4em;
-  font-size: 12px;
-  font-family: inherit;
-  font-weight: 500;
-  color: var(--muted);
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 6px;
-}
-
-.chinotto-card-version {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 400;
-  letter-spacing: 0.02em;
-  color: var(--meta-fg);
 }
 
 /* Resurfaced overlay – calm moment of reflection (launch) */
