@@ -77,67 +77,64 @@ export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Pr
           className="chinotto-card"
           onClick={(e) => e.stopPropagation()}
           role="document"
+          aria-label="Preferences"
         >
-        <div className="chinotto-card-head">
-          <ChinottoLogo size={44} className="text-[var(--landing-foreground)]" />
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight text-[var(--landing-foreground)]">
-              Chinotto
-            </h1>
-            <p className="mt-1.5 text-sm font-normal text-[var(--landing-muted)] neon-text">
-              Capture first. Understand later.
+          <header className="chinotto-card-head">
+            <ChinottoLogo size={24} className="chinotto-card-head-logo text-[var(--landing-foreground)]" />
+            <div>
+              <h1 className="chinotto-card-head-title">Appearance</h1>
+              <p className="chinotto-card-head-desc">Dock and taskbar icon style.</p>
+            </div>
+          </header>
+
+          <section className="chinotto-card-section" aria-labelledby="chinotto-card-app-icon-title">
+            <h2 id="chinotto-card-app-icon-title" className="chinotto-card-section-title">App icon</h2>
+            <p className="chinotto-card-section-desc">
+              Choose the icon shown in the dock (macOS) or taskbar (Windows/Linux).
             </p>
-          </div>
-        </div>
+            <div className="chinotto-card-icon-grid" role="group" aria-label="Icon style">
+              {selectableVariants.map((v) => {
+                const selected = v.id === iconVariantId;
+                return (
+                  <div key={v.id} className="chinotto-card-icon-option">
+                    <button
+                      type="button"
+                      onClick={() => handleVariantClick(v.id)}
+                      className={`chinotto-card-icon-tile ${selected ? "chinotto-card-icon-tile-selected" : ""}`}
+                      style={{
+                        background: v.background,
+                        border: v.border ?? "1px solid transparent",
+                        boxShadow: v.boxShadow,
+                      }}
+                      title={v.name}
+                      aria-label={`${v.name} icon`}
+                      aria-pressed={selected}
+                    >
+                      <span style={{ color: v.foreground }}>
+                        <ChinottoLogo size={ICON_PREVIEW_SIZE} />
+                      </span>
+                    </button>
+                    <span className="chinotto-card-icon-caption">{v.name}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
 
-        <div className="chinotto-card-section">
-          <h2 className="chinotto-card-section-title">App icon</h2>
-          <p className="chinotto-card-section-desc">
-            Click a style to set the dock icon (macOS) or taskbar icon (Windows/Linux).
-          </p>
-          <div className="chinotto-card-icon-grid">
-            {selectableVariants.map((v) => {
-              const selected = v.id === iconVariantId;
-              return (
-                <div key={v.id} className="chinotto-card-icon-option">
-                  <button
-                    type="button"
-                    onClick={() => handleVariantClick(v.id)}
-                    className={`rounded-lg flex items-center justify-center p-2 transition-[box-shadow,outline] focus:outline-none focus-visible:outline focus-visible:outline-offset-1 focus-visible:outline-[var(--landing-border)] ${selected ? "ring-2 ring-[var(--landing-accent)] ring-offset-2 ring-offset-[var(--landing-border-subtle)]" : ""}`}
-                    style={{
-                      background: v.background,
-                      border: v.border ?? "1px solid transparent",
-                      boxShadow: v.boxShadow,
-                    }}
-                    title={v.name}
-                    aria-label={`Use ${v.name} icon`}
-                    aria-pressed={selected}
-                  >
-                    <span style={{ color: v.foreground }}>
-                      <ChinottoLogo size={ICON_PREVIEW_SIZE} />
-                    </span>
-                  </button>
-                  <span className="chinotto-card-icon-caption">{v.name}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+          <section className="chinotto-card-section" aria-labelledby="chinotto-card-shortcuts-title">
+            <h2 id="chinotto-card-shortcuts-title" className="chinotto-card-section-title">Shortcuts</h2>
+            <ul className="chinotto-card-shortcuts-list">
+              {SHORTCUTS.map(({ keys, action }) => (
+                <li key={keys} className="chinotto-card-shortcut">
+                  <kbd className="chinotto-card-kbd">{keys}</kbd>
+                  <span className="chinotto-card-shortcut-action">{action}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
 
-        <div className="chinotto-card-section">
-          <h2 className="chinotto-card-section-title">Shortcuts</h2>
-          <ul className="chinotto-card-shortcuts-list">
-            {SHORTCUTS.map(({ keys, action }) => (
-              <li key={keys} className="chinotto-card-shortcut">
-                <kbd className="chinotto-card-kbd">{keys}</kbd>
-                <span className="chinotto-card-shortcut-action">{action}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <p className="chinotto-card-version">Version 0.1</p>
-      </article>
+          <p className="chinotto-card-version">Version 0.1</p>
+        </article>
       </div>
     </div>
   );
