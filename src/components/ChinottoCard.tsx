@@ -9,8 +9,8 @@ import { setDesktopIcon } from "@/lib/setDesktopIcon";
 
 const SHORTCUTS = [
   { keys: "Enter", action: "Save thought" },
-  { keys: "⌘ K", action: "Search" },
   { keys: "⌘ P", action: "Pin thought" },
+  { keys: "⌘ K", action: "Search" },
   { keys: "⌘ N", action: "Focus input" },
   { keys: "⌘ ⌫", action: "Delete thought" },
   { keys: "Esc", action: "Close overlays" },
