@@ -1,6 +1,6 @@
 import { useMemo, memo, useState } from "react";
 import { motion } from "framer-motion";
-import { Pin } from "lucide-react";
+import { Pin, X } from "lucide-react";
 import type { Entry } from "../../types/entry";
 
 type SectionKey = "Today" | "Yesterday" | "Earlier";
@@ -34,6 +34,14 @@ export type EntryStreamProps = {
   isPinnedSection?: boolean;
   /** Toggle pin: in stream = pin, in pinned section = unpin */
   onPinToggle?: (entry: Entry) => void;
+  /** Delete entry; shows × and ⌘⌫ on hover */
+  onEntryDelete?: (entry: Entry) => void;
+  /** Set of entry ids currently playing delete animation */
+  deletingIds?: Set<string>;
+  /** Called when delete exit animation finishes so parent can remove from list */
+  onDeleteAnimationEnd?: (entryId: string) => void;
+  /** Called when pointer enters/leaves a row (for global Cmd+Backspace to delete hovered) */
+  onEntryHover?: (entry: Entry | null) => void;
 };
 
 function getSectionKey(iso: string): SectionKey {
@@ -78,12 +86,16 @@ const EntryRow = memo(function EntryRow({
   onEntryClick,
   isPinned,
   onPinToggle,
+  onEntryDelete,
+  onEntryHover,
 }: {
   entry: Entry;
   showHighlights: boolean;
   onEntryClick?: (entry: Entry) => void;
   isPinned?: boolean;
   onPinToggle?: (entry: Entry) => void;
+  onEntryDelete?: (entry: Entry) => void;
+  onEntryHover?: (entry: Entry | null) => void;
 }) {
   const [hover, setHover] = useState(false);
   const showPin = onPinToggle && (isPinned || hover);
@@ -91,6 +103,19 @@ const EntryRow = memo(function EntryRow({
   const useHighlight =
     showHighlights && entry.highlighted != null && entry.highlighted.length > 0;
   const content = useHighlight ? toHighlightHtml(entry.highlighted!) : entry.text;
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Backspace") {
+      e.preventDefault();
+      e.stopPropagation();
+      onEntryDelete?.(entry);
+      return;
+    }
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onEntryClick?.(entry);
+    }
+  };
 
   const row = (
     <>
@@ -102,6 +127,20 @@ const EntryRow = memo(function EntryRow({
             content
           )}
         </p>
+        {onEntryDelete && (
+          <button
+            type="button"
+            className="entry-row-delete"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEntryDelete(entry);
+            }}
+            aria-label="Delete entry"
+            title="Delete"
+          >
+            <X size={14} strokeWidth={2} />
+          </button>
+        )}
         {showPin && (
           <button
             type="button"
@@ -135,22 +174,23 @@ const EntryRow = memo(function EntryRow({
     .filter(Boolean)
     .join(" ");
 
-  if (onEntryClick) {
+  if (onEntryClick || onEntryDelete) {
     return (
       <article
         className={articleClass}
         aria-labelledby={`entry-${entry.id}`}
         role="button"
         tabIndex={0}
-        onClick={() => onEntryClick(entry)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onEntryClick(entry);
-          }
+        onClick={() => onEntryClick?.(entry)}
+        onKeyDown={handleKeyDown}
+        onMouseEnter={() => {
+          setHover(true);
+          onEntryHover?.(entry);
         }}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
+        onMouseLeave={() => {
+          setHover(false);
+          onEntryHover?.(null);
+        }}
       >
         {row}
       </article>
@@ -172,6 +212,10 @@ function StreamSection({
   onEntryClick,
   isPinned,
   onPinToggle,
+  onEntryDelete,
+  deletingIds,
+  onDeleteAnimationEnd,
+  onEntryHover,
 }: {
   section: SectionKey | string;
   entries: Entry[];
@@ -180,13 +224,20 @@ function StreamSection({
   onEntryClick?: (entry: Entry) => void;
   isPinned?: boolean;
   onPinToggle?: (entry: Entry) => void;
+  onEntryDelete?: (entry: Entry) => void;
+  deletingIds?: Set<string>;
+  onDeleteAnimationEnd?: (entryId: string) => void;
+  onEntryHover?: (entry: Entry | null) => void;
 }) {
+  const isDeleting = (id: string) => deletingIds?.has(id) ?? false;
+
   return (
     <section className="stream-section" aria-label={section}>
       <h2 className="stream-section-title">{section}</h2>
       <ol className="stream-section-list">
         {entries.map((entry) => {
           const justAdded = entry.id === justAddedEntryId;
+          const deleting = isDeleting(entry.id);
           return (
             <motion.li
               key={entry.id}
@@ -194,22 +245,30 @@ function StreamSection({
                 opacity: 0,
                 y: justAdded ? -8 : 6,
               }}
-              animate={{
-                opacity: 1,
-                y: 0,
-              }}
+              animate={deleting ? undefined : { opacity: 1, y: 0 }}
               transition={{
                 duration: justAdded ? 0.32 : 0.26,
                 ease: "easeOut",
               }}
             >
-              <EntryRow
+              <div
+                className={`entry-row-li-inner ${deleting ? "entry-row-li-inner-deleting" : ""}`}
+                onTransitionEnd={(e) => {
+                  if (deleting && e.propertyName === "max-height") {
+                    onDeleteAnimationEnd?.(entry.id);
+                  }
+                }}
+              >
+                <EntryRow
                 entry={entry}
                 showHighlights={showHighlights}
                 onEntryClick={onEntryClick}
                 isPinned={isPinned}
                 onPinToggle={onPinToggle}
+                onEntryDelete={onEntryDelete}
+                onEntryHover={onEntryHover}
               />
+              </div>
             </motion.li>
           );
         })}
@@ -226,6 +285,10 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
   sectionTitle,
   isPinnedSection = false,
   onPinToggle,
+  onEntryDelete,
+  deletingIds,
+  onDeleteAnimationEnd,
+  onEntryHover,
 }) {
   const sections = useMemo(() => {
     if (sectionTitle) {
@@ -258,6 +321,10 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
           onEntryClick={onEntryClick}
           isPinned={isPinnedSection}
           onPinToggle={onPinToggle}
+          onEntryDelete={onEntryDelete}
+          deletingIds={deletingIds}
+          onDeleteAnimationEnd={onDeleteAnimationEnd}
+          onEntryHover={onEntryHover}
         />
       ))}
     </div>

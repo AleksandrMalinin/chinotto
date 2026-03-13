@@ -206,6 +206,12 @@ impl Db {
         rows.collect()
     }
 
+    pub fn delete_entry(&self, entry_id: &str) -> Result<(), rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        conn.execute("DELETE FROM entries WHERE id = ?1", [entry_id])?;
+        Ok(())
+    }
+
     pub fn search_entries(&self, query: &str) -> Result<Vec<SearchEntryRow>, rusqlite::Error> {
         if query.trim().is_empty() {
             let rows = self.list_entries()?;

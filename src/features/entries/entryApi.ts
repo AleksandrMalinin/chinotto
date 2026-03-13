@@ -48,3 +48,7 @@ export async function unpinEntry(entryId: string): Promise<void> {
 export async function getPinnedEntryIds(): Promise<string[]> {
   return invoke<string[]>("get_pinned_entry_ids");
 }
+
+export async function deleteEntry(entryId: string): Promise<void> {
+  return invoke("delete_entry", { entryId });
+}
