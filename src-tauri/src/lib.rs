@@ -2,6 +2,7 @@ mod db;
 mod embeddings;
 mod keywords;
 
+use base64::Engine;
 use db::Db;
 use keywords::{extract_keywords, keyword_overlap, thought_trail_candidates, thought_trail_min_overlap};
 use std::fs;
@@ -294,6 +295,14 @@ fn get_pinned_entry_ids(db: tauri::State<Db>) -> Result<Vec<String>, String> {
     db.list_pinned_entry_ids().map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn delete_entry(db: tauri::State<Db>, entry_id: String) -> Result<(), String> {
+    db.get_entry_by_id(&entry_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "entry not found".to_string())?;
+    db.delete_entry(&entry_id).map_err(|e| e.to_string())
+}
+
 #[derive(serde::Serialize)]
 struct EntryPayload {
     id: String,
@@ -318,6 +327,54 @@ struct SearchEntryPayload {
 struct ResurfacedPayload {
     entry: EntryPayload,
     reason: String,
+}
+
+#[tauri::command]
+fn set_app_icon(app: tauri::AppHandle, png_base64: String) -> Result<(), String> {
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(png_base64.trim())
+        .map_err(|e| e.to_string())?;
+    #[cfg(target_os = "macos")]
+    set_macos_dock_icon(&bytes)?;
+    #[cfg(not(target_os = "macos"))]
+    {
+        let window = app
+            .get_webview_window("main")
+            .ok_or("main window not found")?;
+        window
+            .set_icon(tauri::Icon::Raw(bytes))
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn set_macos_dock_icon(png_bytes: &[u8]) -> Result<(), String> {
+    use cocoa::appkit::NSImage;
+    use cocoa::foundation::NSData;
+    use objc::{msg_send, sel, sel_impl};
+    use objc::runtime::Class;
+
+    unsafe {
+        let app_class = Class::get("NSApplication").ok_or("NSApplication not found")?;
+        let app: *mut objc::runtime::Object = msg_send![app_class, sharedApplication];
+        if app.is_null() {
+            return Err("NSApplication sharedApplication returned null".to_string());
+        }
+        let data = NSData::dataWithBytes_length_(
+            cocoa::base::nil,
+            png_bytes.as_ptr() as *const std::ffi::c_void,
+            png_bytes.len() as u64,
+        );
+        let nsimage_class = Class::get("NSImage").ok_or("NSImage not found")?;
+        let image: *mut objc::runtime::Object = msg_send![nsimage_class, alloc];
+        let image: *mut objc::runtime::Object = msg_send![image, initWithData: data];
+        if image.is_null() {
+            return Err("NSImage initWithData failed".to_string());
+        }
+        let _: () = msg_send![app, setApplicationIconImage: image];
+    }
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -353,6 +410,8 @@ pub fn run() {
             pin_entry,
             unpin_entry,
             get_pinned_entry_ids,
+            delete_entry,
+            set_app_icon,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
