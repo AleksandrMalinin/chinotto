@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { IntroScreen } from "@/components/IntroScreen";
 import { LogoTransition } from "@/components/LogoTransition";
 import { ChinottoLogo } from "@/components/ChinottoLogo";
+import { ChevronLogo } from "@/components/ChevronLogo";
 import { ChinottoCard } from "@/components/ChinottoCard";
 import { EntryInput, type EntryInputRef } from "./features/entries/EntryInput";
 import { EntryStream } from "./features/entries/EntryStream";
@@ -107,6 +108,34 @@ export default function App() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!introDismissed) {
+      document.documentElement.classList.add("intro-open");
+      document.body.classList.add("intro-open");
+    } else {
+      document.documentElement.classList.remove("intro-open");
+      document.body.classList.remove("intro-open");
+    }
+    return () => {
+      document.documentElement.classList.remove("intro-open");
+      document.body.classList.remove("intro-open");
+    };
+  }, [introDismissed]);
+
+  useEffect(() => {
+    if (isChinottoCardOpen) {
+      document.documentElement.classList.add("chinotto-card-open");
+      document.body.classList.add("chinotto-card-open");
+    } else {
+      document.documentElement.classList.remove("chinotto-card-open");
+      document.body.classList.remove("chinotto-card-open");
+    }
+    return () => {
+      document.documentElement.classList.remove("chinotto-card-open");
+      document.body.classList.remove("chinotto-card-open");
+    };
+  }, [isChinottoCardOpen]);
 
   useEffect(() => {
     if (import.meta.env.DEV) {
@@ -361,6 +390,10 @@ export default function App() {
           )}
         </>
       )}
+        </div>
+        <div className="app-studio-signature" aria-hidden="true">
+          <ChevronLogo size={10} className="app-studio-signature-icon" />
+          <span>Bogart Labs</span>
         </div>
       </div>
       {!introDismissed && (
