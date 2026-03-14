@@ -3,6 +3,35 @@
 version = 3
 
 [[package]]
+name = "Chinotto"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "block2",
+ "chrono",
+ "cocoa",
+ "fastembed",
+ "log",
+ "objc",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-avf-audio",
+ "objc2-foundation",
+ "objc2-speech",
+ "once_cell",
+ "rand 0.8.5",
+ "rand_chacha 0.3.1",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-global-shortcut",
+ "tauri-plugin-log",
+ "uuid",
+]
+
+[[package]]
 name = "adler2"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -461,35 +490,6 @@ name = "cfg_aliases"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
-
-[[package]]
-name = "chinotto-app"
-version = "0.1.0"
-dependencies = [
- "base64 0.22.1",
- "block2",
- "chrono",
- "cocoa",
- "fastembed",
- "log",
- "objc",
- "objc2",
- "objc2-app-kit",
- "objc2-avf-audio",
- "objc2-foundation",
- "objc2-speech",
- "once_cell",
- "rand 0.8.5",
- "rand_chacha 0.3.1",
- "rusqlite",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-global-shortcut",
- "tauri-plugin-log",
- "uuid",
-]
 
 [[package]]
 name = "chrono"
