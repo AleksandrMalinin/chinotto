@@ -133,7 +133,7 @@ export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Pr
             </ul>
           </section>
 
-          <p className="chinotto-card-version">Version 0.1</p>
+          <p className="chinotto-card-version">v0.1 beta</p>
         </article>
       </div>
     </div>
