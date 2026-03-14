@@ -25,8 +25,12 @@ export type Resurfaced = {
   reason: string;
 };
 
-export async function getResurfacedEntry(): Promise<Resurfaced | null> {
-  return invoke<Resurfaced | null>("get_resurfaced_entry");
+export async function getResurfacedEntry(
+  excludeIds: string[] = []
+): Promise<Resurfaced | null> {
+  return invoke<Resurfaced | null>("get_resurfaced_entry", {
+    excludeIds,
+  });
 }
 
 export async function listEntries(): Promise<Entry[]> {
@@ -51,6 +55,10 @@ export async function unpinEntry(entryId: string): Promise<void> {
 
 export async function getPinnedEntryIds(): Promise<string[]> {
   return invoke<string[]>("get_pinned_entry_ids");
+}
+
+export function recordEntryOpen(entryId: string): void {
+  invoke("record_entry_open", { entryId }).catch(() => {});
 }
 
 export async function deleteEntry(entryId: string): Promise<void> {

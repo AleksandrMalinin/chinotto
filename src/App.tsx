@@ -20,6 +20,7 @@ import {
   getPinnedEntryIds,
   pinEntry,
   unpinEntry,
+  recordEntryOpen,
   deleteEntry,
 } from "./features/entries/entryApi";
 import type { Entry } from "./types/entry";
@@ -30,25 +31,47 @@ import { listen } from "@tauri-apps/api/event";
 /** Voice capture is disabled in the main flow. Set to true to re-enable as an experimental feature. */
 const EXPERIMENTAL_VOICE_CAPTURE = false;
 
-const RESURFACED_RECENT_KEY = "chinotto-resurfaced-recent";
-const RESURFACED_RECENT_MAX = 3;
+const RESURFACED_HISTORY_KEY = "chinotto-resurfaced-history";
+const RESURFACED_COOLDOWN_DAYS = 7;
+const RESURFACED_HISTORY_MAX = 50;
+const RESURFACE_SHOW_PROBABILITY = 0.65;
 
-function getRecentlyShownIds(): string[] {
+type ResurfacedRecord = { id: string; shownAt: string };
+
+function getResurfacedHistory(): ResurfacedRecord[] {
   try {
-    const raw = localStorage.getItem(RESURFACED_RECENT_KEY);
+    const raw = localStorage.getItem(RESURFACED_HISTORY_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
-    return Array.isArray(parsed) ? parsed.slice(0, RESURFACED_RECENT_MAX) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (x): x is ResurfacedRecord =>
+        typeof x === "object" && x !== null && "id" in x && "shownAt" in x
+    );
   } catch {
     return [];
   }
 }
 
+/** Entry IDs that are still in cooldown (shown within last RESURFACED_COOLDOWN_DAYS). */
+function getIdsInCooldown(): string[] {
+  const history = getResurfacedHistory();
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - RESURFACED_COOLDOWN_DAYS);
+  const cutoffMs = cutoff.getTime();
+  return history
+    .filter((r) => new Date(r.shownAt).getTime() >= cutoffMs)
+    .map((r) => r.id);
+}
+
 function markAsShown(id: string): void {
-  const recent = getRecentlyShownIds();
-  const next = [id, ...recent.filter((x) => x !== id)].slice(0, RESURFACED_RECENT_MAX);
+  const history = getResurfacedHistory();
+  const next = [
+    { id, shownAt: new Date().toISOString() },
+    ...history.filter((r) => r.id !== id),
+  ].slice(0, RESURFACED_HISTORY_MAX);
   try {
-    localStorage.setItem(RESURFACED_RECENT_KEY, JSON.stringify(next));
+    localStorage.setItem(RESURFACED_HISTORY_KEY, JSON.stringify(next));
   } catch {
     /* ignore */
   }
@@ -101,6 +124,8 @@ export default function App() {
   const entryInputRef = useRef<EntryInputRef>(null);
   const headerLogoRef = useRef<HTMLButtonElement>(null);
   const triedResurfaceRef = useRef(false);
+  const shownThisSessionRef = useRef(false);
+  const attemptedAfterSaveRef = useRef(false);
   const justAddedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ephemeralTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [logoEndRect, setLogoEndRect] = useState<{
@@ -191,7 +216,7 @@ export default function App() {
         /* Force-show resurfaced overlay for testing: Ctrl+Shift+R (Cmd+Shift+R on Mac) */
         if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "R") {
           e.preventDefault();
-          getResurfacedEntry().then((r) => {
+          getResurfacedEntry(getIdsInCooldown()).then((r) => {
             if (r) setResurfaced(r);
           });
         }
@@ -201,29 +226,39 @@ export default function App() {
     }
   }, []);
 
+  const resurfaceInFlightRef = useRef(false);
+  const tryResurface = useCallback(() => {
+    if (shownThisSessionRef.current || resurfaceInFlightRef.current) return;
+    resurfaceInFlightRef.current = true;
+    const excludeIds = getIdsInCooldown();
+    getResurfacedEntry(excludeIds)
+      .then((r) => {
+        if (!r) return;
+        if (Math.random() > RESURFACE_SHOW_PROBABILITY) return;
+        shownThisSessionRef.current = true;
+        markAsShown(r.entry.id);
+        setResurfaced(r);
+      })
+      .finally(() => {
+        resurfaceInFlightRef.current = false;
+      });
+  }, []);
+
   useEffect(() => {
     if (
       !introDismissed ||
       selectedEntry !== null ||
       loading ||
       search.trim() !== "" ||
+      isSearchOpen ||
+      editingEntryId !== null ||
       triedResurfaceRef.current
     ) {
       return;
     }
-    if (Math.random() > 0.35) {
-      triedResurfaceRef.current = true;
-      return;
-    }
     triedResurfaceRef.current = true;
-    getResurfacedEntry().then((r) => {
-      if (!r) return;
-      const recent = getRecentlyShownIds();
-      if (recent.includes(r.entry.id)) return;
-      markAsShown(r.entry.id);
-      setResurfaced(r);
-    });
-  }, [introDismissed, selectedEntry, loading, search]);
+    tryResurface();
+  }, [introDismissed, selectedEntry, loading, search, isSearchOpen, editingEntryId, tryResurface]);
 
   useEffect(() => {
     if (isSearchOpen) {
@@ -299,12 +334,21 @@ export default function App() {
     }, 400);
     refresh();
     generateEmbedding(id);
+    if (!shownThisSessionRef.current && !attemptedAfterSaveRef.current) {
+      attemptedAfterSaveRef.current = true;
+      setTimeout(() => tryResurface(), 500);
+    }
   }
 
   function handleSearchClose() {
     setIsSearchOpen(false);
     setSearch("");
   }
+
+  const handleOpenEntry = useCallback((entry: Entry) => {
+    recordEntryOpen(entry.id);
+    setSelectedEntry(entry);
+  }, []);
 
   const refreshPinned = useCallback(() => {
     getPinnedEntryIds().then(setPinnedIds);
@@ -522,16 +566,21 @@ export default function App() {
             className={`app-header ${introDismissed ? "app-header-visible" : ""}`}
             aria-hidden={!introDismissed}
           >
-            <button
-              ref={headerLogoRef}
-              type="button"
-              className="app-header-logo"
-              onClick={() => introDismissed && setIsChinottoCardOpen(true)}
-              aria-label="About Chinotto"
-              tabIndex={introDismissed ? 0 : -1}
-            >
-              <ChinottoLogo size={32} />
-            </button>
+            <div className="app-header-brand">
+              <button
+                ref={headerLogoRef}
+                type="button"
+                className="app-header-logo"
+                onClick={() => introDismissed && setIsChinottoCardOpen(true)}
+                aria-label="About Chinotto"
+                tabIndex={introDismissed ? 0 : -1}
+              >
+                <ChinottoLogo size={32} />
+              </button>
+              <span className="app-header-name">
+                Chinotto <span className="app-header-beta" aria-hidden="true">β</span>
+              </span>
+            </div>
             {import.meta.env.DEV && introDismissed && (
               <Button
                 type="button"
@@ -581,7 +630,7 @@ export default function App() {
         <EntryDetail
           entry={selectedEntry}
           onBack={() => setSelectedEntry(null)}
-          onSelectEntry={setSelectedEntry}
+          onSelectEntry={handleOpenEntry}
         />
       ) : (
         <>
@@ -603,7 +652,7 @@ export default function App() {
                     onEntryUpdate={handleEntryUpdate}
                     onStartLateEdit={handleStartLateEdit}
                     onEndEdit={handleEndEdit}
-                    onEntryClick={setSelectedEntry}
+                    onEntryClick={handleOpenEntry}
                     sectionTitle="Pinned"
                     isPinnedSection
                     onPinToggle={handleUnpin}
@@ -623,7 +672,7 @@ export default function App() {
                   onEntryUpdate={handleEntryUpdate}
                   onStartLateEdit={handleStartLateEdit}
                   onEndEdit={handleEndEdit}
-                  onEntryClick={setSelectedEntry}
+                  onEntryClick={handleOpenEntry}
                   onPinToggle={handlePin}
                   onEntryDelete={handleEntryDelete}
                   deletingIds={deletingIds}
@@ -641,7 +690,7 @@ export default function App() {
               ephemeralEntryIds={new Set()}
               editingEntryId={null}
               settlingEntryIds={new Set()}
-              onEntryClick={setSelectedEntry}
+              onEntryClick={handleOpenEntry}
               onEntryDelete={handleEntryDelete}
               deletingIds={deletingIds}
               onDeleteAnimationEnd={handleDeleteAnimationEnd}
@@ -675,8 +724,9 @@ export default function App() {
       {resurfaced && (
         <ResurfacedOverlay
           entry={resurfaced.entry}
+          reason={resurfaced.reason}
           onOpen={(entry) => {
-            setSelectedEntry(entry);
+            handleOpenEntry(entry);
             setResurfaced(null);
           }}
           onDismiss={() => setResurfaced(null)}

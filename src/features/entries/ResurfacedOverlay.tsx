@@ -3,6 +3,8 @@ import type { Entry } from "../../types/entry";
 
 type Props = {
   entry: Entry;
+  /** Memory-style reason from backend, e.g. "You wrote this yesterday" */
+  reason?: string;
   onOpen: (entry: Entry) => void;
   onDismiss: () => void;
 };
@@ -36,7 +38,15 @@ function truncate(text: string, max: number): string {
   return text.slice(0, max).trimEnd() + "…";
 }
 
-export function ResurfacedOverlay({ entry, onOpen, onDismiss }: Props) {
+export function ResurfacedOverlay({
+  entry,
+  reason: reasonProp,
+  onOpen,
+  onDismiss,
+}: Props) {
+  const label = reasonProp ?? (fromAgoLabel(entry.created_at) === "earlier today"
+    ? "From earlier today"
+    : `From ${fromAgoLabel(entry.created_at)} ago`);
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === "Escape" || e.key === "Enter") {
@@ -77,11 +87,7 @@ export function ResurfacedOverlay({ entry, onOpen, onDismiss }: Props) {
         }}
         aria-label="Open this thought"
       >
-        <p className="resurfaced-overlay-label">
-          {fromAgoLabel(entry.created_at) === "earlier today"
-            ? "From earlier today"
-            : `From ${fromAgoLabel(entry.created_at)} ago`}
-        </p>
+        <p className="resurfaced-overlay-label">{label}</p>
         <p className="resurfaced-overlay-text">{truncate(entry.text, MAX_PREVIEW)}</p>
       </button>
     </div>
