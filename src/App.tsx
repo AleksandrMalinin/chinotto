@@ -668,7 +668,10 @@ export default function App() {
       ) : selectedEntry ? (
         <EntryDetail
           entry={selectedEntry}
-          onBack={() => setSelectedEntry(null)}
+          onBack={() => {
+          setSelectedEntry(null);
+          requestAnimationFrame(() => entryInputRef.current?.focus());
+        }}
           onSelectEntry={handleOpenEntry}
         />
       ) : (
