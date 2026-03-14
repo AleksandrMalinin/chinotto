@@ -40,6 +40,10 @@ The product is “capture first, structure later.” The MVP avoids folders, pag
 
 Frontend calls backend via Tauri `invoke()` for `create_entry`, `list_entries`, and `search_entries`.
 
+**Recall (resurfacing):** Guardrails for a quiet, non-intrusive recall system are in `docs/recall-guardrails.md` (max one per session, cooldown, timing, frequency).
+
+**Entry importance:** A lightweight, invisible score (pinned + edit count + open count) is used only as a small ranking boost in resurfacing and thought trail. No UI; see importance constants in `src-tauri/src/lib.rs`.
+
 ## Experimental / disabled features
 
 **Voice capture** (macOS) is implemented but **disabled** in the main flow: it was too fragile and slow for the MVP. The code remains in place so it can return as an experimental feature later.

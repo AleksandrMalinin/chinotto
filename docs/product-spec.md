@@ -66,8 +66,8 @@ What the app does today. Single source of truth for “do we have this?” and �
 
 | Feature | Description |
 |---------|-------------|
-| **Resurface** | After intro, app may show a random past entry with a short reason (“You wrote this 3 days ago”). Dismiss with Enter/Escape. Recent shown entries are skipped for a while. |
-| **Thought trail** | From an entry’s detail view: “Thought trail” shows other entries related by keyword overlap (no embeddings in UI). |
+| **Resurface** | At most one per session; only on app open or after saving an entry. Temporal recall (24h / 7d / 30d ±3h or random fallback). Message is memory-style. Entries shown recently are in cooldown (7 days). Sometimes the app shows nothing—silence is acceptable. See `docs/recall-guardrails.md`. |
+| **Thought trail** | From an entry’s detail view: “Thought trail” shows how the thought evolved—entries ordered earlier → current → later, scored by keyword similarity (IDF-weighted) and temporal proximity. Max 4 related; labels like “12 days earlier” / “3 days later”. No embeddings. |
 
 ### App chrome and settings
 
