@@ -1,6 +1,8 @@
 mod db;
 mod embeddings;
 mod keywords;
+mod recall;
+mod thought_trail;
 
 #[cfg(target_os = "macos")]
 mod speech;
@@ -175,89 +177,68 @@ fn list_entries(db: tauri::State<Db>) -> Result<Vec<EntryPayload>, String> {
 }
 
 /// Temporal recall: try 24h, 7d, 30d anchors (±3h window); fallback to random past entry.
-/// Importance (pinned, edited, opened) is used as a small weighting boost.
+/// Delegates to recall::select_entry_for_resurface (pure, testable).
 #[tauri::command]
 fn get_resurfaced_entry(
     db: tauri::State<Db>,
     exclude_ids: Vec<String>,
 ) -> Result<Option<ResurfacedPayload>, String> {
-    use rand::seq::SliceRandom;
+    get_resurfaced_entry_impl(&*db, exclude_ids, &mut rand::thread_rng())
+}
+
+/// Core resurface logic (DB + exclude list + RNG). Used by the command and by integration tests.
+pub(crate) fn get_resurfaced_entry_impl<R: rand::RngCore>(
+    db: &Db,
+    exclude_ids: Vec<String>,
+    rng: &mut R,
+) -> Result<Option<ResurfacedPayload>, String> {
+    let all = db.list_entries().map_err(|e| e.to_string())?;
+    let entries: Vec<recall::ResurfaceEntry> = all
+        .into_iter()
+        .map(|r| recall::ResurfaceEntry {
+            id: r.id,
+            text: r.text,
+            created_at: r.created_at,
+            edit_count: r.edit_count,
+            open_count: r.open_count,
+        })
+        .collect();
     let pinned_ids: std::collections::HashSet<String> = db
         .list_pinned_entry_ids()
         .map_err(|e| e.to_string())?
         .into_iter()
         .collect();
-    let now = chrono::Utc::now();
-    let window = chrono::Duration::hours(3);
-    let anchors: [(chrono::Duration, &str); 3] = [
-        (chrono::Duration::days(1), "24h"),
-        (chrono::Duration::days(7), "7d"),
-        (chrono::Duration::days(30), "30d"),
-    ];
-    for (delta, label) in anchors {
-        let target = now - delta;
-        let from_iso = (target - window).to_rfc3339();
-        let to_iso = (target + window).to_rfc3339();
-        let candidates = db
-            .get_entries_in_time_window(&from_iso, &to_iso, &exclude_ids)
-            .map_err(|e| e.to_string())?;
-        if candidates.is_empty() {
-            continue;
-        }
-        let weighted: Vec<(db::EntryRow, f64)> = candidates
-            .into_iter()
-            .map(|c| {
-                let w = importance_boost(importance_score(&c, &pinned_ids));
-                (c, w)
-            })
-            .collect();
-        if let Ok(picked) = weighted.choose_weighted(&mut rand::thread_rng(), |(_, w)| *w) {
-            let picked = &picked.0;
-            let topics = extract_keywords(&picked.text, keywords::default_topic_limit());
-            return Ok(Some(ResurfacedPayload {
-                entry: EntryPayload {
-                    id: picked.id.clone(),
-                    text: picked.text.clone(),
-                    created_at: picked.created_at.clone(),
-                    topics: if topics.is_empty() {
-                        None
-                    } else {
-                        Some(topics)
-                    },
-                },
-                reason: temporal_reason_anchor(label).to_string(),
-            }));
-        }
-    }
-    let all = db.list_entries().map_err(|e| e.to_string())?;
     let exclude: std::collections::HashSet<&str> =
         exclude_ids.iter().map(String::as_str).collect();
-    let candidates: Vec<&db::EntryRow> = all
-        .iter()
-        .filter(|r| !exclude.contains(r.id.as_str()))
-        .collect();
-    if candidates.is_empty() {
-        return Ok(None);
-    }
-    let weighted: Vec<(&db::EntryRow, f64)> = candidates
-        .iter()
-        .map(|c| {
-            let w = importance_boost(importance_score(c, &pinned_ids));
-            (*c, w)
-        })
-        .collect();
-    let picked = match weighted.choose_weighted(&mut rand::thread_rng(), |(_, w)| *w) {
-        Ok((p, _)) => (*p).clone(),
-        Err(_) => return Ok(None),
+    let pinned_ref: std::collections::HashSet<&str> =
+        pinned_ids.iter().map(String::as_str).collect();
+    let now = chrono::Utc::now();
+    let result = recall::select_entry_for_resurface(
+        &entries,
+        now,
+        &exclude,
+        &pinned_ref,
+        rng,
+    );
+    let (picked, anchor) = match result {
+        Some(r) => r,
+        None => return Ok(None),
     };
-    let created = parse_created_at(&picked.created_at).unwrap_or(now);
-    let reason = format!("You wrote this {}.", format_ago(created, now));
+    let reason = match anchor {
+        recall::Anchor::Anchor24h => temporal_reason_anchor("24h").to_string(),
+        recall::Anchor::Anchor7d => temporal_reason_anchor("7d").to_string(),
+        recall::Anchor::Anchor30d => temporal_reason_anchor("30d").to_string(),
+        recall::Anchor::Fallback => {
+            let created = parse_created_at(&picked.created_at).unwrap_or(now);
+            format!("You wrote this {}.", format_ago(created, now))
+        }
+    };
     let topics = extract_keywords(&picked.text, keywords::default_topic_limit());
     Ok(Some(ResurfacedPayload {
         entry: EntryPayload {
-            id: picked.id.clone(),
-            text: picked.text.clone(),
-            created_at: picked.created_at.clone(),
+            id: picked.id,
+            text: picked.text,
+            created_at: picked.created_at,
             topics: if topics.is_empty() {
                 None
             } else {
@@ -608,4 +589,62 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod resurface_integration {
+    use super::*;
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha8Rng;
+    use std::path::PathBuf;
+
+    fn open_memory_db() -> Db {
+        Db::open(PathBuf::from(":memory:")).expect("in-memory db")
+    }
+
+    #[test]
+    fn at_most_one_entry_returned_per_call() {
+        let db = open_memory_db();
+        let now = chrono::Utc::now();
+        let t24 = (now - chrono::Duration::days(1)).to_rfc3339();
+        db.create_entry("a", "entry a", &t24).unwrap();
+        let mut rng = ChaCha8Rng::seed_from_u64(1);
+        let r = get_resurfaced_entry_impl(&db, vec![], &mut rng).unwrap();
+        assert!(r.is_some());
+        assert_eq!(r.as_ref().map(|p| p.entry.id.as_str()), Some("a"));
+    }
+
+    #[test]
+    fn excluded_ids_never_returned() {
+        let db = open_memory_db();
+        let now = chrono::Utc::now();
+        let t24 = (now - chrono::Duration::days(1)).to_rfc3339();
+        let t7d = (now - chrono::Duration::days(7)).to_rfc3339();
+        db.create_entry("id-24h", "thought 24h", &t24).unwrap();
+        db.create_entry("id-7d", "thought 7d", &t7d).unwrap();
+        let mut rng = ChaCha8Rng::seed_from_u64(2);
+        let with_exclude =
+            get_resurfaced_entry_impl(&db, vec!["id-24h".to_string()], &mut rng).unwrap();
+        assert!(with_exclude.is_some());
+        assert_eq!(with_exclude.as_ref().unwrap().entry.id, "id-7d");
+    }
+
+    #[test]
+    fn cooldown_excluding_only_candidate_returns_none() {
+        let db = open_memory_db();
+        let now = chrono::Utc::now();
+        let t24 = (now - chrono::Duration::days(1)).to_rfc3339();
+        db.create_entry("only", "only entry", &t24).unwrap();
+        let mut rng = ChaCha8Rng::seed_from_u64(3);
+        let r = get_resurfaced_entry_impl(&db, vec!["only".to_string()], &mut rng).unwrap();
+        assert!(r.is_none());
+    }
+
+    #[test]
+    fn empty_db_returns_none() {
+        let db = open_memory_db();
+        let mut rng = ChaCha8Rng::seed_from_u64(4);
+        let r = get_resurfaced_entry_impl(&db, vec![], &mut rng).unwrap();
+        assert!(r.is_none());
+    }
 }
