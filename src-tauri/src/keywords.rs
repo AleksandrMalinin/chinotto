@@ -55,6 +55,45 @@ pub fn keyword_overlap(text_a: &str, text_b: &str) -> usize {
     a.intersection(&b).count()
 }
 
+/// Tokenize and return set of terms (for IDF and similarity).
+pub fn token_set(text: &str) -> std::collections::HashSet<String> {
+    tokenize(text).into_iter().collect()
+}
+
+/// Similarity score 0..1 for thought trail: weighted keyword overlap (IDF-like).
+/// Rare terms that appear in both texts contribute more. `corpus` = token sets of all candidate texts.
+pub fn thought_trail_similarity(
+    current_text: &str,
+    other_text: &str,
+    corpus_token_sets: &[std::collections::HashSet<String>],
+    keyword_limit: usize,
+) -> f64 {
+    let current_kw: Vec<String> = extract_keywords(current_text, keyword_limit)
+        .into_iter()
+        .collect();
+    if current_kw.is_empty() {
+        return 0.0;
+    }
+    let other_tokens = token_set(other_text);
+    let mut weighted_overlap = 0.0;
+    let mut denom = 0.0;
+    for term in &current_kw {
+        let df = 1 + corpus_token_sets
+            .iter()
+            .filter(|s| s.contains(term))
+            .count();
+        let idf = 1.0 / (df as f64);
+        denom += idf;
+        if other_tokens.contains(term) {
+            weighted_overlap += idf;
+        }
+    }
+    if denom <= 0.0 {
+        return 0.0;
+    }
+    weighted_overlap / denom
+}
+
 pub fn default_topic_limit() -> usize {
     DEFAULT_TOPIC_LIMIT
 }
@@ -65,4 +104,9 @@ pub fn thought_trail_min_overlap() -> usize {
 
 pub fn thought_trail_candidates() -> usize {
     THOUGHT_TRAIL_CANDIDATES
+}
+
+/// Max related entries in thought trail (before + after current). Total trail = 1 + this.
+pub fn thought_trail_max_related() -> usize {
+    4
 }

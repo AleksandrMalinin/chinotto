@@ -8,7 +8,8 @@ mod speech;
 use base64::Engine;
 use db::Db;
 use keywords::{
-    extract_keywords, keyword_overlap, thought_trail_candidates, thought_trail_min_overlap,
+    extract_keywords, keyword_overlap, thought_trail_candidates, thought_trail_max_related,
+    thought_trail_min_overlap, thought_trail_similarity,
 };
 use std::fs;
 use std::sync::mpsc;
@@ -41,6 +42,46 @@ fn format_ago(
     } else {
         "today".to_string()
     }
+}
+
+/// Memory-style reason for temporal recall (24h / 7d / 30d anchors).
+fn temporal_reason_anchor(anchor: &str) -> &'static str {
+    match anchor {
+        "24h" => "You wrote this yesterday",
+        "7d" => "You wrote this last week",
+        "30d" => "You wrote this a month ago",
+        _ => "You wrote this before",
+    }
+}
+
+/// Simple importance score from existing signals: pinned, edited, opened.
+/// Used only as a small ranking boost in recall (resurface, thought trail).
+/// Formula: pin_weight (1 if pinned) + edit_weight (capped) + open_weight (capped).
+const IMPORTANCE_PIN: f64 = 1.0;
+const IMPORTANCE_EDIT_FACTOR: f64 = 0.5;
+const IMPORTANCE_EDIT_CAP: f64 = 2.0;
+const IMPORTANCE_OPEN_FACTOR: f64 = 0.2;
+const IMPORTANCE_OPEN_CAP: f64 = 1.5;
+
+fn importance_score(
+    entry: &db::EntryRow,
+    pinned_ids: &std::collections::HashSet<String>,
+) -> f64 {
+    let pin = if pinned_ids.contains(&entry.id) {
+        IMPORTANCE_PIN
+    } else {
+        0.0
+    };
+    let edit = (entry.edit_count as f64 * IMPORTANCE_EDIT_FACTOR).min(IMPORTANCE_EDIT_CAP);
+    let open = (entry.open_count as f64 * IMPORTANCE_OPEN_FACTOR).min(IMPORTANCE_OPEN_CAP);
+    pin + edit + open
+}
+
+/// Boost factor for recall ranking: 1.0 + small weight * importance (max ~1.2).
+const IMPORTANCE_BOOST_WEIGHT: f64 = 0.08;
+
+fn importance_boost(importance: f64) -> f64 {
+    1.0 + IMPORTANCE_BOOST_WEIGHT * importance
 }
 
 #[tauri::command]
@@ -133,93 +174,84 @@ fn list_entries(db: tauri::State<Db>) -> Result<Vec<EntryPayload>, String> {
         .collect())
 }
 
+/// Temporal recall: try 24h, 7d, 30d anchors (±3h window); fallback to random past entry.
+/// Importance (pinned, edited, opened) is used as a small weighting boost.
 #[tauri::command]
-fn get_resurfaced_entry(db: tauri::State<Db>) -> Result<Option<ResurfacedPayload>, String> {
+fn get_resurfaced_entry(
+    db: tauri::State<Db>,
+    exclude_ids: Vec<String>,
+) -> Result<Option<ResurfacedPayload>, String> {
     use rand::seq::SliceRandom;
+    let pinned_ids: std::collections::HashSet<String> = db
+        .list_pinned_entry_ids()
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .collect();
     let now = chrono::Utc::now();
-    let cutoff = (now - chrono::Duration::days(1)).to_rfc3339();
-    let older = db
-        .get_entries_with_embeddings_older_than(&cutoff)
-        .map_err(|e| e.to_string())?;
-    if older.is_empty() {
+    let window = chrono::Duration::hours(3);
+    let anchors: [(chrono::Duration, &str); 3] = [
+        (chrono::Duration::days(1), "24h"),
+        (chrono::Duration::days(7), "7d"),
+        (chrono::Duration::days(30), "30d"),
+    ];
+    for (delta, label) in anchors {
+        let target = now - delta;
+        let from_iso = (target - window).to_rfc3339();
+        let to_iso = (target + window).to_rfc3339();
+        let candidates = db
+            .get_entries_in_time_window(&from_iso, &to_iso, &exclude_ids)
+            .map_err(|e| e.to_string())?;
+        if candidates.is_empty() {
+            continue;
+        }
+        let weighted: Vec<(db::EntryRow, f64)> = candidates
+            .into_iter()
+            .map(|c| {
+                let w = importance_boost(importance_score(&c, &pinned_ids));
+                (c, w)
+            })
+            .collect();
+        if let Ok(picked) = weighted.choose_weighted(&mut rand::thread_rng(), |(_, w)| *w) {
+            let picked = &picked.0;
+            let topics = extract_keywords(&picked.text, keywords::default_topic_limit());
+            return Ok(Some(ResurfacedPayload {
+                entry: EntryPayload {
+                    id: picked.id.clone(),
+                    text: picked.text.clone(),
+                    created_at: picked.created_at.clone(),
+                    topics: if topics.is_empty() {
+                        None
+                    } else {
+                        Some(topics)
+                    },
+                },
+                reason: temporal_reason_anchor(label).to_string(),
+            }));
+        }
+    }
+    let all = db.list_entries().map_err(|e| e.to_string())?;
+    let exclude: std::collections::HashSet<&str> =
+        exclude_ids.iter().map(String::as_str).collect();
+    let candidates: Vec<&db::EntryRow> = all
+        .iter()
+        .filter(|r| !exclude.contains(r.id.as_str()))
+        .collect();
+    if candidates.is_empty() {
         return Ok(None);
     }
-    let recent = db
-        .get_recent_entries_with_embeddings(10)
-        .map_err(|e| e.to_string())?;
-    let recent_embeddings: Vec<(String, Vec<f32>)> = recent
+    let weighted: Vec<(&db::EntryRow, f64)> = candidates
         .iter()
-        .filter_map(|e| {
-            db.get_embedding(&e.id)
-                .ok()
-                .flatten()
-                .map(|v| (e.id.clone(), v))
+        .map(|c| {
+            let w = importance_boost(importance_score(c, &pinned_ids));
+            (*c, w)
         })
         .collect();
-    let older_embeddings: std::collections::HashMap<String, Vec<f32>> = older
-        .iter()
-        .filter_map(|e| {
-            db.get_embedding(&e.id)
-                .ok()
-                .flatten()
-                .map(|v| (e.id.clone(), v))
-        })
-        .collect();
-    if older_embeddings.is_empty() {
-        return Ok(None);
-    }
-    let mut scored: Vec<(db::EntryRow, f32)> = Vec::with_capacity(older.len());
-    for entry in &older {
-        let emb = match older_embeddings.get(&entry.id) {
-            Some(e) => e,
-            None => continue,
-        };
-        let created = match parse_created_at(&entry.created_at) {
-            Some(c) => c,
-            None => continue,
-        };
-        let age_days = (now - created).num_days() as f32;
-        let age_score = if age_days >= 30.0 && age_days <= 180.0 {
-            1.0
-        } else if age_days >= 14.0 && age_days < 30.0 {
-            0.7
-        } else if age_days > 180.0 {
-            0.6
-        } else {
-            0.5
-        };
-        let sim_recent = if recent_embeddings.is_empty() {
-            0.5
-        } else {
-            recent_embeddings
-                .iter()
-                .map(|(_, re)| embeddings::cosine_similarity(emb, re))
-                .sum::<f32>()
-                / recent_embeddings.len() as f32
-        };
-        let recurring = older_embeddings
-            .iter()
-            .filter(|(id, _)| *id != &entry.id)
-            .map(|(_, oe)| embeddings::cosine_similarity(emb, oe))
-            .fold(0.0f32, |a, b| a + b);
-        let n_other = (older_embeddings.len() - 1).max(1) as f32;
-        let recurring_score = recurring / n_other;
-        let score = 0.35 * age_score + 0.45 * sim_recent + 0.2 * recurring_score;
-        scored.push((entry.clone(), score));
-    }
-    if scored.is_empty() {
-        return Ok(None);
-    }
-    scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-    let top: Vec<_> = scored.into_iter().take(5).collect();
-    let (picked, _) = top
-        .choose(&mut rand::thread_rng())
-        .or_else(|| top.first())
-        .ok_or("empty top")?;
-    let reason = format!(
-        "You wrote this {}.",
-        format_ago(parse_created_at(&picked.created_at).unwrap_or(now), now)
-    );
+    let picked = match weighted.choose_weighted(&mut rand::thread_rng(), |(_, w)| *w) {
+        Ok((p, _)) => (*p).clone(),
+        Err(_) => return Ok(None),
+    };
+    let created = parse_created_at(&picked.created_at).unwrap_or(now);
+    let reason = format!("You wrote this {}.", format_ago(created, now));
     let topics = extract_keywords(&picked.text, keywords::default_topic_limit());
     Ok(Some(ResurfacedPayload {
         entry: EntryPayload {
@@ -236,48 +268,84 @@ fn get_resurfaced_entry(db: tauri::State<Db>) -> Result<Option<ResurfacedPayload
     }))
 }
 
+/// Thought trail: related entries ordered as earlier → current → later.
+/// Scores by similarity (IDF-weighted keyword overlap) + temporal proximity; importance is a small boost.
 #[tauri::command]
 fn get_thought_trail(db: tauri::State<Db>, entry_id: String) -> Result<Vec<EntryPayload>, String> {
     let current = db
         .get_entry_by_id(&entry_id)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "entry not found".to_string())?;
+    let current_ts = parse_created_at(&current.created_at)
+        .unwrap_or_else(chrono::Utc::now);
+    let pinned_ids: std::collections::HashSet<String> = db
+        .list_pinned_entry_ids()
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .collect();
     let all = db.list_entries().map_err(|e| e.to_string())?;
-    let candidates = all
+    let candidates: Vec<db::EntryRow> = all
         .into_iter()
         .filter(|r| r.id != entry_id)
         .take(thought_trail_candidates())
-        .collect::<Vec<_>>();
+        .collect();
+    let corpus: Vec<std::collections::HashSet<String>> = candidates
+        .iter()
+        .map(|r| keywords::token_set(&r.text))
+        .collect();
     let min_overlap = thought_trail_min_overlap();
-    let current_keywords = extract_keywords(&current.text, 15);
-    if current_keywords.is_empty() {
-        let limit = keywords::default_topic_limit();
-        let topics = extract_keywords(&current.text, limit);
-        return Ok(vec![EntryPayload {
-            id: current.id,
-            text: current.text.clone(),
-            created_at: current.created_at.clone(),
+    let max_related = thought_trail_max_related();
+    let half = max_related / 2;
+
+    let mut scored: Vec<(db::EntryRow, f64)> = candidates
+        .into_iter()
+        .filter(|r| keyword_overlap(&current.text, &r.text) >= min_overlap)
+        .map(|r| {
+            let sim = thought_trail_similarity(
+                &current.text,
+                &r.text,
+                &corpus,
+                15,
+            );
+            let other_ts = parse_created_at(&r.created_at).unwrap_or(current_ts);
+            let days = (current_ts - other_ts).num_days().unsigned_abs() as f64;
+            let time_score = 1.0 / (1.0 + days);
+            let base = 0.6 * sim + 0.4 * time_score;
+            let score = base * importance_boost(importance_score(&r, &pinned_ids));
+            (r, score)
+        })
+        .collect();
+    scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+    let (before, after): (Vec<_>, Vec<_>) = scored
+        .into_iter()
+        .map(|(row, score)| (row, score))
+        .partition(|(r, _)| parse_created_at(&r.created_at).map(|t| t < current_ts).unwrap_or(false));
+
+    let take_before: Vec<db::EntryRow> = before.into_iter().take(half).map(|(r, _)| r).collect();
+    let take_after: Vec<db::EntryRow> = after.into_iter().take(half).map(|(r, _)| r).collect();
+
+    let mut before_sorted = take_before;
+    before_sorted.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    let mut after_sorted = take_after;
+    after_sorted.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+
+    let limit = keywords::default_topic_limit();
+    let to_payload = |r: &db::EntryRow| {
+        let topics = extract_keywords(&r.text, limit);
+        EntryPayload {
+            id: r.id.clone(),
+            text: r.text.clone(),
+            created_at: r.created_at.clone(),
             topics: if topics.is_empty() {
                 None
             } else {
                 Some(topics)
             },
-        }]);
-    }
-    let mut with_overlap: Vec<(db::EntryRow, usize)> = candidates
-        .into_iter()
-        .map(|r| {
-            let n = keyword_overlap(&current.text, &r.text);
-            (r, n)
-        })
-        .filter(|(_, n)| *n >= min_overlap)
-        .collect();
-    with_overlap.sort_by(|a, b| {
-        b.1.cmp(&a.1)
-            .then_with(|| b.0.created_at.cmp(&a.0.created_at))
-    });
-    let limit = keywords::default_topic_limit();
-    let mut out = vec![EntryPayload {
+        }
+    };
+    let mut out: Vec<EntryPayload> = before_sorted.iter().map(to_payload).collect();
+    out.push(EntryPayload {
         id: current.id.clone(),
         text: current.text.clone(),
         created_at: current.created_at.clone(),
@@ -289,20 +357,8 @@ fn get_thought_trail(db: tauri::State<Db>, entry_id: String) -> Result<Vec<Entry
                 Some(t)
             }
         },
-    }];
-    for (row, _) in with_overlap.into_iter().take(8) {
-        let topics = extract_keywords(&row.text, limit);
-        out.push(EntryPayload {
-            id: row.id,
-            text: row.text,
-            created_at: row.created_at,
-            topics: if topics.is_empty() {
-                None
-            } else {
-                Some(topics)
-            },
-        });
-    }
+    });
+    out.extend(after_sorted.iter().map(to_payload));
     Ok(out)
 }
 
@@ -353,6 +409,11 @@ fn update_entry(db: tauri::State<Db>, entry_id: String, text: String) -> Result<
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "entry not found".to_string())?;
     db.update_entry_text(&entry_id, &text).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn record_entry_open(db: tauri::State<Db>, entry_id: String) -> Result<(), String> {
+    db.record_entry_open(&entry_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -541,6 +602,7 @@ pub fn run() {
             pin_entry,
             unpin_entry,
             get_pinned_entry_ids,
+            record_entry_open,
             delete_entry,
             set_app_icon,
         ])
