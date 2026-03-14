@@ -1,0 +1,9 @@
+---
+description: Test data and examples: use dev/EM-style English
+alwaysApply: false
+---
+
+# Testing
+
+- **Example data in tests:** Use dev/EM-style English examples (e.g. 1:1s, roadmap, PRs, hiring, sprint).
+- **Pattern:** Prefer entries like "1:1 with Sarah re: roadmap alignment and hiring plan for Q2", "Review PR for auth refactor and add comments by EOD". Use queries such as "roadmap" or "PR" that match those entries.
