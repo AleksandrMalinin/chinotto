@@ -88,9 +88,13 @@ fn importance_boost(importance: f64) -> f64 {
 
 #[tauri::command]
 fn create_entry(db: tauri::State<Db>, text: String) -> Result<String, String> {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return Err("entry text cannot be empty".to_string());
+    }
     let id = uuid::Uuid::new_v4().to_string();
     let created_at = chrono::Utc::now().to_rfc3339();
-    db.create_entry(&id, &text, &created_at)
+    db.create_entry(&id, trimmed, &created_at)
         .map_err(|e| e.to_string())?;
     Ok(id)
 }
