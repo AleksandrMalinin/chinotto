@@ -826,6 +826,71 @@ body.welcome .app-bg {
   }
 }
 
+/* Voice capture overlay – minimal centered prompt */
+.voice-capture-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(10, 10, 14, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  animation: voice-capture-overlay-in 0.3s ease-out both;
+}
+
+@keyframes voice-capture-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.voice-capture-center {
+  padding: 1.25rem 1.5rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  text-align: center;
+}
+
+.voice-capture-prompt {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.voice-capture-error {
+  margin: 0.75rem 0 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.voice-capture-fallback {
+  margin-top: 0.75rem;
+  width: 100%;
+}
+
+.voice-capture-fallback-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.voice-capture-fallback-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.voice-capture-fallback-input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+
 @keyframes resurfaced-appear {
   from {
     opacity: 0;
@@ -1118,6 +1183,46 @@ body.welcome .app-bg {
 .entry-row-clickable:focus-visible {
   outline: 1px solid var(--border-focus);
   outline-offset: 2px;
+}
+
+/* Ephemeral / late edit: subtle glow so entry feels editable */
+.entry-row-editable {
+  box-shadow: 0 0 0 1px rgba(160, 170, 255, 0.12), 0 0 16px rgba(160, 170, 255, 0.06);
+}
+
+/* Fade-out micro-interaction when edit window ends; thought "settles" into stream */
+.entry-row-settling {
+  animation: entry-row-settle 200ms ease-out forwards;
+}
+
+@keyframes entry-row-settle {
+  from {
+    box-shadow: 0 0 0 1px rgba(160, 170, 255, 0.12), 0 0 16px rgba(160, 170, 255, 0.06);
+  }
+  to {
+    box-shadow: none;
+  }
+}
+
+.entry-row-edit-input {
+  flex: 1;
+  min-width: 0;
+  margin: 0 0 0.2rem;
+  padding: 0;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
+  font-family: inherit;
+  color: rgba(255, 255, 255, 0.9);
+  background: transparent;
+  border: none;
+  resize: none;
+  outline: none;
+  overflow: hidden;
+}
+
+.entry-row-edit-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
 }
 
 /* Pinned: soft illuminated surface, cool tint, no card feel */

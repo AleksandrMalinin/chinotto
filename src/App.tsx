@@ -7,10 +7,12 @@ import { EntryInput, type EntryInputRef } from "./features/entries/EntryInput";
 import { EntryStream } from "./features/entries/EntryStream";
 import { EntryDetail } from "./features/entries/EntryDetail";
 import { ResurfacedOverlay } from "./features/entries/ResurfacedOverlay";
+import { VoiceCaptureOverlay } from "./features/entries/VoiceCaptureOverlay";
 import { SearchInput } from "./features/entries/SearchInput";
 import { Button } from "@/components/ui/button";
 import {
   createEntry,
+  updateEntry,
   listEntries,
   searchEntries,
   generateEmbedding,
@@ -23,6 +25,10 @@ import {
 import type { Entry } from "./types/entry";
 import { getStoredIconVariantId } from "@/lib/iconVariants";
 import { setDesktopIcon } from "@/lib/setDesktopIcon";
+import { listen } from "@tauri-apps/api/event";
+
+/** Voice capture is disabled in the main flow. Set to true to re-enable as an experimental feature. */
+const EXPERIMENTAL_VOICE_CAPTURE = false;
 
 const RESURFACED_RECENT_KEY = "chinotto-resurfaced-recent";
 const RESURFACED_RECENT_MAX = 3;
@@ -80,7 +86,13 @@ export default function App() {
     entry: Entry;
     reason: string;
   } | null>(null);
+  const [voiceCaptureOpen, setVoiceCaptureOpen] = useState(false);
+  const [voiceCaptureMode, setVoiceCaptureMode] = useState<"shortcut" | "hold">("shortcut");
+  const voiceHoldReleasedBeforeMountRef = useRef(false);
   const [justAddedEntryId, setJustAddedEntryId] = useState<string | null>(null);
+  const [ephemeralEntryIds, setEphemeralEntryIds] = useState<Set<string>>(new Set());
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const [settlingEntryIds, setSettlingEntryIds] = useState<Set<string>>(new Set());
   const [pinnedIds, setPinnedIds] = useState<string[]>([]);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [lastDeletedEntry, setLastDeletedEntry] = useState<Entry | null>(null);
@@ -90,6 +102,7 @@ export default function App() {
   const headerLogoRef = useRef<HTMLButtonElement>(null);
   const triedResurfaceRef = useRef(false);
   const justAddedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ephemeralTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [logoEndRect, setLogoEndRect] = useState<{
     left: number;
     top: number;
@@ -145,6 +158,27 @@ export default function App() {
 
   useEffect(() => {
     setDesktopIcon(getStoredIconVariantId()).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!EXPERIMENTAL_VOICE_CAPTURE) return;
+    const unlistenShortcut = listen("chinotto-voice-shortcut", () => {
+      setVoiceCaptureMode("shortcut");
+      setVoiceCaptureOpen(true);
+    });
+    const unlistenHoldStart = listen("chinotto-voice-hold-start", () => {
+      voiceHoldReleasedBeforeMountRef.current = false;
+      setVoiceCaptureMode("hold");
+      setVoiceCaptureOpen(true);
+    });
+    const unlistenHoldStop = listen("chinotto-voice-hold-stop", () => {
+      voiceHoldReleasedBeforeMountRef.current = true;
+    });
+    return () => {
+      unlistenShortcut.then((u) => u());
+      unlistenHoldStart.then((u) => u());
+      unlistenHoldStop.then((u) => u());
+    };
   }, []);
 
   useEffect(() => {
@@ -210,15 +244,55 @@ export default function App() {
         e.preventDefault();
         setIsSearchOpen(true);
       }
+      if (EXPERIMENTAL_VOICE_CAPTURE && (e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        setVoiceCaptureMode("shortcut");
+        setVoiceCaptureOpen(true);
+      }
+      if (EXPERIMENTAL_VOICE_CAPTURE && e.altKey && e.key === " " && !e.repeat && !voiceCaptureOpen) {
+        e.preventDefault();
+        voiceHoldReleasedBeforeMountRef.current = false;
+        setVoiceCaptureMode("hold");
+        setVoiceCaptureOpen(true);
+        const handleHoldKeyUp = (e2: KeyboardEvent) => {
+          if (e2.key !== " " && e2.key !== "Alt" && e2.key !== "Option") return;
+          voiceHoldReleasedBeforeMountRef.current = true;
+          window.removeEventListener("keyup", handleHoldKeyUp);
+        };
+        window.addEventListener("keyup", handleHoldKeyUp);
+      }
     }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selectedEntry]);
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [selectedEntry, voiceCaptureOpen]);
+
+  const EPHEMERAL_WINDOW_MS = 15_000;
+  const SETTLING_DURATION_MS = 200;
 
   async function handleSubmit(text: string) {
     const id = await createEntry(text);
     if (justAddedTimeoutRef.current) clearTimeout(justAddedTimeoutRef.current);
     setJustAddedEntryId(id);
+    setEphemeralEntryIds((prev) => new Set(prev).add(id));
+    const existing = ephemeralTimersRef.current.get(id);
+    if (existing) clearTimeout(existing);
+    const t = setTimeout(() => {
+      ephemeralTimersRef.current.delete(id);
+      setEphemeralEntryIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      setSettlingEntryIds((prev) => new Set(prev).add(id));
+      setTimeout(() => {
+        setSettlingEntryIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }, SETTLING_DURATION_MS);
+    }, EPHEMERAL_WINDOW_MS);
+    ephemeralTimersRef.current.set(id, t);
     justAddedTimeoutRef.current = setTimeout(() => {
       setJustAddedEntryId(null);
       justAddedTimeoutRef.current = null;
@@ -274,6 +348,62 @@ export default function App() {
     });
   }, []);
 
+  const handleEntryUpdate = useCallback(
+    (entryId: string, text: string) => {
+      const t = ephemeralTimersRef.current.get(entryId);
+      if (t) {
+        clearTimeout(t);
+        ephemeralTimersRef.current.delete(entryId);
+      }
+      updateEntry(entryId, text).then(() => {
+        setEntries((prev) =>
+          prev.map((e) => (e.id === entryId ? { ...e, text } : e))
+        );
+        setSettlingEntryIds((prev) => new Set(prev).add(entryId));
+        setEphemeralEntryIds((prev) => {
+          const next = new Set(prev);
+          next.delete(entryId);
+          return next;
+        });
+        setEditingEntryId(null);
+        setTimeout(() => {
+          setSettlingEntryIds((prev) => {
+            const next = new Set(prev);
+            next.delete(entryId);
+            return next;
+          });
+        }, 200);
+      });
+    },
+    []
+  );
+
+  const handleStartLateEdit = useCallback((entry: Entry) => {
+    setEditingEntryId(entry.id);
+  }, []);
+
+  const handleEndEdit = useCallback((entryId: string) => {
+    const t = ephemeralTimersRef.current.get(entryId);
+    if (t) {
+      clearTimeout(t);
+      ephemeralTimersRef.current.delete(entryId);
+    }
+    setSettlingEntryIds((prev) => new Set(prev).add(entryId));
+    setEphemeralEntryIds((prev) => {
+      const next = new Set(prev);
+      next.delete(entryId);
+      return next;
+    });
+    setEditingEntryId(null);
+    setTimeout(() => {
+      setSettlingEntryIds((prev) => {
+        const next = new Set(prev);
+        next.delete(entryId);
+        return next;
+      });
+    }, 200);
+  }, []);
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey && lastDeletedEntry) {
@@ -319,6 +449,29 @@ export default function App() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [hoveredEntryId, entries, pinnedIds, handlePin]);
+
+  /* Cmd+E: edit hovered/focused entry (ephemeral edit escape hatch) */
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "e") return;
+      if (!hoveredEntryId) return;
+      const entry = entries.find((ent) => ent.id === hoveredEntryId);
+      if (entry) {
+        e.preventDefault();
+        handleStartLateEdit(entry);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [hoveredEntryId, entries, handleStartLateEdit]);
+
+  /* Clean up ephemeral timers on unmount */
+  useEffect(() => {
+    return () => {
+      ephemeralTimersRef.current.forEach((t) => clearTimeout(t));
+      ephemeralTimersRef.current.clear();
+    };
+  }, []);
 
   const handleLogoTransitionEnd = useCallback(() => {
     setIntroDismissed(true);
@@ -444,6 +597,12 @@ export default function App() {
                     entries={pinnedEntries}
                     showHighlights={false}
                     justAddedEntryId={null}
+                    ephemeralEntryIds={ephemeralEntryIds}
+                    editingEntryId={editingEntryId}
+                    settlingEntryIds={settlingEntryIds}
+                    onEntryUpdate={handleEntryUpdate}
+                    onStartLateEdit={handleStartLateEdit}
+                    onEndEdit={handleEndEdit}
                     onEntryClick={setSelectedEntry}
                     sectionTitle="Pinned"
                     isPinnedSection
@@ -458,6 +617,12 @@ export default function App() {
                   entries={streamEntries}
                   showHighlights={!!search.trim()}
                   justAddedEntryId={justAddedEntryId}
+                  ephemeralEntryIds={ephemeralEntryIds}
+                  editingEntryId={editingEntryId}
+                  settlingEntryIds={settlingEntryIds}
+                  onEntryUpdate={handleEntryUpdate}
+                  onStartLateEdit={handleStartLateEdit}
+                  onEndEdit={handleEndEdit}
                   onEntryClick={setSelectedEntry}
                   onPinToggle={handlePin}
                   onEntryDelete={handleEntryDelete}
@@ -473,6 +638,9 @@ export default function App() {
               entries={entries}
               showHighlights={true}
               justAddedEntryId={null}
+              ephemeralEntryIds={new Set()}
+              editingEntryId={null}
+              settlingEntryIds={new Set()}
               onEntryClick={setSelectedEntry}
               onEntryDelete={handleEntryDelete}
               deletingIds={deletingIds}
@@ -512,6 +680,20 @@ export default function App() {
             setResurfaced(null);
           }}
           onDismiss={() => setResurfaced(null)}
+        />
+      )}
+      {EXPERIMENTAL_VOICE_CAPTURE && voiceCaptureOpen && (
+        <VoiceCaptureOverlay
+          mode={voiceCaptureMode}
+          releasedBeforeMountRef={voiceHoldReleasedBeforeMountRef}
+          onClose={() => setVoiceCaptureOpen(false)}
+          onCreateEntry={async (text) => {
+            try {
+              await handleSubmit(text);
+            } finally {
+              setVoiceCaptureOpen(false);
+            }
+          }}
         />
       )}
     </>

@@ -2,10 +2,18 @@ mod db;
 mod embeddings;
 mod keywords;
 
+#[cfg(target_os = "macos")]
+mod speech;
+
 use base64::Engine;
 use db::Db;
-use keywords::{extract_keywords, keyword_overlap, thought_trail_candidates, thought_trail_min_overlap};
+use keywords::{
+    extract_keywords, keyword_overlap, thought_trail_candidates, thought_trail_min_overlap,
+};
 use std::fs;
+use std::sync::mpsc;
+use std::sync::Arc;
+use tauri::Emitter;
 use tauri::Manager;
 
 fn parse_created_at(iso: &str) -> Option<chrono::DateTime<chrono::Utc>> {
@@ -14,7 +22,10 @@ fn parse_created_at(iso: &str) -> Option<chrono::DateTime<chrono::Utc>> {
         .map(|dt| dt.with_timezone(&chrono::Utc))
 }
 
-fn format_ago(created: chrono::DateTime<chrono::Utc>, now: chrono::DateTime<chrono::Utc>) -> String {
+fn format_ago(
+    created: chrono::DateTime<chrono::Utc>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> String {
     let d = (now - created).num_days();
     if d >= 365 {
         let y = d / 365;
@@ -36,7 +47,8 @@ fn format_ago(created: chrono::DateTime<chrono::Utc>, now: chrono::DateTime<chro
 fn create_entry(db: tauri::State<Db>, text: String) -> Result<String, String> {
     let id = uuid::Uuid::new_v4().to_string();
     let created_at = chrono::Utc::now().to_rfc3339();
-    db.create_entry(&id, &text, &created_at).map_err(|e| e.to_string())?;
+    db.create_entry(&id, &text, &created_at)
+        .map_err(|e| e.to_string())?;
     Ok(id)
 }
 
@@ -47,7 +59,8 @@ fn generate_embedding(db: tauri::State<Db>, entry_id: String) -> Result<(), Stri
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "entry not found")?;
     let vec = embeddings::embed_text(&entry.text).map_err(|e| e.to_string())?;
-    db.insert_embedding(&entry_id, &vec).map_err(|e| e.to_string())?;
+    db.insert_embedding(&entry_id, &vec)
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -75,10 +88,8 @@ fn find_similar_entries(
     with_sim.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     let top_ids: Vec<String> = with_sim.into_iter().take(limit).map(|(id, _)| id).collect();
     let rows = db.get_entries_by_ids(&top_ids).map_err(|e| e.to_string())?;
-    let by_id: std::collections::HashMap<String, db::EntryRow> = rows
-        .into_iter()
-        .map(|r| (r.id.clone(), r))
-        .collect();
+    let by_id: std::collections::HashMap<String, db::EntryRow> =
+        rows.into_iter().map(|r| (r.id.clone(), r)).collect();
     let limit = keywords::default_topic_limit();
     let out: Vec<EntryPayload> = top_ids
         .into_iter()
@@ -89,7 +100,11 @@ fn find_similar_entries(
                 id: r.id.clone(),
                 text: r.text.clone(),
                 created_at: r.created_at.clone(),
-                topics: if topics.is_empty() { None } else { Some(topics) },
+                topics: if topics.is_empty() {
+                    None
+                } else {
+                    Some(topics)
+                },
             }
         })
         .collect();
@@ -108,7 +123,11 @@ fn list_entries(db: tauri::State<Db>) -> Result<Vec<EntryPayload>, String> {
                 id: r.id,
                 text: r.text,
                 created_at: r.created_at,
-                topics: if topics.is_empty() { None } else { Some(topics) },
+                topics: if topics.is_empty() {
+                    None
+                } else {
+                    Some(topics)
+                },
             }
         })
         .collect())
@@ -130,11 +149,21 @@ fn get_resurfaced_entry(db: tauri::State<Db>) -> Result<Option<ResurfacedPayload
         .map_err(|e| e.to_string())?;
     let recent_embeddings: Vec<(String, Vec<f32>)> = recent
         .iter()
-        .filter_map(|e| db.get_embedding(&e.id).ok().flatten().map(|v| (e.id.clone(), v)))
+        .filter_map(|e| {
+            db.get_embedding(&e.id)
+                .ok()
+                .flatten()
+                .map(|v| (e.id.clone(), v))
+        })
         .collect();
     let older_embeddings: std::collections::HashMap<String, Vec<f32>> = older
         .iter()
-        .filter_map(|e| db.get_embedding(&e.id).ok().flatten().map(|v| (e.id.clone(), v)))
+        .filter_map(|e| {
+            db.get_embedding(&e.id)
+                .ok()
+                .flatten()
+                .map(|v| (e.id.clone(), v))
+        })
         .collect();
     if older_embeddings.is_empty() {
         return Ok(None);
@@ -197,7 +226,11 @@ fn get_resurfaced_entry(db: tauri::State<Db>) -> Result<Option<ResurfacedPayload
             id: picked.id.clone(),
             text: picked.text.clone(),
             created_at: picked.created_at.clone(),
-            topics: if topics.is_empty() { None } else { Some(topics) },
+            topics: if topics.is_empty() {
+                None
+            } else {
+                Some(topics)
+            },
         },
         reason,
     }))
@@ -224,7 +257,11 @@ fn get_thought_trail(db: tauri::State<Db>, entry_id: String) -> Result<Vec<Entry
             id: current.id,
             text: current.text.clone(),
             created_at: current.created_at.clone(),
-            topics: if topics.is_empty() { None } else { Some(topics) },
+            topics: if topics.is_empty() {
+                None
+            } else {
+                Some(topics)
+            },
         }]);
     }
     let mut with_overlap: Vec<(db::EntryRow, usize)> = candidates
@@ -235,7 +272,10 @@ fn get_thought_trail(db: tauri::State<Db>, entry_id: String) -> Result<Vec<Entry
         })
         .filter(|(_, n)| *n >= min_overlap)
         .collect();
-    with_overlap.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| b.0.created_at.cmp(&a.0.created_at)));
+    with_overlap.sort_by(|a, b| {
+        b.1.cmp(&a.1)
+            .then_with(|| b.0.created_at.cmp(&a.0.created_at))
+    });
     let limit = keywords::default_topic_limit();
     let mut out = vec![EntryPayload {
         id: current.id.clone(),
@@ -243,7 +283,11 @@ fn get_thought_trail(db: tauri::State<Db>, entry_id: String) -> Result<Vec<Entry
         created_at: current.created_at.clone(),
         topics: {
             let t = extract_keywords(&current.text, limit);
-            if t.is_empty() { None } else { Some(t) }
+            if t.is_empty() {
+                None
+            } else {
+                Some(t)
+            }
         },
     }];
     for (row, _) in with_overlap.into_iter().take(8) {
@@ -252,7 +296,11 @@ fn get_thought_trail(db: tauri::State<Db>, entry_id: String) -> Result<Vec<Entry
             id: row.id,
             text: row.text,
             created_at: row.created_at,
-            topics: if topics.is_empty() { None } else { Some(topics) },
+            topics: if topics.is_empty() {
+                None
+            } else {
+                Some(topics)
+            },
         });
     }
     Ok(out)
@@ -271,7 +319,11 @@ fn search_entries(db: tauri::State<Db>, query: String) -> Result<Vec<SearchEntry
                 text: r.text,
                 created_at: r.created_at,
                 highlighted: r.highlighted,
-                topics: if topics.is_empty() { None } else { Some(topics) },
+                topics: if topics.is_empty() {
+                    None
+                } else {
+                    Some(topics)
+                },
             }
         })
         .collect())
@@ -293,6 +345,14 @@ fn unpin_entry(db: tauri::State<Db>, entry_id: String) -> Result<(), String> {
 #[tauri::command]
 fn get_pinned_entry_ids(db: tauri::State<Db>) -> Result<Vec<String>, String> {
     db.list_pinned_entry_ids().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn update_entry(db: tauri::State<Db>, entry_id: String, text: String) -> Result<(), String> {
+    db.get_entry_by_id(&entry_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "entry not found".to_string())?;
+    db.update_entry_text(&entry_id, &text).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -329,8 +389,46 @@ struct ResurfacedPayload {
     reason: String,
 }
 
+#[cfg(target_os = "macos")]
+struct SpeechCommandTx(Arc<mpsc::SyncSender<speech::SpeechCommand>>);
+
 #[tauri::command]
-fn set_app_icon(app: tauri::AppHandle, png_base64: String) -> Result<(), String> {
+fn run_native_speech_recognition(
+    app: tauri::AppHandle,
+    max_ms: Option<u64>,
+) -> Result<Option<String>, String> {
+    #[cfg(target_os = "macos")]
+    {
+        if !EXPERIMENTAL_VOICE_CAPTURE {
+            return Err("Voice capture is not enabled".to_string());
+        }
+        eprintln!("[Speech] hotkey triggered / command invoked");
+        let max_ms = max_ms.unwrap_or(10_000);
+        let (result_tx, result_rx) = mpsc::sync_channel(1);
+        let (event_tx, event_rx) = mpsc::sync_channel(4);
+        let app_handle = app.clone();
+        std::thread::spawn(move || {
+            while let Ok(state) = event_rx.recv() {
+                let _ = app_handle.emit("chinotto-speech-state", state);
+            }
+        });
+        let cmd_tx = app.state::<SpeechCommandTx>().0.clone();
+        cmd_tx
+            .send((max_ms, result_tx, Some(event_tx)))
+            .map_err(|_| "Speech channel closed".to_string())?;
+        match result_rx.recv_timeout(std::time::Duration::from_secs(60)) {
+            Ok(inner) => inner,
+            Err(_) => Err("Speech recognition timed out".to_string()),
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = (app, max_ms);
+    #[cfg(not(target_os = "macos"))]
+    Err("Native speech recognition is only available on macOS".to_string())
+}
+
+#[tauri::command]
+fn set_app_icon(_app: tauri::AppHandle, png_base64: String) -> Result<(), String> {
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(png_base64.trim())
         .map_err(|e| e.to_string())?;
@@ -350,36 +448,61 @@ fn set_app_icon(app: tauri::AppHandle, png_base64: String) -> Result<(), String>
 
 #[cfg(target_os = "macos")]
 fn set_macos_dock_icon(png_bytes: &[u8]) -> Result<(), String> {
-    use cocoa::appkit::NSImage;
-    use cocoa::foundation::NSData;
-    use objc::{msg_send, sel, sel_impl};
-    use objc::runtime::Class;
+    use objc2::rc::Allocated;
+    use objc2::{msg_send, ClassType, MainThreadMarker};
+    use objc2_app_kit::{NSApplication, NSImage};
+    use objc2_foundation::NSData;
 
     unsafe {
-        let app_class = Class::get("NSApplication").ok_or("NSApplication not found")?;
-        let app: *mut objc::runtime::Object = msg_send![app_class, sharedApplication];
-        if app.is_null() {
-            return Err("NSApplication sharedApplication returned null".to_string());
-        }
-        let data = NSData::dataWithBytes_length_(
-            cocoa::base::nil,
-            png_bytes.as_ptr() as *const std::ffi::c_void,
-            png_bytes.len() as u64,
-        );
-        let nsimage_class = Class::get("NSImage").ok_or("NSImage not found")?;
-        let image: *mut objc::runtime::Object = msg_send![nsimage_class, alloc];
-        let image: *mut objc::runtime::Object = msg_send![image, initWithData: data];
-        if image.is_null() {
-            return Err("NSImage initWithData failed".to_string());
-        }
-        let _: () = msg_send![app, setApplicationIconImage: image];
+        let mtm = MainThreadMarker::new().ok_or("Not on main thread")?;
+        let app = NSApplication::sharedApplication(mtm);
+        let data = NSData::with_bytes(png_bytes);
+        let alloc: Allocated<NSImage> = msg_send![NSImage::class(), alloc];
+        let image = NSImage::initWithData(alloc, &data)
+            .ok_or("NSImage initWithData failed")?;
+        app.setApplicationIconImage(Some(&image));
     }
     Ok(())
 }
 
+/// Voice capture is disabled in the main flow. Set to true to re-enable as an experimental feature.
+const EXPERIMENTAL_VOICE_CAPTURE: bool = false;
+
+const VOICE_SHORTCUT: &str = "CommandOrControl+Shift+V";
+const VOICE_HOLD: &str = "Alt+Space";
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    use std::str::FromStr;
+    use tauri::Emitter;
+    use tauri_plugin_global_shortcut::{Shortcut, ShortcutState};
+
+    let voice_shortcut_id = Shortcut::from_str(VOICE_SHORTCUT).ok().map(|s| s.id());
+    let voice_hold_id = Shortcut::from_str(VOICE_HOLD).ok().map(|s| s.id());
+
+    let voice_handler = move |app: &tauri::AppHandle, shortcut: &tauri_plugin_global_shortcut::Shortcut, event: tauri_plugin_global_shortcut::ShortcutEvent| {
+        let id = shortcut.id();
+        let _ = match (voice_shortcut_id, voice_hold_id, &event.state) {
+            (Some(sid), _, ShortcutState::Pressed) if id == sid => app.emit("chinotto-voice-shortcut", ()),
+            (_, Some(hid), ShortcutState::Pressed) if id == hid => app.emit("chinotto-voice-hold-start", ()),
+            (_, Some(hid), ShortcutState::Released) if id == hid => app.emit("chinotto-voice-hold-stop", ()),
+            _ => Ok(()),
+        };
+    };
+
+    let shortcuts: Vec<&str> = if EXPERIMENTAL_VOICE_CAPTURE {
+        vec![VOICE_SHORTCUT, VOICE_HOLD]
+    } else {
+        vec![]
+    };
+    let plugin_builder = tauri_plugin_global_shortcut::Builder::new()
+        .with_shortcuts(shortcuts)
+        .expect("shortcuts")
+        .with_handler(voice_handler)
+        .build();
+
     tauri::Builder::default()
+        .plugin(plugin_builder)
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -397,12 +520,20 @@ pub fn run() {
             let db_path = path.join("chinotto.db");
             let db = Db::open(db_path).map_err(|e| e.to_string())?;
             app.manage(db);
+            #[cfg(target_os = "macos")]
+            if EXPERIMENTAL_VOICE_CAPTURE {
+                let (cmd_tx, cmd_rx) = mpsc::sync_channel(0);
+                app.manage(SpeechCommandTx(Arc::new(cmd_tx)));
+                std::thread::spawn(move || speech::run_speech_loop(cmd_rx));
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             create_entry,
+            update_entry,
             list_entries,
             search_entries,
+            run_native_speech_recognition,
             generate_embedding,
             find_similar_entries,
             get_resurfaced_entry,

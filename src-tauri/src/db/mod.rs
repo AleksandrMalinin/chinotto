@@ -13,7 +13,12 @@ impl Db {
         Ok(Self(Mutex::new(conn)))
     }
 
-    pub fn create_entry(&self, id: &str, text: &str, created_at: &str) -> Result<(), rusqlite::Error> {
+    pub fn create_entry(
+        &self,
+        id: &str,
+        text: &str,
+        created_at: &str,
+    ) -> Result<(), rusqlite::Error> {
         let conn = self.0.lock().unwrap();
         conn.execute(
             "INSERT INTO entries (id, text, created_at) VALUES (?1, ?2, ?3)",
@@ -22,9 +27,16 @@ impl Db {
         Ok(())
     }
 
+    pub fn update_entry_text(&self, id: &str, text: &str) -> Result<(), rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        conn.execute("UPDATE entries SET text = ?1 WHERE id = ?2", [text, id])?;
+        Ok(())
+    }
+
     pub fn list_entries(&self) -> Result<Vec<EntryRow>, rusqlite::Error> {
         let conn = self.0.lock().unwrap();
-        let mut stmt = conn.prepare("SELECT id, text, created_at FROM entries ORDER BY created_at DESC")?;
+        let mut stmt =
+            conn.prepare("SELECT id, text, created_at FROM entries ORDER BY created_at DESC")?;
         let rows = stmt.query_map([], |r| {
             Ok(EntryRow {
                 id: r.get(0)?,
@@ -37,9 +49,7 @@ impl Db {
 
     pub fn get_entry_by_id(&self, id: &str) -> Result<Option<EntryRow>, rusqlite::Error> {
         let conn = self.0.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT id, text, created_at FROM entries WHERE id = ?1",
-        )?;
+        let mut stmt = conn.prepare("SELECT id, text, created_at FROM entries WHERE id = ?1")?;
         let mut rows = stmt.query([id])?;
         if let Some(row) = rows.next()? {
             return Ok(Some(EntryRow {
@@ -51,11 +61,12 @@ impl Db {
         Ok(None)
     }
 
-    pub fn insert_embedding(&self, entry_id: &str, embedding: &[f32]) -> Result<(), rusqlite::Error> {
-        let blob: Vec<u8> = embedding
-            .iter()
-            .flat_map(|f| f.to_le_bytes())
-            .collect();
+    pub fn insert_embedding(
+        &self,
+        entry_id: &str,
+        embedding: &[f32],
+    ) -> Result<(), rusqlite::Error> {
+        let blob: Vec<u8> = embedding.iter().flat_map(|f| f.to_le_bytes()).collect();
         let conn = self.0.lock().unwrap();
         conn.execute(
             "INSERT OR REPLACE INTO entry_embeddings (entry_id, embedding) VALUES (?1, ?2)",
@@ -66,9 +77,8 @@ impl Db {
 
     pub fn get_embedding(&self, entry_id: &str) -> Result<Option<Vec<f32>>, rusqlite::Error> {
         let conn = self.0.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT embedding FROM entry_embeddings WHERE entry_id = ?1",
-        )?;
+        let mut stmt =
+            conn.prepare("SELECT embedding FROM entry_embeddings WHERE entry_id = ?1")?;
         let mut rows = stmt.query([entry_id])?;
         if let Some(row) = rows.next()? {
             let blob: Vec<u8> = row.get(0)?;
@@ -86,9 +96,8 @@ impl Db {
         exclude_id: &str,
     ) -> Result<Vec<(String, Vec<f32>)>, rusqlite::Error> {
         let conn = self.0.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT entry_id, embedding FROM entry_embeddings WHERE entry_id != ?1",
-        )?;
+        let mut stmt =
+            conn.prepare("SELECT entry_id, embedding FROM entry_embeddings WHERE entry_id != ?1")?;
         let rows = stmt.query_map([exclude_id], |row| {
             let entry_id: String = row.get(0)?;
             let blob: Vec<u8> = row.get(1)?;
@@ -175,11 +184,7 @@ impl Db {
             "INSERT INTO pinned_entries (entry_id, pinned_at) VALUES (?1, ?2)",
             [entry_id, &pinned_at],
         )?;
-        let count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM pinned_entries",
-            [],
-            |r| r.get(0),
-        )?;
+        let count: i64 = conn.query_row("SELECT COUNT(*) FROM pinned_entries", [], |r| r.get(0))?;
         if count > 5 {
             conn.execute(
                 "DELETE FROM pinned_entries WHERE entry_id = (
@@ -199,9 +204,8 @@ impl Db {
 
     pub fn list_pinned_entry_ids(&self) -> Result<Vec<String>, rusqlite::Error> {
         let conn = self.0.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT entry_id FROM pinned_entries ORDER BY pinned_at DESC",
-        )?;
+        let mut stmt =
+            conn.prepare("SELECT entry_id FROM pinned_entries ORDER BY pinned_at DESC")?;
         let rows = stmt.query_map([], |r| r.get(0))?;
         rows.collect()
     }

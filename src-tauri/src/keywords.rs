@@ -8,14 +8,13 @@ const THOUGHT_TRAIL_CANDIDATES: usize = 250;
 
 /// Common English stopwords (lowercase). Kept small for a minimal set.
 static STOPWORDS: &[&str] = &[
-    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-    "have", "has", "had", "do", "does", "did", "will", "would", "could",
-    "should", "may", "might", "must", "shall", "can", "need", "to", "of",
-    "in", "for", "on", "with", "at", "by", "from", "as", "into", "through",
-    "during", "before", "after", "and", "but", "if", "or", "because", "until",
-    "while", "this", "that", "these", "those", "it", "its", "not", "no",
-    "only", "same", "so", "than", "too", "very", "just", "all", "each",
-    "every", "both", "few", "more", "most", "other", "some", "such", "own",
+    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had",
+    "do", "does", "did", "will", "would", "could", "should", "may", "might", "must", "shall",
+    "can", "need", "to", "of", "in", "for", "on", "with", "at", "by", "from", "as", "into",
+    "through", "during", "before", "after", "and", "but", "if", "or", "because", "until", "while",
+    "this", "that", "these", "those", "it", "its", "not", "no", "only", "same", "so", "than",
+    "too", "very", "just", "all", "each", "every", "both", "few", "more", "most", "other", "some",
+    "such", "own",
 ];
 
 fn is_stopword(w: &str) -> bool {
@@ -46,11 +45,7 @@ pub fn extract_keywords(text: &str, limit: usize) -> Vec<String> {
     }
     let mut by_count: Vec<(String, u32)> = counts.into_iter().collect();
     by_count.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
-    by_count
-        .into_iter()
-        .take(limit)
-        .map(|(s, _)| s)
-        .collect()
+    by_count.into_iter().take(limit).map(|(s, _)| s).collect()
 }
 
 /// Number of shared keywords between two texts (for thought trail linking).

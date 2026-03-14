@@ -5,6 +5,10 @@ export async function createEntry(text: string): Promise<string> {
   return invoke<string>("create_entry", { text });
 }
 
+export async function updateEntry(entryId: string, text: string): Promise<void> {
+  return invoke("update_entry", { entryId, text });
+}
+
 export function generateEmbedding(entryId: string): void {
   invoke("generate_embedding", { entryId }).catch(() => {});
 }

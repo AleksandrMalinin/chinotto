@@ -20,7 +20,10 @@ pub fn embed_text(text: &str) -> Result<Vec<f32>, String> {
     let model = guard.as_mut().ok_or("embedding model not loaded")?;
     let texts = vec![text.to_string()];
     let embeddings = model.embed(&texts, None).map_err(|e| e.to_string())?;
-    let vec = embeddings.into_iter().next().ok_or("no embedding returned")?;
+    let vec = embeddings
+        .into_iter()
+        .next()
+        .ok_or("no embedding returned")?;
     Ok(vec)
 }
 
