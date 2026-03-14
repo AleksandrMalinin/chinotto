@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 
-const MIN_DISPLAY_MS = 7500;
 const MIN_DRAG_PX = 40;
 
 type ExitDirection = "up" | "left" | "right";
@@ -10,37 +9,31 @@ type Props = {
 };
 
 export function IntroScreen({ onDismissRequest }: Props) {
-  const [canDismiss, setCanDismiss] = useState(false);
   const [exiting, setExiting] = useState(false);
   const [exitDirection, setExitDirection] = useState<ExitDirection>("up");
   const dragStart = useRef<{ x: number; y: number } | null>(null);
 
-  useEffect(() => {
-    const t = setTimeout(() => setCanDismiss(true), MIN_DISPLAY_MS);
-    return () => clearTimeout(t);
-  }, []);
-
   const startExit = useCallback(
     (direction: ExitDirection) => {
-      if (!canDismiss || exiting) return;
+      if (exiting) return;
       setExiting(true);
       setExitDirection(direction);
       onDismissRequest();
     },
-    [canDismiss, exiting, onDismissRequest]
+    [exiting, onDismissRequest]
   );
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (!canDismiss || exiting) return;
+      if (exiting) return;
       dragStart.current = { x: e.clientX, y: e.clientY };
     },
-    [canDismiss, exiting]
+    [exiting]
   );
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
-      if (!canDismiss || exiting || !dragStart.current) return;
+      if (exiting || !dragStart.current) return;
       const dx = e.clientX - dragStart.current.x;
       const dy = e.clientY - dragStart.current.y;
       if (Math.abs(dy) >= MIN_DRAG_PX && Math.abs(dy) >= Math.abs(dx)) {
@@ -51,7 +44,7 @@ export function IntroScreen({ onDismissRequest }: Props) {
         dragStart.current = null;
       }
     },
-    [canDismiss, exiting, startExit]
+    [exiting, startExit]
   );
 
   const handlePointerUp = useCallback(() => {
@@ -60,16 +53,16 @@ export function IntroScreen({ onDismissRequest }: Props) {
 
   const handleClick = useCallback(
     () => {
-      if (!canDismiss || exiting) return;
+      if (exiting) return;
       if (dragStart.current) return;
       startExit("up");
     },
-    [canDismiss, exiting, startExit]
+    [exiting, startExit]
   );
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (!canDismiss || exiting) return;
+      if (exiting) return;
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
         startExit("up");
@@ -77,7 +70,7 @@ export function IntroScreen({ onDismissRequest }: Props) {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [canDismiss, exiting, startExit]);
+  }, [exiting, startExit]);
 
   return (
     <div
