@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>Chinotto</string>
+	<key>CFBundleDisplayName</key>
+	<string>Chinotto</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Chinotto uses speech recognition so you can capture thoughts by voice.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Chinotto uses the microphone for voice capture.</string>
+</dict>
+</plist>
