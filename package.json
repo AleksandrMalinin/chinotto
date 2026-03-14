@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "test": "npm run test:rs && npm run test:ts",
+    "test:rs": "cd src-tauri && cargo test",
+    "test:ts": "node --import tsx --test src/lib/resurfaceSession.test.ts",
     "build:macos": "npm run build && tauri build && ./scripts/sign-macos.sh",
     "tauri": "tauri",
     "preview": "vite preview"
@@ -23,6 +26,7 @@
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
+    "tsx": "^4.19.2",
     "@tailwindcss/postcss": "^4.2.1",
     "@tauri-apps/cli": "^2.0.0",
     "@types/react": "^18.3.12",
