@@ -305,6 +305,28 @@ body.chinotto-card-open {
   pointer-events: auto;
 }
 
+.app-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.app-header-name {
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--fg-dim);
+}
+
+.app-header-beta {
+  font-size: 0.65em;
+  opacity: 0.78;
+  font-weight: 500;
+  margin-left: 0.12em;
+  vertical-align: baseline;
+}
+
 .app-header-logo {
   display: inline-block;
   line-height: 0;
@@ -1474,6 +1496,16 @@ body.welcome .app-bg {
 .entry-detail-trail-item:focus-visible {
   outline: 1px solid var(--border-focus);
   outline-offset: 2px;
+}
+
+.entry-detail-trail-meta {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--meta-fg);
+  margin-bottom: 0.25rem;
 }
 
 .entry-detail-trail-text {

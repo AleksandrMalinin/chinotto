@@ -21,6 +21,20 @@ function truncate(text: string, maxLen: number): string {
   return text.slice(0, maxLen).trimEnd() + "…";
 }
 
+function relativeToCurrent(
+  currentIso: string,
+  otherIso: string,
+  isCurrent: boolean
+): string {
+  if (isCurrent) return "Current";
+  const a = new Date(currentIso).getTime();
+  const b = new Date(otherIso).getTime();
+  const days = Math.round((b - a) / (1000 * 60 * 60 * 24));
+  if (days === 0) return "Same day";
+  if (days < 0) return `${Math.abs(days)} day${Math.abs(days) === 1 ? "" : "s"} earlier`;
+  return `${days} day${days === 1 ? "" : "s"} later`;
+}
+
 export function EntryDetail({ entry, onBack, onSelectEntry }: Props) {
   const [related, setRelated] = useState<Entry[]>([]);
   const [relatedLoading, setRelatedLoading] = useState(true);
@@ -86,6 +100,9 @@ export function EntryDetail({ entry, onBack, onSelectEntry }: Props) {
                   disabled={e.id === entry.id}
                   aria-label={e.id === entry.id ? "Current entry" : `Open: ${truncate(e.text, 60)}`}
                 >
+                  <span className="entry-detail-trail-meta">
+                    {relativeToCurrent(entry.created_at, e.created_at, e.id === entry.id)}
+                  </span>
                   <span className="entry-detail-trail-text">
                     {truncate(e.text, 80)}
                   </span>
