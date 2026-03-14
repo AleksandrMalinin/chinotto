@@ -27,6 +27,18 @@ Chinotto is a minimal desktop thinking tool for instantly capturing thoughts and
 - No embeddings (yet)
 - One canonical entity only: **Entry**
 
+## Proposal guardrails
+
+Use these when evaluating or proposing changes. Chinotto is **not** a knowledge management system, document editor, or productivity suite. It **is** a thinking stream, a place to capture thoughts instantly, and a memory layer that helps recover past context.
+
+**Do not introduce:** folders, tags, collections, dashboards, AI chat, recommendation feeds.
+
+**All improvements must preserve:** (1) minimal UI, (2) local-first architecture, (3) single entity model (Entry), (4) extremely low noise.
+
+**Success metric:** The system should feel like **a calm memory**, not a smart assistant.
+
+**Prefer:** subtle recall, time-based memory, contextual connections. **Avoid** adding complexity unless it clearly improves “recover context later.”
+
 ---
 
 ## Current product state
