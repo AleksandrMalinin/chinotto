@@ -27,55 +27,12 @@ import type { Entry } from "./types/entry";
 import { getStoredIconVariantId } from "@/lib/iconVariants";
 import { setDesktopIcon } from "@/lib/setDesktopIcon";
 import { listen } from "@tauri-apps/api/event";
+import { getIdsInCooldown, markAsShown } from "@/lib/resurfaceSession";
 
 /** Voice capture is disabled in the main flow. Set to true to re-enable as an experimental feature. */
 const EXPERIMENTAL_VOICE_CAPTURE = false;
 
-const RESURFACED_HISTORY_KEY = "chinotto-resurfaced-history";
-const RESURFACED_COOLDOWN_DAYS = 7;
-const RESURFACED_HISTORY_MAX = 50;
 const RESURFACE_SHOW_PROBABILITY = 0.65;
-
-type ResurfacedRecord = { id: string; shownAt: string };
-
-function getResurfacedHistory(): ResurfacedRecord[] {
-  try {
-    const raw = localStorage.getItem(RESURFACED_HISTORY_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (x): x is ResurfacedRecord =>
-        typeof x === "object" && x !== null && "id" in x && "shownAt" in x
-    );
-  } catch {
-    return [];
-  }
-}
-
-/** Entry IDs that are still in cooldown (shown within last RESURFACED_COOLDOWN_DAYS). */
-function getIdsInCooldown(): string[] {
-  const history = getResurfacedHistory();
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - RESURFACED_COOLDOWN_DAYS);
-  const cutoffMs = cutoff.getTime();
-  return history
-    .filter((r) => new Date(r.shownAt).getTime() >= cutoffMs)
-    .map((r) => r.id);
-}
-
-function markAsShown(id: string): void {
-  const history = getResurfacedHistory();
-  const next = [
-    { id, shownAt: new Date().toISOString() },
-    ...history.filter((r) => r.id !== id),
-  ].slice(0, RESURFACED_HISTORY_MAX);
-  try {
-    localStorage.setItem(RESURFACED_HISTORY_KEY, JSON.stringify(next));
-  } catch {
-    /* ignore */
-  }
-}
 
 function loadEntries(query: string): Promise<Entry[]> {
   return query.trim() ? searchEntries(query) : listEntries();
@@ -279,6 +236,12 @@ export default function App() {
         e.preventDefault();
         setIsSearchOpen(true);
       }
+      if (e.key === "n" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        if (selectedEntry) setSelectedEntry(null);
+        if (isSearchOpen) setIsSearchOpen(false);
+        entryInputRef.current?.focus();
+      }
       if (EXPERIMENTAL_VOICE_CAPTURE && (e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "v") {
         e.preventDefault();
         setVoiceCaptureMode("shortcut");
@@ -299,7 +262,7 @@ export default function App() {
     }
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [selectedEntry, voiceCaptureOpen]);
+  }, [selectedEntry, voiceCaptureOpen, isSearchOpen]);
 
   const EPHEMERAL_WINDOW_MS = 15_000;
   const SETTLING_DURATION_MS = 200;
