@@ -89,7 +89,7 @@ export function IntroScreen({ onDismissRequest }: Props) {
       </div>
       <div className="intro-screen-copy">
         <p className="intro-screen-line intro-screen-line-1">Capture first.</p>
-        <p className="intro-screen-line intro-screen-line-2">Understand later.</p>
+        <p className="intro-screen-line intro-screen-line-2">Revisit later.</p>
       </div>
     </div>
   );
