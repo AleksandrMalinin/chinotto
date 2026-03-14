@@ -3,6 +3,7 @@ import { IntroScreen } from "@/components/IntroScreen";
 import { LogoTransition } from "@/components/LogoTransition";
 import { ChinottoLogo } from "@/components/ChinottoLogo";
 import { ChinottoCard } from "@/components/ChinottoCard";
+import { AnalyticsOptInModal } from "@/components/AnalyticsOptInModal";
 import { EntryInput, type EntryInputRef } from "./features/entries/EntryInput";
 import { EntryStream } from "./features/entries/EntryStream";
 import { EntryDetail } from "./features/entries/EntryDetail";
@@ -28,6 +29,7 @@ import { getStoredIconVariantId } from "@/lib/iconVariants";
 import { setDesktopIcon } from "@/lib/setDesktopIcon";
 import { listen } from "@tauri-apps/api/event";
 import { getIdsInCooldown, markAsShown } from "@/lib/resurfaceSession";
+import { getAnalyticsPromptShown } from "@/lib/analytics";
 
 /** Voice capture is disabled in the main flow. Set to true to re-enable as an experimental feature. */
 const EXPERIMENTAL_VOICE_CAPTURE = false;
@@ -60,6 +62,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isChinottoCardOpen, setIsChinottoCardOpen] = useState(false);
+  const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
+  const [introSettled, setIntroSettled] = useState(false);
   const [iconVariantId, setIconVariantId] = useState(() => getStoredIconVariantId());
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
   const [resurfaced, setResurfaced] = useState<{
@@ -143,6 +147,19 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!introDismissed) return;
+    if (getAnalyticsPromptShown()) {
+      setIntroSettled(true);
+      return;
+    }
+    const t = setTimeout(() => {
+      setIntroSettled(true);
+      setShowAnalyticsModal(true);
+    }, 600);
+    return () => clearTimeout(t);
+  }, [introDismissed]);
+
+  useEffect(() => {
     if (!EXPERIMENTAL_VOICE_CAPTURE) return;
     const unlistenShortcut = listen("chinotto-voice-shortcut", () => {
       setVoiceCaptureMode("shortcut");
@@ -204,6 +221,8 @@ export default function App() {
   useEffect(() => {
     if (
       !introDismissed ||
+      showAnalyticsModal ||
+      !(getAnalyticsPromptShown() || introSettled) ||
       selectedEntry !== null ||
       loading ||
       search.trim() !== "" ||
@@ -215,7 +234,7 @@ export default function App() {
     }
     triedResurfaceRef.current = true;
     tryResurface();
-  }, [introDismissed, selectedEntry, loading, search, isSearchOpen, editingEntryId, tryResurface]);
+  }, [introDismissed, showAnalyticsModal, introSettled, selectedEntry, loading, search, isSearchOpen, editingEntryId, tryResurface]);
 
   useEffect(() => {
     if (isSearchOpen) {
@@ -676,6 +695,9 @@ export default function App() {
             onTransitionEnd={handleLogoTransitionEnd}
           />
         </>
+      )}
+      {showAnalyticsModal && (
+        <AnalyticsOptInModal onClose={() => setShowAnalyticsModal(false)} />
       )}
       {isChinottoCardOpen && (
         <ChinottoCard
