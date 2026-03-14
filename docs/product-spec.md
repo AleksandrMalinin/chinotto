@@ -27,7 +27,81 @@ Chinotto is a minimal desktop thinking tool for instantly capturing thoughts and
 - No embeddings (yet)
 - One canonical entity only: **Entry**
 
-## MVP flows
+---
+
+## Current product state
+
+What the app does today. Single source of truth for “do we have this?” and “how does it work?”
+
+### Core flows
+
+| Flow | Description |
+|------|-------------|
+| **Capture** | Open app → input focused → type → **Enter** creates a new entry. One stream, no folders. |
+| **Stream** | Entries in reverse chronological order (newest first). Click an entry to open detail. |
+| **Search** | **Cmd+K** (Mac) / **Ctrl+K** (Win/Linux) opens search. Full-text search (FTS5) across all entries. Escape or clear query to return to stream. |
+
+### Entry actions
+
+| Action | How |
+|--------|-----|
+| **Pin** | **Cmd+P** with focus/hover on an entry, or from entry detail. Pinned entry id stored; stream can show pin indicator. |
+| **Unpin** | From entry detail when entry is pinned. |
+| **Edit** | **Cmd+E** on hovered/focused entry, or inline from detail. Updates text in place. |
+| **Delete** | **Cmd+Backspace** on hovered entry, or from entry detail. Entry removed from DB. |
+
+### Context and discovery
+
+| Feature | Description |
+|---------|-------------|
+| **Resurface** | After intro, app may show a random past entry with a short reason (“You wrote this 3 days ago”). Dismiss with Enter/Escape. Recent shown entries are skipped for a while. |
+| **Thought trail** | From an entry’s detail view: “Thought trail” shows other entries related by keyword overlap (no embeddings in UI). |
+
+### App chrome and settings
+
+| Feature | Description |
+|---------|-------------|
+| **Intro** | First run: short intro screen, then transition to main view. |
+| **Chinotto Card** | Click logo (top-left) → About + shortcuts list + **App icon** picker (dock/taskbar icon variant). Escape to close. |
+| **Focus input** | **Cmd+N** focuses the main capture input. |
+
+### Shortcuts (current)
+
+| Shortcut | Action |
+|----------|--------|
+| Enter | Save thought (from capture input) |
+| ⌘ P | Pin thought (hovered/focused entry) |
+| ⌘ K | Search |
+| ⌘ ⌫ (Backspace) | Delete thought (hovered entry) |
+| ⌘ E | Edit hovered/focused entry |
+| Esc | Close overlays / back to stream |
+
+(Chinotto Card also lists ⌘ N “Focus input”; not yet wired globally.)
+
+### Data model
+
+**Entry**
+
+| Field       | Type   | Notes        |
+|------------|--------|--------------|
+| id         | string | Primary key  |
+| text       | string | Content      |
+| created_at | string | ISO 8601 UTC |
+
+Pinned state is stored separately (pinned entry id(s)); no extra fields on Entry.
+
+### Not in the main product (disabled or internal)
+
+| Item | Status |
+|------|--------|
+| **Voice capture** | Implemented (macOS native speech) but **disabled** in the main flow. Gated by `EXPERIMENTAL_VOICE_CAPTURE`; see `docs/architecture.md` (Experimental / disabled features). |
+| **Embeddings / similarity** | Backend can generate embeddings and find similar entries; used for thought trail and resurface logic. Not exposed as a standalone “similar entries” UI beyond thought trail. |
+
+---
+
+## MVP flows (reference)
+
+Original MVP scope; most of it is shipped and extended by the list above.
 
 ### 1. Capture
 
@@ -45,13 +119,3 @@ Chinotto is a minimal desktop thinking tool for instantly capturing thoughts and
 
 - Full-text search across entries
 - Very fast and simple
-
-## Data model
-
-**Entry**
-
-| Field       | Type   | Notes        |
-|------------|--------|--------------|
-| id         | string | Primary key  |
-| text       | string | Content      |
-| created_at | string | ISO 8601 UTC |

@@ -39,3 +39,12 @@ The product is “capture first, structure later.” The MVP avoids folders, pag
 - `docs/` – Product and architecture notes
 
 Frontend calls backend via Tauri `invoke()` for `create_entry`, `list_entries`, and `search_entries`.
+
+## Experimental / disabled features
+
+**Voice capture** (macOS) is implemented but **disabled** in the main flow: it was too fragile and slow for the MVP. The code remains in place so it can return as an experimental feature later.
+
+- **Backend:** `src-tauri/src/speech.rs` (SpeechManager, native recognition); command `run_native_speech_recognition`. Gated by `EXPERIMENTAL_VOICE_CAPTURE` in `src-tauri/src/lib.rs` (default `false`). When false, no voice shortcuts are registered and no speech thread runs at startup.
+- **Frontend:** `src/features/entries/VoiceCaptureOverlay.tsx`; gated by `EXPERIMENTAL_VOICE_CAPTURE` in `src/App.tsx`. When false, Cmd+Shift+V and Alt+Space do not open the overlay.
+
+To re-enable: set `EXPERIMENTAL_VOICE_CAPTURE` to `true` in both `lib.rs` and `App.tsx`.
