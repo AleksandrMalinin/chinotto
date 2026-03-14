@@ -6,10 +6,26 @@ use std::sync::Mutex;
 
 pub struct Db(Mutex<Connection>);
 
+fn ensure_importance_columns(conn: &Connection) -> Result<(), rusqlite::Error> {
+    let has_column = conn.query_row(
+        "SELECT 1 FROM pragma_table_info('entries') WHERE name = 'edit_count'",
+        [],
+        |r| r.get::<_, i32>(0),
+    );
+    match has_column {
+        Ok(1) => return Ok(()),
+        _ => {}
+    }
+    conn.execute("ALTER TABLE entries ADD COLUMN edit_count INTEGER DEFAULT 0", [])?;
+    conn.execute("ALTER TABLE entries ADD COLUMN open_count INTEGER DEFAULT 0", [])?;
+    Ok(())
+}
+
 impl Db {
     pub fn open(path: PathBuf) -> Result<Self, rusqlite::Error> {
         let conn = Connection::open(path)?;
         schema::run_migrations(&conn)?;
+        ensure_importance_columns(&conn)?;
         Ok(Self(Mutex::new(conn)))
     }
 
@@ -29,19 +45,34 @@ impl Db {
 
     pub fn update_entry_text(&self, id: &str, text: &str) -> Result<(), rusqlite::Error> {
         let conn = self.0.lock().unwrap();
-        conn.execute("UPDATE entries SET text = ?1 WHERE id = ?2", [text, id])?;
+        conn.execute(
+            "UPDATE entries SET text = ?1, edit_count = COALESCE(edit_count, 0) + 1 WHERE id = ?2",
+            [text, id],
+        )?;
+        Ok(())
+    }
+
+    pub fn record_entry_open(&self, entry_id: &str) -> Result<(), rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        conn.execute(
+            "UPDATE entries SET open_count = COALESCE(open_count, 0) + 1 WHERE id = ?1",
+            [entry_id],
+        )?;
         Ok(())
     }
 
     pub fn list_entries(&self) -> Result<Vec<EntryRow>, rusqlite::Error> {
         let conn = self.0.lock().unwrap();
-        let mut stmt =
-            conn.prepare("SELECT id, text, created_at FROM entries ORDER BY created_at DESC")?;
+        let mut stmt = conn.prepare(
+            "SELECT id, text, created_at, COALESCE(edit_count, 0), COALESCE(open_count, 0) FROM entries ORDER BY created_at DESC",
+        )?;
         let rows = stmt.query_map([], |r| {
             Ok(EntryRow {
                 id: r.get(0)?,
                 text: r.get(1)?,
                 created_at: r.get(2)?,
+                edit_count: r.get::<_, i64>(3)? as u32,
+                open_count: r.get::<_, i64>(4)? as u32,
             })
         })?;
         rows.collect()
@@ -49,13 +80,17 @@ impl Db {
 
     pub fn get_entry_by_id(&self, id: &str) -> Result<Option<EntryRow>, rusqlite::Error> {
         let conn = self.0.lock().unwrap();
-        let mut stmt = conn.prepare("SELECT id, text, created_at FROM entries WHERE id = ?1")?;
+        let mut stmt = conn.prepare(
+            "SELECT id, text, created_at, COALESCE(edit_count, 0), COALESCE(open_count, 0) FROM entries WHERE id = ?1",
+        )?;
         let mut rows = stmt.query([id])?;
         if let Some(row) = rows.next()? {
             return Ok(Some(EntryRow {
                 id: row.get(0)?,
                 text: row.get(1)?,
                 created_at: row.get(2)?,
+                edit_count: row.get::<_, i64>(3)? as u32,
+                open_count: row.get::<_, i64>(4)? as u32,
             }));
         }
         Ok(None)
@@ -116,7 +151,7 @@ impl Db {
     ) -> Result<Vec<EntryRow>, rusqlite::Error> {
         let conn = self.0.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT e.id, e.text, e.created_at
+            "SELECT e.id, e.text, e.created_at, COALESCE(e.edit_count, 0), COALESCE(e.open_count, 0)
              FROM entries e
              INNER JOIN entry_embeddings em ON e.id = em.entry_id
              WHERE e.created_at < ?1
@@ -127,6 +162,8 @@ impl Db {
                 id: r.get(0)?,
                 text: r.get(1)?,
                 created_at: r.get(2)?,
+                edit_count: r.get::<_, i64>(3)? as u32,
+                open_count: r.get::<_, i64>(4)? as u32,
             })
         })?;
         rows.collect()
@@ -138,7 +175,7 @@ impl Db {
     ) -> Result<Vec<EntryRow>, rusqlite::Error> {
         let conn = self.0.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT e.id, e.text, e.created_at
+            "SELECT e.id, e.text, e.created_at, COALESCE(e.edit_count, 0), COALESCE(e.open_count, 0)
              FROM entries e
              INNER JOIN entry_embeddings em ON e.id = em.entry_id
              ORDER BY e.created_at DESC
@@ -149,9 +186,57 @@ impl Db {
                 id: r.get(0)?,
                 text: r.get(1)?,
                 created_at: r.get(2)?,
+                edit_count: r.get::<_, i64>(3)? as u32,
+                open_count: r.get::<_, i64>(4)? as u32,
             })
         })?;
         rows.collect()
+    }
+
+    /// Entries whose created_at is in [from_iso, to_iso], excluding given ids.
+    /// ISO 8601 strings compare lexicographically.
+    pub fn get_entries_in_time_window(
+        &self,
+        from_iso: &str,
+        to_iso: &str,
+        exclude_ids: &[String],
+    ) -> Result<Vec<EntryRow>, rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let mut sql = String::from(
+            "SELECT id, text, created_at, COALESCE(edit_count, 0), COALESCE(open_count, 0) FROM entries WHERE created_at >= ?1 AND created_at <= ?2",
+        );
+        if !exclude_ids.is_empty() {
+            let placeholders = exclude_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+            sql.push_str(" AND id NOT IN (");
+            sql.push_str(&placeholders);
+            sql.push_str(")");
+        }
+        sql.push_str(" ORDER BY created_at DESC");
+        let mut stmt = conn.prepare(&sql)?;
+        let mut rows = if exclude_ids.is_empty() {
+            stmt.query([from_iso, to_iso])?
+        } else {
+            let mut str_refs: Vec<&str> = vec![from_iso, to_iso];
+            for id in exclude_ids {
+                str_refs.push(id);
+            }
+            let mut params: Vec<&dyn rusqlite::ToSql> = Vec::new();
+            for s in &str_refs {
+                params.push(&*s);
+            }
+            stmt.query(rusqlite::params_from_iter(params))?
+        };
+        let mut out = vec![];
+        while let Some(row) = rows.next()? {
+            out.push(EntryRow {
+                id: row.get(0)?,
+                text: row.get(1)?,
+                created_at: row.get(2)?,
+                edit_count: row.get::<_, i64>(3)? as u32,
+                open_count: row.get::<_, i64>(4)? as u32,
+            });
+        }
+        Ok(out)
     }
 
     pub fn get_entries_by_ids(&self, ids: &[String]) -> Result<Vec<EntryRow>, rusqlite::Error> {
@@ -161,7 +246,7 @@ impl Db {
         let conn = self.0.lock().unwrap();
         let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
         let sql = format!(
-            "SELECT id, text, created_at FROM entries WHERE id IN ({})",
+            "SELECT id, text, created_at, COALESCE(edit_count, 0), COALESCE(open_count, 0) FROM entries WHERE id IN ({})",
             placeholders
         );
         let mut stmt = conn.prepare(&sql)?;
@@ -172,6 +257,8 @@ impl Db {
                 id: row.get(0)?,
                 text: row.get(1)?,
                 created_at: row.get(2)?,
+                edit_count: row.get::<_, i64>(3)? as u32,
+                open_count: row.get::<_, i64>(4)? as u32,
             });
         }
         Ok(out)
@@ -256,6 +343,8 @@ pub struct EntryRow {
     pub id: String,
     pub text: String,
     pub created_at: String,
+    pub edit_count: u32,
+    pub open_count: u32,
 }
 
 pub struct SearchEntryRow {
