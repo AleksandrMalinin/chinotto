@@ -10,6 +10,8 @@ import { EntryDetail } from "./features/entries/EntryDetail";
 import { ResurfacedOverlay } from "./features/entries/ResurfacedOverlay";
 import { VoiceCaptureOverlay } from "./features/entries/VoiceCaptureOverlay";
 import { SearchInput } from "./features/entries/SearchInput";
+import { SearchResultsList } from "./features/entries/SearchResultsList";
+import { getSearchFeedback } from "./features/entries/searchOverlayFeedback";
 import { Button } from "@/components/ui/button";
 import {
   createEntry,
@@ -81,10 +83,10 @@ export default function App() {
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [lastDeletedEntry, setLastDeletedEntry] = useState<Entry | null>(null);
   const [hoveredEntryId, setHoveredEntryId] = useState<string | null>(null);
+  const [searchSelectedIndex, setSearchSelectedIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const entryInputRef = useRef<EntryInputRef>(null);
   const headerLogoRef = useRef<HTMLButtonElement>(null);
-  const triedResurfaceRef = useRef(false);
   const shownThisSessionRef = useRef(false);
   const attemptedAfterSaveRef = useRef(false);
   const justAddedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -96,23 +98,41 @@ export default function App() {
     height: number;
   } | null>(null);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (query: string) => {
     setLoading(true);
     try {
-      const list = await loadEntries(search);
+      const list = await loadEntries(query);
       setEntries(list);
-      if (!search.trim()) {
+      if (!query.trim()) {
         const ids = await getPinnedEntryIds();
         setPinnedIds(ids);
       }
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    const q = search.trim();
+    if (!q) {
+      refresh("");
+      return;
+    }
+    const t = setTimeout(() => refresh(search), 120);
+    return () => clearTimeout(t);
+  }, [search, refresh]);
+
+  useEffect(() => {
+    if (search.trim()) {
+      setSearchSelectedIndex(0);
+    }
   }, [search]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (entries.length > 0) {
+      setSearchSelectedIndex((i) => (i >= entries.length ? entries.length - 1 : i));
+    }
+  }, [entries]);
 
   useEffect(() => {
     if (!introDismissed) {
@@ -157,6 +177,20 @@ export default function App() {
       setShowAnalyticsModal(true);
     }, 600);
     return () => clearTimeout(t);
+  }, [introDismissed]);
+
+  useEffect(() => {
+    if (!introDismissed) return;
+    let cancelled = false;
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!cancelled) entryInputRef.current?.focus();
+      });
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(id);
+    };
   }, [introDismissed]);
 
   useEffect(() => {
@@ -218,23 +252,7 @@ export default function App() {
       });
   }, []);
 
-  useEffect(() => {
-    if (
-      !introDismissed ||
-      showAnalyticsModal ||
-      !(getAnalyticsPromptShown() || introSettled) ||
-      selectedEntry !== null ||
-      loading ||
-      search.trim() !== "" ||
-      isSearchOpen ||
-      editingEntryId !== null ||
-      triedResurfaceRef.current
-    ) {
-      return;
-    }
-    triedResurfaceRef.current = true;
-    tryResurface();
-  }, [introDismissed, showAnalyticsModal, introSettled, selectedEntry, loading, search, isSearchOpen, editingEntryId, tryResurface]);
+  /* Resurface overlay is not shown on launch; it may run after the user saves an entry (see handleSubmit). */
 
   useEffect(() => {
     if (isSearchOpen) {
@@ -325,6 +343,9 @@ export default function App() {
   function handleSearchClose() {
     setIsSearchOpen(false);
     setSearch("");
+    requestAnimationFrame(() => {
+      entryInputRef.current?.focus();
+    });
   }
 
   const handleOpenEntry = useCallback((entry: Entry) => {
@@ -503,7 +524,6 @@ export default function App() {
     setIntroDismissed(true);
     setIntroTransitioning(false);
     setLogoEndRect(null);
-    entryInputRef.current?.focus();
   }, []);
 
   const handleDevPreviewResurface = useCallback(() => {
@@ -589,7 +609,44 @@ export default function App() {
                   value={search}
                   onChange={setSearch}
                   onClose={handleSearchClose}
+                  onEnter={() => {
+                    if (search.trim() && entries.length > 0) {
+                      const entry = entries[searchSelectedIndex] ?? entries[0];
+                      handleOpenEntry(entry);
+                    }
+                    handleSearchClose();
+                  }}
+                  onArrowUp={
+                    entries.length > 0
+                      ? () =>
+                          setSearchSelectedIndex((i) => Math.max(0, i - 1))
+                      : undefined
+                  }
+                  onArrowDown={
+                    entries.length > 0
+                      ? () =>
+                          setSearchSelectedIndex((i) =>
+                            Math.min(entries.length - 1, i + 1)
+                          )
+                      : undefined
+                  }
                 />
+                {search.trim() && (
+                  <>
+                    <p className="search-feedback" aria-live="polite">
+                      {getSearchFeedback(entries)}
+                    </p>
+                    <SearchResultsList
+                      entries={entries}
+                      selectedIndex={searchSelectedIndex}
+                      onSelectIndex={setSearchSelectedIndex}
+                      onSelectEntry={(entry) => {
+                        handleOpenEntry(entry);
+                        handleSearchClose();
+                      }}
+                    />
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -714,7 +771,12 @@ export default function App() {
             handleOpenEntry(entry);
             setResurfaced(null);
           }}
-          onDismiss={() => setResurfaced(null)}
+          onDismiss={() => {
+            setResurfaced(null);
+            requestAnimationFrame(() => {
+              entryInputRef.current?.focus();
+            });
+          }}
         />
       )}
       {EXPERIMENTAL_VOICE_CAPTURE && voiceCaptureOpen && (

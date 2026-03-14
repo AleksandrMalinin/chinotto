@@ -5,19 +5,48 @@ type Props = {
   value: string;
   onChange: (value: string) => void;
   onClose?: () => void;
+  onEnter?: () => void;
+  onArrowUp?: () => void;
+  onArrowDown?: () => void;
   placeholder?: string;
 };
 
 export const SearchInput = forwardRef<HTMLInputElement, Props>(
-  function SearchInput({ value, onChange, onClose, placeholder = "Search entries…" }, ref) {
+  function SearchInput(
+    {
+      value,
+      onChange,
+      onClose,
+      onEnter,
+      onArrowUp,
+      onArrowDown,
+      placeholder = "Search entries…",
+    },
+    ref
+  ) {
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === "Escape") {
           e.preventDefault();
           onClose?.();
+          return;
+        }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          onEnter?.();
+          return;
+        }
+        if (e.key === "ArrowDown") {
+          if (onArrowDown) e.preventDefault();
+          onArrowDown?.();
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          if (onArrowUp) e.preventDefault();
+          onArrowUp?.();
         }
       },
-      [onClose]
+      [onClose, onEnter, onArrowUp, onArrowDown]
     );
     return (
       <Input

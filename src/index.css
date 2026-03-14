@@ -321,7 +321,7 @@ body.chinotto-card-open {
 
 .app-header-beta {
   font-size: 0.65em;
-  opacity: 0.78;
+  opacity: 0.52;
   font-weight: 500;
   margin-left: 0.12em;
   vertical-align: baseline;
@@ -512,6 +512,60 @@ body.welcome .app-bg {
   outline: none;
   border-color: var(--border-focus);
   box-shadow: 0 0 0 1px var(--border-focus);
+}
+
+.search-feedback {
+  margin: 0.5rem 0 0;
+  font-size: 13px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.55);
+  text-align: center;
+}
+
+.search-results-list {
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 280px;
+  overflow-y: auto;
+  border-radius: 10px;
+  background: rgba(12, 12, 18, 0.85);
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+}
+
+.search-results-item {
+  padding: 0.5rem 0.75rem;
+  font-size: 14px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.88);
+  cursor: pointer;
+  border-radius: 6px;
+  margin: 2px 4px;
+}
+
+.search-results-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.search-results-item-selected,
+.search-results-item-selected:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.search-results-item-text {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-results-item-text mark {
+  padding: 0;
+  font-weight: 600;
+  color: var(--fg);
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
 }
 
 @keyframes search-reveal {
@@ -1189,7 +1243,7 @@ body.welcome .app-bg {
 }
 
 .entry-input::placeholder {
-  color: var(--muted);
+  color: var(--fg-dim);
   font-weight: 400;
   font-size: 15px;
   line-height: 1.1;
@@ -1460,10 +1514,11 @@ body.welcome .app-bg {
 }
 
 .entry-row-text mark {
-  padding: 0 0.15em;
-  background: var(--accent-subtle);
-  border-radius: 3px;
-  color: inherit;
+  padding: 0;
+  font-weight: 600;
+  color: var(--fg);
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
 }
 
 .entry-row-pin {
