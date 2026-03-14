@@ -4,6 +4,63 @@ use rusqlite::Connection;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+/// Build an FTS5 prefix query so partial words match (e.g. "cap" matches "capture").
+/// Tokens are space-separated; each becomes "token*". Special chars " and - are escaped.
+fn fts5_prefix_query(user_query: &str) -> String {
+    let q = user_query.trim();
+    if q.is_empty() {
+        return String::new();
+    }
+    let tokens: Vec<String> = q
+        .split_whitespace()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|token| {
+            let escaped = token.replace('"', "\"\"");
+            if token.contains('"') || token.contains('-') {
+                format!("\"{}\"*", escaped)
+            } else {
+                format!("{}*", token)
+            }
+        })
+        .collect();
+    tokens.join(" ")
+}
+
+/// Escape % and _ for use in SQLite LIKE (so they match literally).
+fn escape_like(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        if c == '%' || c == '_' {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out
+}
+
+/// Wrap each case-insensitive occurrence of `query` in `text` with FTS highlight markers.
+fn highlight_substring(text: &str, query: &str) -> String {
+    let q = query.trim();
+    if q.is_empty() {
+        return text.to_string();
+    }
+    let text_lower = text.to_lowercase();
+    let q_lower = q.to_lowercase();
+    let mut out = String::with_capacity(text.len() + 32);
+    let mut start = 0;
+    while let Some(pos) = text_lower[start..].find(&q_lower) {
+        let abs = start + pos;
+        out.push_str(&text[start..abs]);
+        out.push('\u{0001}');
+        out.push_str(&text[abs..abs + q.len()]);
+        out.push('\u{0002}');
+        start = abs + q.len();
+    }
+    out.push_str(&text[start..]);
+    out
+}
+
 pub struct Db(Mutex<Connection>);
 
 fn ensure_importance_columns(conn: &Connection) -> Result<(), rusqlite::Error> {
@@ -317,21 +374,49 @@ impl Db {
                 .collect());
         }
         let conn = self.0.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT e.id, e.text, e.created_at,
+        let prefix_query = fts5_prefix_query(query);
+
+        if !prefix_query.is_empty() {
+            let sql = "SELECT e.id, e.text, e.created_at,
                     highlight(entries_fts, 0, '\u{0001}', '\u{0002}') AS highlighted
              FROM entries e
              INNER JOIN entries_fts ON e.rowid = entries_fts.rowid
              WHERE entries_fts MATCH ?1
-             ORDER BY e.created_at DESC",
-        )?;
-        let rows = stmt.query_map([query.trim()], |r| {
-            let highlighted: String = r.get(3)?;
+             ORDER BY bm25(entries_fts)";
+            if let Ok(mut stmt) = conn.prepare(sql) {
+                let rows = stmt.query_map([&prefix_query], |r| {
+                    let highlighted: String = r.get(3)?;
+                    Ok(SearchEntryRow {
+                        id: r.get(0)?,
+                        text: r.get(1)?,
+                        created_at: r.get(2)?,
+                        highlighted: Some(highlighted),
+                    })
+                });
+                if let Ok(rows) = rows {
+                    if let Ok(list) = rows.collect::<Result<Vec<_>, _>>() {
+                        if !list.is_empty() {
+                            return Ok(list);
+                        }
+                    }
+                }
+            }
+        }
+
+        let query_trim = query.trim();
+        let like_pattern = format!("%{}%", escape_like(query_trim));
+        let fallback_sql = "SELECT id, text, created_at FROM entries WHERE LOWER(text) LIKE LOWER(?1) ESCAPE '\\' ORDER BY created_at DESC";
+        let mut stmt = conn.prepare(fallback_sql)?;
+        let rows = stmt.query_map([&like_pattern], |r| {
+            let id: String = r.get(0)?;
+            let text: String = r.get(1)?;
+            let created_at: String = r.get(2)?;
+            let highlighted = Some(highlight_substring(&text, query_trim));
             Ok(SearchEntryRow {
-                id: r.get(0)?,
-                text: r.get(1)?,
-                created_at: r.get(2)?,
-                highlighted: Some(highlighted),
+                id,
+                text,
+                created_at,
+                highlighted,
             })
         })?;
         rows.collect()
@@ -352,4 +437,72 @@ pub struct SearchEntryRow {
     pub text: String,
     pub created_at: String,
     pub highlighted: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn db_with_entries(entries: &[(&str, &str)]) -> Db {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        for (i, (id, text)) in entries.iter().enumerate() {
+            let created = format!("2025-01-{:02}T12:00:00Z", 15 - i);
+            db.create_entry(id, text, &created).unwrap();
+        }
+        db
+    }
+
+    fn search_ids(db: &Db, query: &str) -> Vec<String> {
+        db.search_entries(query)
+            .unwrap()
+            .into_iter()
+            .map(|r| r.id.to_string())
+            .collect()
+    }
+
+    #[test]
+    fn partial_word_search_matches_substrings_inside_words() {
+        let db = db_with_entries(&[(
+            "1",
+            "1:1 with Sarah re: roadmap alignment and hiring plan for Q2",
+        )]);
+        for query in ["road", "roadmap", "align", "hir", "plan"] {
+            let ids = search_ids(&db, query);
+            assert!(
+                ids.contains(&"1".to_string()),
+                "query {:?} should match entry (substring inside word)",
+                query
+            );
+        }
+    }
+
+    #[test]
+    fn case_insensitive_matching() {
+        let db = db_with_entries(&[("1", "Call Mom Tomorrow")]);
+        for query in ["call", "CALL", "Call", "mom", "MOM", "ToMoRrOw"] {
+            let ids = search_ids(&db, query);
+            assert!(ids.contains(&"1".to_string()), "query {:?} should match (case-insensitive)", query);
+        }
+    }
+
+    #[test]
+    fn no_results_returns_empty() {
+        let db = db_with_entries(&[("1", "1:1 with Sarah re: roadmap alignment")]);
+        let ids = search_ids(&db, "xyznonexistent");
+        assert!(ids.is_empty(), "query with no matches should return empty");
+    }
+
+    #[test]
+    fn basic_ranking_stronger_match_first() {
+        let db = db_with_entries(&[
+            ("once", "design review notes"),
+            ("twice", "design and design again"),
+        ]);
+        let rows = db.search_entries("design").unwrap();
+        assert_eq!(rows.len(), 2);
+        let ids: Vec<&str> = rows.iter().map(|r| r.id.as_str()).collect();
+        assert_eq!(ids[0], "twice", "entry with more term matches should rank higher");
+        assert_eq!(ids[1], "once");
+    }
 }
