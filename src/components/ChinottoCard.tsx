@@ -55,7 +55,7 @@ export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Pr
   }, [handleKeyDown]);
 
   const handleOverlayClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) close();
+    if (!(e.target as HTMLElement).closest?.(".chinotto-card")) close();
   };
 
   const handleAnimationEnd = (e: React.AnimationEvent) => {
