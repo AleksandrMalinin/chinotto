@@ -32,7 +32,7 @@ Do not propose or implement features that contradict the above. When in doubt, p
 2. **Local-first.** Data lives in SQLite on the user’s machine. No network for core flows. No dependency on external services for capture or search.
 3. **Minimal UI.** UI supports capture and search. No chrome that doesn’t serve those. No “nice to have” UI without a clear product justification.
 4. **Boring tech.** Use the stack that’s already there. New dependencies and new patterns need justification; default is “no.”
-5. **One logical change per unit of work.** Commits and PRs follow `docs/COMMIT_CONVENTION.md`. One feature slice, one fix, one refactor—no bundling unrelated changes.
+5. **One logical change per unit of work.** Commits and PRs follow `docs/commit-convention.md`. One feature slice, one fix, one refactor—no bundling unrelated changes.
 
 ---
 
@@ -40,7 +40,7 @@ Do not propose or implement features that contradict the above. When in doubt, p
 
 - **Read before changing.** Use the codebase and `docs/` to understand current behavior and constraints. Do not assume; verify paths, APIs, and data shapes.
 - **Preserve existing contracts.** Frontend invokes Tauri commands (`create_entry`, `list_entries`, `search_entries`). Entry has `id`, `text`, `created_at`. Do not change these without explicit requirement and approval.
-- **Follow the commit convention.** All suggested commit messages must conform to `docs/COMMIT_CONVENTION.md`: type(scope): imperative subject, one logical change, no vague or emotional wording.
+- **Follow the commit convention.** All suggested commit messages must conform to `docs/commit-convention.md`: type(scope): imperative subject, one logical change, no vague or emotional wording.
 - **Do not invent product scope.** Do not add features (e.g. tags, folders, AI chat, sync) unless the user explicitly asks. If the user’s request conflicts with product constraints, state the conflict and ask.
 - **Prefer the smallest change.** Fix or add what’s asked. Avoid “while I’m here” refactors or scope creep. Refactors are separate from feature work unless the user asks for both.
 - **Leave the codebase buildable and runnable.** Do not leave broken imports, commented-out code that should be removed, or half-finished work. If something is intentionally incomplete (e.g. stub), say so in the change or a short comment.
@@ -63,7 +63,7 @@ Do not propose or implement features that contradict the above. When in doubt, p
 - **Vague or gimmicky AI.** No placeholders like “AI-powered search” or “smart suggestions” without a concrete design and acceptance that the app stays useful without them. No wording that sounds like marketing.
 - **Over-engineering.** No premature abstractions, no “framework” patterns, no layers that don’t yet have a concrete use. No generic “service” or “manager” classes unless they consolidate real duplication.
 - **Ignoring constraints.** No sync, auth, cloud, pages, folders, documents, tasks, kanban, or templates in MVP. No new runtimes or targets (e.g. mobile, web) unless explicitly requested.
-- **Breaking the contract.** Do not change Tauri command names, Entry shape, or frontend–backend invocation pattern without explicit requirement. Do not suggest commits that violate `docs/COMMIT_CONVENTION.md`.
+- **Breaking the contract.** Do not change Tauri command names, Entry shape, or frontend–backend invocation pattern without explicit requirement. Do not suggest commits that violate `docs/commit-convention.md`.
 - **Motivational or filler language.** In code comments, commits, and docs: no “awesome,” “nice,” “simple but powerful,” or similar. Be factual.
 
 ---
@@ -72,7 +72,7 @@ Do not propose or implement features that contradict the above. When in doubt, p
 
 - **In-code:** Comment only when the “why” or contract is not obvious from the code. No comments that restate what the code does. No TODOs without an owner or next step if they are long-lived.
 - **Repo docs:** `docs/` holds product and architecture. Update `docs/architecture.md` when the stack or high-level design changes; update `docs/product-spec.md` when scope or constraints change. Keep README aligned with run instructions and MVP scope.
-- **AGENTS.md and COMMIT_CONVENTION:** Treat these as binding. Do not water them down or add generic “best practices” that duplicate them. When changing them, preserve strictness and practicality.
+- **AGENTS.md and commit-convention:** Treat these as binding. Do not water them down or add generic “best practices” that duplicate them. When changing them, preserve strictness and practicality.
 
 ---
 

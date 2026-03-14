@@ -1,6 +1,6 @@
 # App icon
 
-The app icon is built from `src-tauri/icons/icon.svg`. The canonical design (dark, minimal, one “C” for Chinotto) —same as ChinottoLogo (circle + four dots). Keep `src-tauri/icons/icon.svg` in sync with it.
+The app icon is built from `src-tauri/icons/icon.svg`. The canonical design (dark, minimal, one "C" for Chinotto) —same as ChinottoLogo (circle + four dots). Keep `src-tauri/icons/icon.svg` in sync with it.
 
 **Archived (not in use):** An older icon (dark rounded square with light purple chevron) is saved as `docs/assets/icon-archived.png` for reference only. Do not use it as the app icon.
 
@@ -25,9 +25,9 @@ Then clear the icon cache and restart Dock (see section below), and open Chinott
 
 **Browser tab icon (only when opening the app in a browser):** The doc uses `public/favicon.svg` and `public/favicon.ico`. If a browser tab still shows an old icon:
 
-1. **Cursor Simple Browser:** Close the Simple Browser tab completely, then reopen the app URL (e.g. `http://localhost:5173`). Simple Browser caches favicons aggressively; closing the tab and reopening often picks up the new one. If it doesn’t: right‑click the tab → “Clear Site Data” (or equivalent), then reload.
+1. **Cursor Simple Browser:** Close the Simple Browser tab completely, then reopen the app URL (e.g. `http://localhost:5173`). Simple Browser caches favicons aggressively; closing the tab and reopening often picks up the new one. If it doesn't: right‑click the tab → "Clear Site Data" (or equivalent), then reload.
 2. **Chrome/Safari:** Open `http://localhost:5173` in a normal browser. Hard refresh (Cmd+Shift+R). If still old: DevTools → Application (Chrome) or Storage (Safari) → clear storage for localhost, then reload.
-3. **Confirm files:** In a new tab go to `http://localhost:5173/favicon.svg` — you should see the circle-four-dots SVG. If that’s correct, the tab icon is just cache; keep closing/reopening or clearing site data until it updates.
+3. **Confirm files:** In a new tab go to `http://localhost:5173/favicon.svg` — you should see the circle-four-dots SVG. If that's correct, the tab icon is just cache; keep closing/reopening or clearing site data until it updates.
 
 ## Canonical icon (SVG)
 
@@ -75,7 +75,7 @@ If you run from **dev** (`tauri dev`), the dock may still show an old icon until
 
 ### Still wrong? (desktop app)
 
-1. **Regenerate icons** (if you haven’t):
+1. **Regenerate icons** (if you haven't):
    ```bash
    npm run tauri icon src-tauri/icons/icon.svg
    ```
@@ -86,6 +86,6 @@ If you run from **dev** (`tauri dev`), the dock may still show an old icon until
    npm run tauri dev
    ```
 
-3. **macOS dock/title bar:** Clear the icon cache and restart the Dock (see “Dock / panel bar not updating on macOS” above). Then quit the app fully and start it again.
+3. **macOS dock/title bar:** Clear the icon cache and restart the Dock (see "Dock / panel bar not updating on macOS" above). Then quit the app fully and start it again.
 
 4. **Built app only:** Remove the old app from `/Applications`, do a clean build, copy the new `.app`, then clear icon cache and restart Dock.

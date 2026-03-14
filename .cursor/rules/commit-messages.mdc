@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Commit messages (Chinotto)
 
-When suggesting or writing commit messages for this repo, follow the convention in **docs/COMMIT_CONVENTION.md**.
+When suggesting or writing commit messages for this repo, follow the convention in **docs/commit-convention.md**.
 
 **Format:** `type(scope): imperative subject` — e.g. `feat(entries): submit on Enter`.
 
@@ -21,4 +21,4 @@ When suggesting or writing commit messages for this repo, follow the convention 
 **Good:** `fix(search): refresh list when query is cleared`  
 **Bad:** `fix: fix search bug` or `WIP search`
 
-Refer to docs/COMMIT_CONVENTION.md for full rules, granularity, and examples.
+Refer to docs/commit-convention.md for full rules, granularity, and examples.

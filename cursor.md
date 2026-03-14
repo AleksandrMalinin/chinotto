@@ -34,7 +34,7 @@ When a request pushes toward any of these, choose the minimal interpretation or 
 2. **Local-first.** Data in SQLite on the user’s machine. No network for core capture/search. No reliance on external services for basic usefulness.
 3. **Minimal UI.** Every UI element serves capture or search. No decorative chrome or “nice to have” without product justification.
 4. **Boring tech.** Stick to the existing stack. New deps and new patterns need a clear reason; default is no.
-5. **One logical change per commit.** Follow `docs/COMMIT_CONVENTION.md`. No bundling unrelated edits.
+5. **One logical change per commit.** Follow `docs/commit-convention.md`. No bundling unrelated edits.
 
 ---
 
@@ -74,7 +74,7 @@ When searching for APIs, docs, or solutions:
 - **In-code:** Comment only when the “why” or contract isn’t obvious. No comments that repeat what the code does. No long-lived TODOs without a clear next step or owner.
 - **Repo docs:** `docs/` is the source for product and architecture. Update `docs/architecture.md` when the stack or design changes; update `docs/product-spec.md` when scope or constraints change. Keep README in sync with how to run and MVP scope.
 - **Tone:** Factual. No marketing speak, no “awesome” or “simple but powerful” in comments or docs.
-- When changing `AGENTS.md`, `docs/COMMIT_CONVENTION.md`, or this file, keep them strict and practical; don’t dilute with generic advice.
+- When changing `AGENTS.md`, `docs/commit-convention.md`, or this file, keep them strict and practical; don’t dilute with generic advice.
 
 ---
 
@@ -101,7 +101,7 @@ When searching for APIs, docs, or solutions:
 - **Vague or gimmicky AI.** No “AI-powered” or “smart” placeholders without a concrete design and without the app remaining clearly useful without them.
 - **Over-engineering.** No premature abstractions, no framework-style layers without a real use, no generic “Service”/“Manager” classes that don’t consolidate real duplication.
 - **Ignoring product constraints.** No sync, auth, cloud, pages, folders, documents, tasks, kanban, templates, or new platforms (e.g. web/mobile) unless explicitly requested.
-- **Breaking existing contracts.** Don’t change Tauri command names, Entry shape, or invoke pattern without an explicit requirement. Don’t suggest commit messages that violate `docs/COMMIT_CONVENTION.md`.
+- **Breaking existing contracts.** Don’t change Tauri command names, Entry shape, or invoke pattern without an explicit requirement. Don’t suggest commit messages that violate `docs/commit-convention.md`.
 - **Filler language.** No “awesome,” “nice,” “just,” “simply” in code, commits, or docs. Be precise.
 
 ---
