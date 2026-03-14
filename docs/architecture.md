@@ -40,6 +40,8 @@ The product is “capture first, structure later.” The MVP avoids folders, pag
 
 Frontend calls backend via Tauri `invoke()` for `create_entry`, `list_entries`, and `search_entries`.
 
+**Search:** FTS5 virtual table `entries_fts` is kept in sync with `entries` via triggers (insert, update, delete). Search uses prefix matching (partial words match), case-insensitive FTS, and results are ordered by BM25 relevance. If FTS returns no rows, a case-insensitive substring (LIKE) fallback is used. The overlay shows result count, highlights matches, and supports Enter (open selected/first) and Escape (close and focus capture input).
+
 **Recall (resurfacing):** Guardrails for a quiet, non-intrusive recall system are in `docs/recall-guardrails.md` (max one per session, cooldown, timing, frequency).
 
 **Entry importance:** A lightweight, invisible score (pinned + edit count + open count) is used only as a small ranking boost in resurfacing and thought trail. No UI; see importance constants in `src-tauri/src/lib.rs`.
