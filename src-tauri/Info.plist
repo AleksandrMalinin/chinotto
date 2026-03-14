@@ -8,6 +8,10 @@
   <string>Chinotto</string>
   <key>CFBundleGetInfoString</key>
   <string>Capture first. Revisit later.</string>
+  <key>CFBundleShortVersionString</key>
+  <string>0.1.0</string>
+  <key>CFBundleVersion</key>
+  <string>0.1.0</string>
   <key>NSSpeechRecognitionUsageDescription</key>
   <string>Chinotto uses speech recognition so you can capture thoughts by voice.</string>
   <key>NSMicrophoneUsageDescription</key>
