@@ -8,6 +8,16 @@
   "permissions": [
     "core:default",
     "core:window:allow-set-icon",
-    "core:event:default"
+    "core:event:default",
+    "dialog:allow-save",
+    "dialog:allow-message",
+    "opener:allow-default-urls",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "https://**" },
+        { "url": "http://**" }
+      ]
+    }
   ]
 }

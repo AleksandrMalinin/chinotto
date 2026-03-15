@@ -8,12 +8,16 @@ mod thought_trail;
 mod speech;
 
 use base64::Engine;
+use chrono::TimeZone;
 use db::Db;
 use keywords::{
     extract_keywords, keyword_overlap, thought_trail_candidates, thought_trail_max_related,
     thought_trail_min_overlap, thought_trail_similarity,
 };
 use std::fs;
+use std::fs::File;
+use std::io::Write;
+use std::path::PathBuf;
 use std::sync::mpsc;
 use std::sync::Arc;
 use tauri::Emitter;
@@ -65,10 +69,7 @@ const IMPORTANCE_EDIT_CAP: f64 = 2.0;
 const IMPORTANCE_OPEN_FACTOR: f64 = 0.2;
 const IMPORTANCE_OPEN_CAP: f64 = 1.5;
 
-fn importance_score(
-    entry: &db::EntryRow,
-    pinned_ids: &std::collections::HashSet<String>,
-) -> f64 {
+fn importance_score(entry: &db::EntryRow, pinned_ids: &std::collections::HashSet<String>) -> f64 {
     let pin = if pinned_ids.contains(&entry.id) {
         IMPORTANCE_PIN
     } else {
@@ -97,6 +98,26 @@ fn create_entry(db: tauri::State<Db>, text: String) -> Result<String, String> {
     db.create_entry(&id, trimmed, &created_at)
         .map_err(|e| e.to_string())?;
     Ok(id)
+}
+
+#[tauri::command]
+fn restore_entry(db: tauri::State<Db>, id: String, text: String, created_at: String) -> Result<String, String> {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return Err("entry text cannot be empty".to_string());
+    }
+    match db.create_entry(&id, trimmed, &created_at) {
+        Ok(()) => Ok(id),
+        Err(e) => {
+            if e.to_string().contains("UNIQUE constraint") {
+                let new_id = uuid::Uuid::new_v4().to_string();
+                db.create_entry(&new_id, trimmed, &created_at).map_err(|e| e.to_string())?;
+                Ok(new_id)
+            } else {
+                Err(e.to_string())
+            }
+        }
+    }
 }
 
 #[tauri::command]
@@ -212,18 +233,11 @@ pub(crate) fn get_resurfaced_entry_impl<R: rand::RngCore>(
         .map_err(|e| e.to_string())?
         .into_iter()
         .collect();
-    let exclude: std::collections::HashSet<&str> =
-        exclude_ids.iter().map(String::as_str).collect();
+    let exclude: std::collections::HashSet<&str> = exclude_ids.iter().map(String::as_str).collect();
     let pinned_ref: std::collections::HashSet<&str> =
         pinned_ids.iter().map(String::as_str).collect();
     let now = chrono::Utc::now();
-    let result = recall::select_entry_for_resurface(
-        &entries,
-        now,
-        &exclude,
-        &pinned_ref,
-        rng,
-    );
+    let result = recall::select_entry_for_resurface(&entries, now, &exclude, &pinned_ref, rng);
     let (picked, anchor) = match result {
         Some(r) => r,
         None => return Ok(None),
@@ -261,8 +275,7 @@ fn get_thought_trail(db: tauri::State<Db>, entry_id: String) -> Result<Vec<Entry
         .get_entry_by_id(&entry_id)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "entry not found".to_string())?;
-    let current_ts = parse_created_at(&current.created_at)
-        .unwrap_or_else(chrono::Utc::now);
+    let current_ts = parse_created_at(&current.created_at).unwrap_or_else(chrono::Utc::now);
     let pinned_ids: std::collections::HashSet<String> = db
         .list_pinned_entry_ids()
         .map_err(|e| e.to_string())?
@@ -286,12 +299,7 @@ fn get_thought_trail(db: tauri::State<Db>, entry_id: String) -> Result<Vec<Entry
         .into_iter()
         .filter(|r| keyword_overlap(&current.text, &r.text) >= min_overlap)
         .map(|r| {
-            let sim = thought_trail_similarity(
-                &current.text,
-                &r.text,
-                &corpus,
-                15,
-            );
+            let sim = thought_trail_similarity(&current.text, &r.text, &corpus, 15);
             let other_ts = parse_created_at(&r.created_at).unwrap_or(current_ts);
             let days = (current_ts - other_ts).num_days().unsigned_abs() as f64;
             let time_score = 1.0 / (1.0 + days);
@@ -305,7 +313,11 @@ fn get_thought_trail(db: tauri::State<Db>, entry_id: String) -> Result<Vec<Entry
     let (before, after): (Vec<_>, Vec<_>) = scored
         .into_iter()
         .map(|(row, score)| (row, score))
-        .partition(|(r, _)| parse_created_at(&r.created_at).map(|t| t < current_ts).unwrap_or(false));
+        .partition(|(r, _)| {
+            parse_created_at(&r.created_at)
+                .map(|t| t < current_ts)
+                .unwrap_or(false)
+        });
 
     let take_before: Vec<db::EntryRow> = before.into_iter().take(half).map(|(r, _)| r).collect();
     let take_after: Vec<db::EntryRow> = after.into_iter().take(half).map(|(r, _)| r).collect();
@@ -393,7 +405,8 @@ fn update_entry(db: tauri::State<Db>, entry_id: String, text: String) -> Result<
     db.get_entry_by_id(&entry_id)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "entry not found".to_string())?;
-    db.update_entry_text(&entry_id, &text).map_err(|e| e.to_string())
+    db.update_entry_text(&entry_id, &text)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -407,6 +420,126 @@ fn delete_entry(db: tauri::State<Db>, entry_id: String) -> Result<(), String> {
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "entry not found".to_string())?;
     db.delete_entry(&entry_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn export_entries(db: tauri::State<Db>, path: String) -> Result<(), String> {
+    let mut rows = db.list_entries().map_err(|e| e.to_string())?;
+    rows.reverse();
+    let dest = PathBuf::from(&path);
+    let file = File::create(&dest).map_err(|e| e.to_string())?;
+    let mut zip = zip::ZipWriter::new(file);
+    let opts =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    for row in rows {
+        let dt = parse_created_at(&row.created_at)
+            .ok_or_else(|| format!("invalid created_at: {}", row.created_at))?;
+        let filename = format!("{}.md", dt.format("%Y-%m-%d-%H-%M-%S"));
+        let frontmatter = format!(
+            "---\ncreated_at: {}\napp: chinotto\nversion: {}\n---\n\n",
+            row.created_at,
+            env!("CARGO_PKG_VERSION")
+        );
+        let content = format!("{}{}", frontmatter, row.text);
+        let entry_path = format!("chinotto-export/entries/{}", filename);
+        zip.start_file(entry_path, opts)
+            .map_err(|e| e.to_string())?;
+        zip.write_all(content.as_bytes())
+            .map_err(|e| e.to_string())?;
+    }
+    zip.finish().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+const BACKUP_RETENTION_COUNT: usize = 7;
+const AUTO_BACKUP_COOLDOWN_HOURS: i64 = 24;
+
+fn backup_paths(app: &tauri::AppHandle) -> Result<(PathBuf, PathBuf), String> {
+    let base = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let db_path = base.join("chinotto.db");
+    let backups_dir = base.join("chinotto-backups");
+    Ok((db_path, backups_dir))
+}
+
+fn prune_old_backups(backups_dir: &std::path::Path) -> Result<(), String> {
+    let mut entries: Vec<(std::time::SystemTime, PathBuf)> = Vec::new();
+    for e in fs::read_dir(backups_dir).map_err(|e| e.to_string())? {
+        let e = e.map_err(|e| e.to_string())?;
+        let path = e.path();
+        if path.extension().map_or(false, |e| e == "db") {
+            if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                if let Some(suffix) = stem.strip_prefix("chinotto-") {
+                    if chrono::NaiveDateTime::parse_from_str(suffix, "%Y-%m-%d-%H-%M").is_ok() {
+                        if let Ok(meta) = e.metadata() {
+                            if let Ok(modified) = meta.modified() {
+                                entries.push((modified, path));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if entries.len() <= BACKUP_RETENTION_COUNT {
+        return Ok(());
+    }
+    entries.sort_by(|a, b| b.0.cmp(&a.0));
+    for (_, path) in entries.into_iter().skip(BACKUP_RETENTION_COUNT) {
+        let _ = fs::remove_file(&path);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn create_backup(app: tauri::AppHandle) -> Result<(), String> {
+    let (db_path, backups_dir) = backup_paths(&app)?;
+    if !db_path.exists() {
+        return Err("Database file not found.".to_string());
+    }
+    fs::create_dir_all(&backups_dir).map_err(|e| e.to_string())?;
+    let timestamp = chrono::Utc::now().format("%Y-%m-%d-%H-%M");
+    let backup_name = format!("chinotto-{}.db", timestamp);
+    let backup_path = backups_dir.join(&backup_name);
+    fs::copy(&db_path, &backup_path).map_err(|e| e.to_string())?;
+    prune_old_backups(&backups_dir)?;
+    Ok(())
+}
+
+#[tauri::command]
+fn create_backup_if_needed(app: tauri::AppHandle) -> Result<(), String> {
+    let (db_path, backups_dir) = backup_paths(&app)?;
+    if !db_path.exists() {
+        return Ok(());
+    }
+    if !backups_dir.exists() {
+        return create_backup(app);
+    }
+    let mut latest: Option<chrono::DateTime<chrono::Utc>> = None;
+    for e in fs::read_dir(&backups_dir).map_err(|e| e.to_string())? {
+        let e = e.map_err(|e| e.to_string())?;
+        let path = e.path();
+        if path.extension().map_or(false, |e| e == "db") {
+            if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                if let Some(suffix) = stem.strip_prefix("chinotto-") {
+                    if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(suffix, "%Y-%m-%d-%H-%M") {
+                        let dt = chrono::Utc.from_utc_datetime(&naive);
+                        if latest.map_or(true, |l| dt > l) {
+                            latest = Some(dt);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let need = match latest {
+        None => true,
+        Some(l) => chrono::Utc::now().signed_duration_since(l).num_hours() >= AUTO_BACKUP_COOLDOWN_HOURS,
+    };
+    if need {
+        create_backup(app)
+    } else {
+        Ok(())
+    }
 }
 
 #[derive(serde::Serialize)]
@@ -504,8 +637,7 @@ fn set_macos_dock_icon(png_bytes: &[u8]) -> Result<(), String> {
         let app = NSApplication::sharedApplication(mtm);
         let data = NSData::with_bytes(png_bytes);
         let alloc: Allocated<NSImage> = msg_send![NSImage::class(), alloc];
-        let image = NSImage::initWithData(alloc, &data)
-            .ok_or("NSImage initWithData failed")?;
+        let image = NSImage::initWithData(alloc, &data).ok_or("NSImage initWithData failed")?;
         app.setApplicationIconImage(Some(&image));
     }
     Ok(())
@@ -526,15 +658,24 @@ pub fn run() {
     let voice_shortcut_id = Shortcut::from_str(VOICE_SHORTCUT).ok().map(|s| s.id());
     let voice_hold_id = Shortcut::from_str(VOICE_HOLD).ok().map(|s| s.id());
 
-    let voice_handler = move |app: &tauri::AppHandle, shortcut: &tauri_plugin_global_shortcut::Shortcut, event: tauri_plugin_global_shortcut::ShortcutEvent| {
-        let id = shortcut.id();
-        let _ = match (voice_shortcut_id, voice_hold_id, &event.state) {
-            (Some(sid), _, ShortcutState::Pressed) if id == sid => app.emit("chinotto-voice-shortcut", ()),
-            (_, Some(hid), ShortcutState::Pressed) if id == hid => app.emit("chinotto-voice-hold-start", ()),
-            (_, Some(hid), ShortcutState::Released) if id == hid => app.emit("chinotto-voice-hold-stop", ()),
-            _ => Ok(()),
+    let voice_handler =
+        move |app: &tauri::AppHandle,
+              shortcut: &tauri_plugin_global_shortcut::Shortcut,
+              event: tauri_plugin_global_shortcut::ShortcutEvent| {
+            let id = shortcut.id();
+            let _ = match (voice_shortcut_id, voice_hold_id, &event.state) {
+                (Some(sid), _, ShortcutState::Pressed) if id == sid => {
+                    app.emit("chinotto-voice-shortcut", ())
+                }
+                (_, Some(hid), ShortcutState::Pressed) if id == hid => {
+                    app.emit("chinotto-voice-hold-start", ())
+                }
+                (_, Some(hid), ShortcutState::Released) if id == hid => {
+                    app.emit("chinotto-voice-hold-stop", ())
+                }
+                _ => Ok(()),
+            };
         };
-    };
 
     let shortcuts: Vec<&str> = if EXPERIMENTAL_VOICE_CAPTURE {
         vec![VOICE_SHORTCUT, VOICE_HOLD]
@@ -548,6 +689,8 @@ pub fn run() {
         .build();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(plugin_builder)
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -576,6 +719,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             create_entry,
+            restore_entry,
             update_entry,
             list_entries,
             search_entries,
@@ -589,6 +733,9 @@ pub fn run() {
             get_pinned_entry_ids,
             record_entry_open,
             delete_entry,
+            export_entries,
+            create_backup,
+            create_backup_if_needed,
             set_app_icon,
         ])
         .run(tauri::generate_context!())

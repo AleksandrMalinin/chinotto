@@ -1,7 +1,9 @@
 //! Pure thought trail ranking: keyword overlap + time proximity.
 //! No DB, no embeddings; deterministic and testable.
 
-use crate::keywords::{keyword_overlap, thought_trail_min_overlap, thought_trail_similarity, token_set};
+use crate::keywords::{
+    keyword_overlap, thought_trail_min_overlap, thought_trail_similarity, token_set,
+};
 use std::collections::HashSet;
 
 fn parse_created_at(iso: &str) -> Option<chrono::DateTime<chrono::Utc>> {
@@ -30,17 +32,11 @@ pub fn rank_related_entries(
         Some(t) => t,
         None => return vec![],
     };
-    let candidates: Vec<&TrailEntry> = entries
-        .iter()
-        .filter(|e| e.id != current.id)
-        .collect();
+    let candidates: Vec<&TrailEntry> = entries.iter().filter(|e| e.id != current.id).collect();
     if candidates.is_empty() {
         return vec![];
     }
-    let corpus: Vec<HashSet<String>> = candidates
-        .iter()
-        .map(|e| token_set(&e.text))
-        .collect();
+    let corpus: Vec<HashSet<String>> = candidates.iter().map(|e| token_set(&e.text)).collect();
     let mut scored: Vec<(TrailEntry, f64)> = candidates
         .iter()
         .filter(|e| keyword_overlap(&current.text, &e.text) >= min_overlap)
@@ -78,8 +74,16 @@ mod tests {
         let now = chrono::Utc::now();
         let now_iso = now.to_rfc3339();
         let current = entry("cur", "project pipeline design", &now_iso);
-        let related = entry("a", "pipeline design and deployment", &(now - chrono::Duration::days(2)).to_rfc3339());
-        let unrelated = entry("b", "meeting tomorrow lunch", &(now - chrono::Duration::days(1)).to_rfc3339());
+        let related = entry(
+            "a",
+            "pipeline design and deployment",
+            &(now - chrono::Duration::days(2)).to_rfc3339(),
+        );
+        let unrelated = entry(
+            "b",
+            "meeting tomorrow lunch",
+            &(now - chrono::Duration::days(1)).to_rfc3339(),
+        );
         let entries = vec![current.clone(), related.clone(), unrelated.clone()];
         let result = rank_related_entries(&current, &entries, 4);
         assert!(!result.is_empty());
@@ -91,8 +95,16 @@ mod tests {
     fn entries_closer_in_time_rank_higher() {
         let now = chrono::Utc::now();
         let current = entry("cur", "design review feedback", &now.to_rfc3339());
-        let near = entry("near", "design review notes", &(now - chrono::Duration::days(1)).to_rfc3339());
-        let far = entry("far", "design review draft", &(now - chrono::Duration::days(90)).to_rfc3339());
+        let near = entry(
+            "near",
+            "design review notes",
+            &(now - chrono::Duration::days(1)).to_rfc3339(),
+        );
+        let far = entry(
+            "far",
+            "design review draft",
+            &(now - chrono::Duration::days(90)).to_rfc3339(),
+        );
         let entries = vec![current.clone(), near.clone(), far.clone()];
         let result = rank_related_entries(&current, &entries, 4);
         assert_eq!(result.len(), 2);
@@ -104,10 +116,27 @@ mod tests {
     fn unrelated_entries_rank_lowest_or_excluded() {
         let now = chrono::Utc::now();
         let current = entry("cur", "pipeline design", &now.to_rfc3339());
-        let related = entry("r", "pipeline design notes", &(now - chrono::Duration::days(1)).to_rfc3339());
-        let unrelated1 = entry("u1", "buy milk", &(now - chrono::Duration::days(2)).to_rfc3339());
-        let unrelated2 = entry("u2", "call mom", &(now - chrono::Duration::days(3)).to_rfc3339());
-        let entries = vec![current.clone(), related.clone(), unrelated1.clone(), unrelated2.clone()];
+        let related = entry(
+            "r",
+            "pipeline design notes",
+            &(now - chrono::Duration::days(1)).to_rfc3339(),
+        );
+        let unrelated1 = entry(
+            "u1",
+            "buy milk",
+            &(now - chrono::Duration::days(2)).to_rfc3339(),
+        );
+        let unrelated2 = entry(
+            "u2",
+            "call mom",
+            &(now - chrono::Duration::days(3)).to_rfc3339(),
+        );
+        let entries = vec![
+            current.clone(),
+            related.clone(),
+            unrelated1.clone(),
+            unrelated2.clone(),
+        ];
         let result = rank_related_entries(&current, &entries, 4);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].id, "r");
@@ -149,7 +178,11 @@ mod tests {
     fn current_entry_never_returned() {
         let now = chrono::Utc::now();
         let current = entry("cur", "shared keywords here", &now.to_rfc3339());
-        let other = entry("other", "shared keywords there", &(now - chrono::Duration::days(1)).to_rfc3339());
+        let other = entry(
+            "other",
+            "shared keywords there",
+            &(now - chrono::Duration::days(1)).to_rfc3339(),
+        );
         let entries = vec![current.clone(), other.clone()];
         let result = rank_related_entries(&current, &entries, 4);
         assert!(!result.iter().any(|e| e.id == current.id));
@@ -179,7 +212,11 @@ mod tests {
     fn small_dataset_with_one_related() {
         let now = chrono::Utc::now();
         let current = entry("cur", "hello world test", &now.to_rfc3339());
-        let other = entry("other", "hello world example", &(now - chrono::Duration::days(5)).to_rfc3339());
+        let other = entry(
+            "other",
+            "hello world example",
+            &(now - chrono::Duration::days(5)).to_rfc3339(),
+        );
         let entries = vec![current.clone(), other.clone()];
         let result = rank_related_entries(&current, &entries, 4);
         assert_eq!(result.len(), 1);
@@ -190,8 +227,16 @@ mod tests {
     fn ranking_is_deterministic() {
         let now = chrono::Utc::now();
         let current = entry("cur", "design system tokens", &now.to_rfc3339());
-        let a = entry("a", "design system colors", &(now - chrono::Duration::days(1)).to_rfc3339());
-        let b = entry("b", "design system spacing", &(now - chrono::Duration::days(2)).to_rfc3339());
+        let a = entry(
+            "a",
+            "design system colors",
+            &(now - chrono::Duration::days(1)).to_rfc3339(),
+        );
+        let b = entry(
+            "b",
+            "design system spacing",
+            &(now - chrono::Duration::days(2)).to_rfc3339(),
+        );
         let entries = vec![current.clone(), a.clone(), b.clone()];
         let r1 = rank_related_entries(&current, &entries, 4);
         let r2 = rank_related_entries(&current, &entries, 4);

@@ -130,8 +130,16 @@ mod tests {
     #[test]
     fn entry_near_24h_is_preferred() {
         let now = chrono::Utc::now();
-        let e_24h = entry("a", &(now - chrono::Duration::hours(23)).to_rfc3339(), "near 24h");
-        let e_7d = entry("b", &(now - chrono::Duration::days(7)).to_rfc3339(), "near 7d");
+        let e_24h = entry(
+            "a",
+            &(now - chrono::Duration::hours(23)).to_rfc3339(),
+            "near 24h",
+        );
+        let e_7d = entry(
+            "b",
+            &(now - chrono::Duration::days(7)).to_rfc3339(),
+            "near 7d",
+        );
         let entries = vec![e_24h.clone(), e_7d];
         let exclude: HashSet<&str> = HashSet::new();
         let pinned: HashSet<&str> = HashSet::new();
@@ -145,8 +153,16 @@ mod tests {
     #[test]
     fn fallback_to_7d_anchor_when_no_24h() {
         let now = chrono::Utc::now();
-        let e_7d = entry("b", &(now - chrono::Duration::days(7) + chrono::Duration::hours(1)).to_rfc3339(), "near 7d");
-        let e_30d = entry("c", &(now - chrono::Duration::days(30)).to_rfc3339(), "near 30d");
+        let e_7d = entry(
+            "b",
+            &(now - chrono::Duration::days(7) + chrono::Duration::hours(1)).to_rfc3339(),
+            "near 7d",
+        );
+        let e_30d = entry(
+            "c",
+            &(now - chrono::Duration::days(30)).to_rfc3339(),
+            "near 30d",
+        );
         let entries = vec![e_7d.clone(), e_30d];
         let exclude: HashSet<&str> = HashSet::new();
         let pinned: HashSet<&str> = HashSet::new();
@@ -160,7 +176,11 @@ mod tests {
     #[test]
     fn fallback_to_30d_anchor_when_no_24h_or_7d() {
         let now = chrono::Utc::now();
-        let e_30d = entry("c", &(now - chrono::Duration::days(30) + chrono::Duration::hours(2)).to_rfc3339(), "near 30d");
+        let e_30d = entry(
+            "c",
+            &(now - chrono::Duration::days(30) + chrono::Duration::hours(2)).to_rfc3339(),
+            "near 30d",
+        );
         let e_old = entry("d", &(now - chrono::Duration::days(60)).to_rfc3339(), "old");
         let entries = vec![e_30d.clone(), e_old];
         let exclude: HashSet<&str> = HashSet::new();
@@ -175,8 +195,16 @@ mod tests {
     #[test]
     fn random_fallback_when_no_anchors_match() {
         let now = chrono::Utc::now();
-        let e1 = entry("x", &(now - chrono::Duration::days(10)).to_rfc3339(), "ten days");
-        let e2 = entry("y", &(now - chrono::Duration::days(45)).to_rfc3339(), "45 days");
+        let e1 = entry(
+            "x",
+            &(now - chrono::Duration::days(10)).to_rfc3339(),
+            "ten days",
+        );
+        let e2 = entry(
+            "y",
+            &(now - chrono::Duration::days(45)).to_rfc3339(),
+            "45 days",
+        );
         let entries = vec![e1.clone(), e2.clone()];
         let exclude: HashSet<&str> = HashSet::new();
         let pinned: HashSet<&str> = HashSet::new();
@@ -190,8 +218,16 @@ mod tests {
     #[test]
     fn recently_resurfaced_entries_are_skipped() {
         let now = chrono::Utc::now();
-        let e_24h = entry("a", &(now - chrono::Duration::hours(24)).to_rfc3339(), "near 24h");
-        let e_other = entry("b", &(now - chrono::Duration::days(5)).to_rfc3339(), "other");
+        let e_24h = entry(
+            "a",
+            &(now - chrono::Duration::hours(24)).to_rfc3339(),
+            "near 24h",
+        );
+        let e_other = entry(
+            "b",
+            &(now - chrono::Duration::days(5)).to_rfc3339(),
+            "other",
+        );
         let entries = vec![e_24h.clone(), e_other.clone()];
         let mut exclude: HashSet<&str> = HashSet::new();
         exclude.insert("a");
@@ -217,7 +253,11 @@ mod tests {
     #[test]
     fn all_excluded_returns_none() {
         let now = chrono::Utc::now();
-        let e = entry("a", &(now - chrono::Duration::hours(24)).to_rfc3339(), "only");
+        let e = entry(
+            "a",
+            &(now - chrono::Duration::hours(24)).to_rfc3339(),
+            "only",
+        );
         let entries = vec![e];
         let mut exclude: HashSet<&str> = HashSet::new();
         exclude.insert("a");

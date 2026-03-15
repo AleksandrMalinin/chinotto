@@ -9,11 +9,9 @@
   <key>CFBundleGetInfoString</key>
   <string>Minimal desktop thinking tool.
 
-Capture first. Revisit later.
-
-getchinotto.app</string>
+Capture first. Revisit later.</string>
   <key>NSHumanReadableCopyright</key>
-  <string>© 2026–present Bogart Labs. getchinotto.app</string>
+  <string>© 2026–present Bogart Labs.</string>
   <key>CFBundleShortVersionString</key>
   <string>0.1.0</string>
   <key>CFBundleVersion</key>

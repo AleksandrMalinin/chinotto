@@ -73,8 +73,14 @@ fn ensure_importance_columns(conn: &Connection) -> Result<(), rusqlite::Error> {
         Ok(1) => return Ok(()),
         _ => {}
     }
-    conn.execute("ALTER TABLE entries ADD COLUMN edit_count INTEGER DEFAULT 0", [])?;
-    conn.execute("ALTER TABLE entries ADD COLUMN open_count INTEGER DEFAULT 0", [])?;
+    conn.execute(
+        "ALTER TABLE entries ADD COLUMN edit_count INTEGER DEFAULT 0",
+        [],
+    )?;
+    conn.execute(
+        "ALTER TABLE entries ADD COLUMN open_count INTEGER DEFAULT 0",
+        [],
+    )?;
     Ok(())
 }
 
@@ -263,7 +269,11 @@ impl Db {
             "SELECT id, text, created_at, COALESCE(edit_count, 0), COALESCE(open_count, 0) FROM entries WHERE created_at >= ?1 AND created_at <= ?2",
         );
         if !exclude_ids.is_empty() {
-            let placeholders = exclude_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+            let placeholders = exclude_ids
+                .iter()
+                .map(|_| "?")
+                .collect::<Vec<_>>()
+                .join(",");
             sql.push_str(" AND id NOT IN (");
             sql.push_str(&placeholders);
             sql.push_str(")");
@@ -482,7 +492,11 @@ mod tests {
         let db = db_with_entries(&[("1", "Call Mom Tomorrow")]);
         for query in ["call", "CALL", "Call", "mom", "MOM", "ToMoRrOw"] {
             let ids = search_ids(&db, query);
-            assert!(ids.contains(&"1".to_string()), "query {:?} should match (case-insensitive)", query);
+            assert!(
+                ids.contains(&"1".to_string()),
+                "query {:?} should match (case-insensitive)",
+                query
+            );
         }
     }
 
@@ -502,7 +516,10 @@ mod tests {
         let rows = db.search_entries("design").unwrap();
         assert_eq!(rows.len(), 2);
         let ids: Vec<&str> = rows.iter().map(|r| r.id.as_str()).collect();
-        assert_eq!(ids[0], "twice", "entry with more term matches should rank higher");
+        assert_eq!(
+            ids[0], "twice",
+            "entry with more term matches should rank higher"
+        );
         assert_eq!(ids[1], "once");
     }
 }

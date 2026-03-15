@@ -40,55 +40,74 @@ impl SpeechManager {
         drop(guard);
 
         let t0 = Instant::now();
-        
+
         // Check current authorization status first
         let current_status = unsafe { SFSpeechRecognizer::authorizationStatus() };
-        eprintln!("[Speech] {} ms - warm-up: current authorization status {}", t0.elapsed().as_millis(), current_status.0);
-        
+        eprintln!(
+            "[Speech] {} ms - warm-up: current authorization status {}",
+            t0.elapsed().as_millis(),
+            current_status.0
+        );
+
         let status: isize = if current_status.0 == AUTHORIZED_STATUS {
-            eprintln!("[Speech] {} ms - warm-up: already authorized", t0.elapsed().as_millis());
+            eprintln!(
+                "[Speech] {} ms - warm-up: already authorized",
+                t0.elapsed().as_millis()
+            );
             AUTHORIZED_STATUS
         } else if current_status.0 == 0 {
             // Status 0 = not determined, need to request authorization
             // However, requestAuthorization callback requires the main thread's run loop.
             // From a background thread, the callback never fires.
             // Instead of hanging, return an error with instructions.
-            eprintln!("[Speech] {} ms - warm-up: authorization not determined, needs user action", t0.elapsed().as_millis());
-            return Err(
-                "Speech recognition permission is required. \n\n\
+            eprintln!(
+                "[Speech] {} ms - warm-up: authorization not determined, needs user action",
+                t0.elapsed().as_millis()
+            );
+            return Err("Speech recognition permission is required. \n\n\
                 Please go to:\n\
                 System Settings > Privacy & Security > Speech Recognition\n\n\
-                Enable access for Chinotto, then try again.".to_string()
-            );
+                Enable access for Chinotto, then try again."
+                .to_string());
         } else {
             // Already denied (2) or restricted (1)
             current_status.0
         };
-        
+
         if status != AUTHORIZED_STATUS {
             return Err(format!(
                 "Speech recognition not authorized (status: {}).\n\n\
                 Please go to:\n\
                 System Settings > Privacy & Security > Speech Recognition\n\n\
-                Enable access for Chinotto, then try again.", 
+                Enable access for Chinotto, then try again.",
                 status
             ));
         }
 
-        eprintln!("[Speech] {} ms - warm-up: creating recognizer", t0.elapsed().as_millis());
+        eprintln!(
+            "[Speech] {} ms - warm-up: creating recognizer",
+            t0.elapsed().as_millis()
+        );
         let recognizer = unsafe {
             SFSpeechRecognizer::init(SFSpeechRecognizer::alloc())
                 .ok_or("Could not create speech recognizer")?
         };
         let available = unsafe { recognizer.isAvailable() };
-        eprintln!("[Speech] {} ms - warm-up: recognizer available {}", t0.elapsed().as_millis(), available);
+        eprintln!(
+            "[Speech] {} ms - warm-up: recognizer available {}",
+            t0.elapsed().as_millis(),
+            available
+        );
         if !available {
             return Err("Speech recognition is not available".to_string());
         }
 
         let mut guard = self.recognizer.lock().map_err(|e| e.to_string())?;
         *guard = Some(recognizer);
-        eprintln!("[Speech] {} ms - speech manager ready (warm-up done)", t0.elapsed().as_millis());
+        eprintln!(
+            "[Speech] {} ms - speech manager ready (warm-up done)",
+            t0.elapsed().as_millis()
+        );
         Ok(())
     }
 
@@ -100,7 +119,8 @@ impl SpeechManager {
         drop(guard);
         self.warm_up()?;
         let guard = self.recognizer.lock().map_err(|e| e.to_string())?;
-        guard.as_ref()
+        guard
+            .as_ref()
             .cloned()
             .ok_or_else(|| "Recognizer missing after warm-up".to_string())
     }
@@ -116,32 +136,45 @@ impl SpeechManager {
         eprintln!("[Speech] {} ms - capture started", t0.elapsed().as_millis());
 
         let recognizer = self.ensure_recognizer()?;
-        eprintln!("[Speech] {} ms - speech manager ready", t0.elapsed().as_millis());
+        eprintln!(
+            "[Speech] {} ms - speech manager ready",
+            t0.elapsed().as_millis()
+        );
 
         let request = unsafe {
-            SFSpeechAudioBufferRecognitionRequest::init(SFSpeechAudioBufferRecognitionRequest::alloc())
+            SFSpeechAudioBufferRecognitionRequest::init(
+                SFSpeechAudioBufferRecognitionRequest::alloc(),
+            )
         };
         unsafe {
             request.setShouldReportPartialResults(true);
         }
         let supports_on_device = unsafe { recognizer.supportsOnDeviceRecognition() };
         if supports_on_device {
-            unsafe { request.setRequiresOnDeviceRecognition(true); }
-            eprintln!("[Speech] {} ms - on-device recognition enabled", t0.elapsed().as_millis());
+            unsafe {
+                request.setRequiresOnDeviceRecognition(true);
+            }
+            eprintln!(
+                "[Speech] {} ms - on-device recognition enabled",
+                t0.elapsed().as_millis()
+            );
         }
 
-        eprintln!("[Speech] {} ms - setting up audio engine", t0.elapsed().as_millis());
+        eprintln!(
+            "[Speech] {} ms - setting up audio engine",
+            t0.elapsed().as_millis()
+        );
         let engine = unsafe { AVAudioEngine::new() };
         let input_node = unsafe { engine.inputNode() };
         let format = unsafe { input_node.outputFormatForBus(0) };
 
         let request_for_tap = request.clone();
         let tap_block: RcBlock<dyn Fn(NonNull<AVAudioPCMBuffer>, NonNull<AVAudioTime>) + 'static> =
-            RcBlock::new(move |buffer: NonNull<AVAudioPCMBuffer>, _when: NonNull<AVAudioTime>| {
-                unsafe {
+            RcBlock::new(
+                move |buffer: NonNull<AVAudioPCMBuffer>, _when: NonNull<AVAudioTime>| unsafe {
                     request_for_tap.appendAudioPCMBuffer(buffer.as_ref());
-                }
-            });
+                },
+            );
 
         const BUS: objc2_avf_audio::AVAudioNodeBus = 0;
         const BUFFER_SIZE: AVAudioFrameCount = 8192;
@@ -164,56 +197,70 @@ impl SpeechManager {
         let event_tx_shared = event_tx.map(|tx| Arc::new(Mutex::new(Some(tx))));
         let event_tx_for_sends = event_tx_shared.as_ref().map(Arc::clone);
 
-        let result_block = RcBlock::new(move |result: *mut SFSpeechRecognitionResult, error: *mut NSError| {
-            if !error.is_null() {
-                eprintln!("[Speech] Result handler got error");
-                let _ = result_tx.send(Ok(None));
-                return;
-            }
-            if result.is_null() {
-                return;
-            }
-            let result = unsafe { &*result };
-            let is_final = unsafe { result.isFinal() };
-            let transcription = unsafe { result.bestTranscription() };
-            let s = unsafe { transcription.formattedString() };
-            let text = s.to_string();
+        let result_block = RcBlock::new(
+            move |result: *mut SFSpeechRecognitionResult, error: *mut NSError| {
+                if !error.is_null() {
+                    eprintln!("[Speech] Result handler got error");
+                    let _ = result_tx.send(Ok(None));
+                    return;
+                }
+                if result.is_null() {
+                    return;
+                }
+                let result = unsafe { &*result };
+                let is_final = unsafe { result.isFinal() };
+                let transcription = unsafe { result.bestTranscription() };
+                let s = unsafe { transcription.formattedString() };
+                let text = s.to_string();
 
-            let ms = start.lock().map(|t| t.elapsed().as_millis()).unwrap_or(0);
-            if let Ok(mut last) = last_transcript_clone.lock() {
-                *last = text.clone();
-            }
+                let ms = start.lock().map(|t| t.elapsed().as_millis()).unwrap_or(0);
+                if let Ok(mut last) = last_transcript_clone.lock() {
+                    *last = text.clone();
+                }
 
-            if is_final {
-                eprintln!("[Speech] {} ms - final transcript received: {}", ms, text);
-                if let Some(ref et) = event_tx_shared {
-                    if let Ok(guard) = et.lock() {
-                        if let Some(ref tx) = *guard {
-                            let _ = tx.send("voice_captured");
+                if is_final {
+                    eprintln!("[Speech] {} ms - final transcript received: {}", ms, text);
+                    if let Some(ref et) = event_tx_shared {
+                        if let Ok(guard) = et.lock() {
+                            if let Some(ref tx) = *guard {
+                                let _ = tx.send("voice_captured");
+                            }
                         }
                     }
-                }
-                let _ = result_tx.send(Ok(Some(text)));
-            } else {
-                if let Ok(mut sent) = first_partial_sent.lock() {
-                    if !*sent {
-                        *sent = true;
-                        eprintln!("[Speech] {} ms - first partial transcript received: {}", ms, text);
+                    let _ = result_tx.send(Ok(Some(text)));
+                } else {
+                    if let Ok(mut sent) = first_partial_sent.lock() {
+                        if !*sent {
+                            *sent = true;
+                            eprintln!(
+                                "[Speech] {} ms - first partial transcript received: {}",
+                                ms, text
+                            );
+                        }
                     }
+                    eprintln!("[Speech] {} ms - partial: {}", ms, text);
                 }
-                eprintln!("[Speech] {} ms - partial: {}", ms, text);
-            }
-        });
+            },
+        );
 
-        let task = unsafe { recognizer.recognitionTaskWithRequest_resultHandler(&request, &result_block) };
-        eprintln!("[Speech] {} ms - recognition task started", t0.elapsed().as_millis());
+        let task =
+            unsafe { recognizer.recognitionTaskWithRequest_resultHandler(&request, &result_block) };
+        eprintln!(
+            "[Speech] {} ms - recognition task started",
+            t0.elapsed().as_millis()
+        );
 
         let start_result = unsafe { engine.startAndReturnError() };
         if let Err(err) = start_result {
-            unsafe { input_node.removeTapOnBus(BUS); }
+            unsafe {
+                input_node.removeTapOnBus(BUS);
+            }
             return Err(format!("Could not start audio engine: {}", err));
         }
-        eprintln!("[Speech] {} ms - audio engine started", t0.elapsed().as_millis());
+        eprintln!(
+            "[Speech] {} ms - audio engine started",
+            t0.elapsed().as_millis()
+        );
         if let Some(ref arc) = event_tx_for_sends {
             if let Ok(guard) = arc.lock() {
                 if let Some(ref tx) = *guard {
@@ -222,7 +269,11 @@ impl SpeechManager {
             }
         }
 
-        eprintln!("[Speech] {} ms - recording for {}ms", t0.elapsed().as_millis(), max_ms);
+        eprintln!(
+            "[Speech] {} ms - recording for {}ms",
+            t0.elapsed().as_millis(),
+            max_ms
+        );
         std::thread::sleep(Duration::from_millis(max_ms));
 
         eprintln!("[Speech] {} ms - ending audio", t0.elapsed().as_millis());
@@ -233,9 +284,14 @@ impl SpeechManager {
                 }
             }
         }
-        unsafe { request.endAudio(); }
+        unsafe {
+            request.endAudio();
+        }
 
-        eprintln!("[Speech] {} ms - waiting for final result", t0.elapsed().as_millis());
+        eprintln!(
+            "[Speech] {} ms - waiting for final result",
+            t0.elapsed().as_millis()
+        );
         let outcome = result_rx.recv_timeout(Duration::from_millis(5000));
 
         unsafe {
@@ -250,7 +306,10 @@ impl SpeechManager {
             Ok(Ok(transcript)) => Ok(transcript),
             Ok(Err(e)) => Err(e),
             Err(mpsc::RecvTimeoutError::Timeout) => {
-                eprintln!("[Speech] {} ms - timed out waiting for final result, using partial", t0.elapsed().as_millis());
+                eprintln!(
+                    "[Speech] {} ms - timed out waiting for final result, using partial",
+                    t0.elapsed().as_millis()
+                );
                 if let Ok(last) = last_transcript.lock() {
                     if !last.is_empty() {
                         Ok(Some(last.clone()))
