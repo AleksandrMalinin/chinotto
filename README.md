@@ -1,17 +1,19 @@
-<p align="center">
-  <img src="docs/logo.svg" width="80" alt="Chinotto" />
-</p>
+
 
 # Chinotto
 
-Capture first.  
-Revisit later.
+*Capture first.  
+Revisit later.*
 
-Chinotto is a minimal desktop thinking tool built for the moment a thought appears. Capture it instantly — without projects, folders, or workspaces.
+Chinotto is a minimal desktop thinking tool built for the moment a thought appears.  
+Capture it instantly — without projects, folders, or workspaces.
 
-Structure can come later, when you revisit.
+Structure can come later — when you revisit.
 
 Local-first. Desktop only. No cloud, no accounts, no sync.
+
+Your entries stay on your device and are never sent elsewhere.  
+Export them anytime.
 
 ## Run locally
 
@@ -35,4 +37,10 @@ npm run tauri dev
 
 - **Capture** — open the app and start typing
 - **Stream** — entries appear in reverse chronological order
-- **Search** — full-text search across entries (SQLite FTS5)
+- **Search** — full-text search across entries
+
+**Data ownership**
+
+- **Export** — entries can be exported as Markdown
+- **Backup** — automatic local backups
+

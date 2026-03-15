@@ -15,7 +15,7 @@
 
 ## Why SQLite
 
-- Local-first: no network, no auth, no sync in MVP.
+- Local-first: no network, no auth, no sync in MVP. Entry content never leaves the device.
 - One file (e.g. in app data dir); easy to backup and inspect.
 - FTS5 gives good full-text search without extra services.
 - Boring, stable, and well-understood.

@@ -91,6 +91,7 @@ export function IntroScreen({ onDismissRequest }: Props) {
         <p className="intro-screen-line intro-screen-line-1">Capture first.</p>
         <p className="intro-screen-line intro-screen-line-2">Revisit later.</p>
       </div>
+      <p className="intro-screen-hint">Local-first · Offline by default</p>
     </div>
   );
 }

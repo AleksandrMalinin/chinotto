@@ -76,6 +76,8 @@ What the app does today. Single source of truth for “do we have this?” and �
 | **Intro** | First run: short intro screen, then transition to main view. |
 | **Chinotto Card** | Click logo (top-left) → About + shortcuts list + **App icon** picker (dock/taskbar icon variant). Escape to close. |
 | **Focus input** | **Cmd+N** focuses the main capture input. |
+| **Export** | File → Export Entries…: all entries as Markdown (YAML frontmatter) in a ZIP; filenames by timestamp, chronological order. |
+| **Backup** | File → Backup Now. Automatic backup on launch (max once per 24h); last 7 in chinotto-backups/. |
 
 ### Shortcuts (current)
 
