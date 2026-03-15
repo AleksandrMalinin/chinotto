@@ -132,6 +132,19 @@ fn generate_embedding(db: tauri::State<Db>, entry_id: String) -> Result<(), Stri
     Ok(())
 }
 
+/// Minimum cosine similarity for an entry to appear in "Related entries".
+/// Without this, the top-N by score included weak matches (e.g. entry about Tauri → movie title).
+/// Embedding similarity has no cutoff, so unrelated text can still score 0.2–0.4; we require ~0.5+.
+const MIN_RELATED_SIMILARITY: f32 = 0.5;
+
+/// Filter (id, similarity) pairs by min_sim, sort by score descending, take top `limit` ids.
+/// Used by find_similar_entries so threshold is applied before sort/limit; testable in isolation.
+fn top_related_ids(mut with_sim: Vec<(String, f32)>, min_sim: f32, limit: usize) -> Vec<String> {
+    with_sim.retain(|(_, s)| *s >= min_sim);
+    with_sim.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    with_sim.into_iter().take(limit).map(|(id, _)| id).collect()
+}
+
 #[tauri::command]
 fn find_similar_entries(
     db: tauri::State<Db>,
@@ -146,15 +159,14 @@ fn find_similar_entries(
         .get_all_embeddings_excluding(&entry_id)
         .map_err(|e| e.to_string())?;
     let limit = limit.min(50) as usize;
-    let mut with_sim: Vec<(String, f32)> = others
+    let with_sim: Vec<(String, f32)> = others
         .into_iter()
         .map(|(id, emb)| {
             let sim = embeddings::cosine_similarity(&query_embedding, &emb);
             (id, sim)
         })
         .collect();
-    with_sim.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-    let top_ids: Vec<String> = with_sim.into_iter().take(limit).map(|(id, _)| id).collect();
+    let top_ids = top_related_ids(with_sim, MIN_RELATED_SIMILARITY, limit);
     let rows = db.get_entries_by_ids(&top_ids).map_err(|e| e.to_string())?;
     let by_id: std::collections::HashMap<String, db::EntryRow> =
         rows.into_iter().map(|r| (r.id.clone(), r)).collect();
@@ -740,6 +752,48 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod related_entries_tests {
+    use super::*;
+
+    #[test]
+    fn threshold_filters_low_similarity_before_sort_and_limit() {
+        let with_sim = vec![
+            ("weak".to_string(), 0.35),
+            ("strong".to_string(), 0.72),
+            ("boundary".to_string(), 0.5),
+            ("noise".to_string(), 0.41),
+            ("good".to_string(), 0.58),
+        ];
+        let ids = top_related_ids(with_sim, MIN_RELATED_SIMILARITY, 3);
+        assert_eq!(ids, ["strong", "good", "boundary"]);
+    }
+
+    #[test]
+    fn no_results_when_all_below_threshold() {
+        let with_sim = vec![
+            ("a".to_string(), 0.3),
+            ("b".to_string(), 0.4),
+        ];
+        let ids = top_related_ids(with_sim, MIN_RELATED_SIMILARITY, 5);
+        assert!(ids.is_empty());
+    }
+
+    #[test]
+    fn limit_respected_after_filtering() {
+        let with_sim = vec![
+            ("1".to_string(), 0.9),
+            ("2".to_string(), 0.8),
+            ("3".to_string(), 0.7),
+            ("4".to_string(), 0.6),
+            ("5".to_string(), 0.55),
+        ];
+        let ids = top_related_ids(with_sim, MIN_RELATED_SIMILARITY, 2);
+        assert_eq!(ids.len(), 2);
+        assert_eq!(ids, ["1", "2"]);
+    }
 }
 
 #[cfg(test)]

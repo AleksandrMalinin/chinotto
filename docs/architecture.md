@@ -42,6 +42,8 @@ Frontend calls backend via Tauri `invoke()` for `create_entry`, `list_entries`, 
 
 **Search:** FTS5 virtual table `entries_fts` is kept in sync with `entries` via triggers (insert, update, delete). Search uses prefix matching (partial words match), case-insensitive FTS, and results are ordered by BM25 relevance. If FTS returns no rows, a case-insensitive substring (LIKE) fallback is used. The overlay shows result count, highlights matches, and supports Enter (open selected/first) and Escape (close and focus capture input).
 
+**Related entries:** Shown on entry detail; computed by embedding cosine similarity (not FTS). Entries are embedded on save (AllMiniLML6V2); `find_similar_entries` returns the top-N by similarity. Root cause of noisy results was *no minimum score*: the top-N included weak matches (e.g. 0.2–0.4 similarity). We now require `cosine_similarity >= 0.5` so only clearly related entries are shown; if none pass, the block shows “None yet.” Normal search is unchanged (FTS only).
+
 **Recall (resurfacing):** Guardrails for a quiet, non-intrusive recall system are in `docs/recall-guardrails.md` (max one per session, cooldown, timing, frequency).
 
 **Entry importance:** A lightweight, invisible score (pinned + edit count + open count) is used only as a small ranking boost in resurfacing and thought trail. No UI; see importance constants in `src-tauri/src/lib.rs`.
