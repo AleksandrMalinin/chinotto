@@ -44,3 +44,6 @@ npm run tauri dev
 - **Export** — entries can be exported as Markdown
 - **Backup** — automatic local backups
 
+## Related
+
+- [Chinotto web](https://github.com/AleksandrMalinin/chinotto-web) — web companion / info site
