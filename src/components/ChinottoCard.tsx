@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useRef, useState } from "react";
 import { ChinottoLogo } from "@/components/ChinottoLogo";
 import {
   getIconVariant,
@@ -39,6 +39,7 @@ export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Pr
   const [isClosing, setIsClosing] = useState(false);
   const [analyticsEnabled, setAnalyticsEnabled] = useState(isOptIn);
   const [showPrivacyDetails, setShowPrivacyDetails] = useState(false);
+  const explainerRef = useRef<HTMLParagraphElement>(null);
 
   const handleAnalyticsToggle = () => {
     const next = !analyticsEnabled;
@@ -65,6 +66,12 @@ export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Pr
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
+
+  useEffect(() => {
+    if (showPrivacyDetails && explainerRef.current) {
+      explainerRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [showPrivacyDetails]);
 
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (!(e.target as HTMLElement).closest?.(".chinotto-card")) close();
@@ -94,15 +101,14 @@ export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Pr
           <header className="chinotto-card-head">
             <ChinottoLogo size={24} className="chinotto-card-head-logo text-[var(--landing-foreground)]" />
             <div>
-              <h1 className="chinotto-card-head-title">Appearance</h1>
-              <p className="chinotto-card-head-desc">Dock and taskbar icon style.</p>
+              <h1 className="chinotto-card-head-title">Settings</h1>
             </div>
           </header>
 
-          <section className="chinotto-card-section" aria-labelledby="chinotto-card-app-icon-title">
-            <h2 id="chinotto-card-app-icon-title" className="chinotto-card-section-title">App icon</h2>
+          <section className="chinotto-card-section" aria-labelledby="chinotto-card-icon-title">
+            <h2 id="chinotto-card-icon-title" className="chinotto-card-section-title">ICON</h2>
             <p className="chinotto-card-section-desc">
-              Choose the icon shown in the dock (macOS) or taskbar (Windows/Linux).
+              Choose the app icon shown in the dock or taskbar.
             </p>
             <div className="chinotto-card-icon-grid" role="group" aria-label="Icon style">
               {selectableVariants.map((v) => {
@@ -134,9 +140,11 @@ export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Pr
           </section>
 
           <section className="chinotto-card-section" aria-labelledby="chinotto-card-privacy-title">
-            <h2 id="chinotto-card-privacy-title" className="chinotto-card-section-title">Privacy</h2>
+            <h2 id="chinotto-card-privacy-title" className="chinotto-card-section-title">PRIVACY</h2>
             <p className="chinotto-card-section-desc">
-              Help improve Chinotto with anonymous usage data. Your thoughts stay private.
+              Help improve Chinotto with anonymous usage analytics.
+              <br />
+              Thoughts are never collected.
             </p>
             <div className="chinotto-card-privacy-row">
               <span className="chinotto-card-privacy-label">Share anonymous usage data</span>
@@ -158,12 +166,14 @@ export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Pr
               {showPrivacyDetails ? "Hide details" : "What is collected?"}
             </button>
             {showPrivacyDetails && (
-              <p className="chinotto-card-privacy-explainer">{PRIVACY_EXPLAINER}</p>
+              <p ref={explainerRef} className="chinotto-card-privacy-explainer">
+                {PRIVACY_EXPLAINER}
+              </p>
             )}
           </section>
 
           <section className="chinotto-card-section" aria-labelledby="chinotto-card-shortcuts-title">
-            <h2 id="chinotto-card-shortcuts-title" className="chinotto-card-section-title">Shortcuts</h2>
+            <h2 id="chinotto-card-shortcuts-title" className="chinotto-card-section-title">SHORTCUTS</h2>
             <ul className="chinotto-card-shortcuts-list">
               {SHORTCUTS.map(({ keys, action }) => (
                 <li key={keys} className="chinotto-card-shortcut">
@@ -174,7 +184,9 @@ export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Pr
             </ul>
           </section>
 
-          <p className="chinotto-card-version">v0.1 beta</p>
+          <footer className="chinotto-card-footer">
+            <p className="chinotto-card-footer-line">Chinotto v0.1.0 β · © 2026 Bogart Labs</p>
+          </footer>
         </article>
       </div>
     </div>
