@@ -7,7 +7,13 @@
   <key>CFBundleDisplayName</key>
   <string>Chinotto</string>
   <key>CFBundleGetInfoString</key>
-  <string>Capture first. Revisit later.</string>
+  <string>Minimal desktop thinking tool.
+
+Capture first. Revisit later.
+
+getchinotto.app</string>
+  <key>NSHumanReadableCopyright</key>
+  <string>© 2026–present Bogart Labs. getchinotto.app</string>
   <key>CFBundleShortVersionString</key>
   <string>0.1.0</string>
   <key>CFBundleVersion</key>
@@ -16,5 +22,7 @@
   <string>Chinotto uses speech recognition so you can capture thoughts by voice.</string>
   <key>NSMicrophoneUsageDescription</key>
   <string>Chinotto uses the microphone for voice capture.</string>
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.productivity</string>
 </dict>
 </plist>
