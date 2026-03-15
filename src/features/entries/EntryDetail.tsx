@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import type { Entry } from "../../types/entry";
 import { Button } from "@/components/ui/button";
+import { EntryTextWithLinks } from "./EntryTextWithLinks";
 import { findSimilarEntries, getThoughtTrail } from "./entryApi";
 
 type Props = {
@@ -86,7 +87,7 @@ export function EntryDetail({ entry, onBack, onSelectEntry }: Props) {
       <time className="entry-detail-time" dateTime={entry.created_at}>
         {formatTimestamp(entry.created_at)}
       </time>
-      <div className="entry-detail-text">{entry.text}</div>
+      <EntryTextWithLinks text={entry.text} variant="detail" />
       {trailLoading ? null : trail.length > 1 ? (
         <section className="entry-detail-trail" aria-label="Thought trail">
           <h2 className="entry-detail-trail-title">Thought trail</h2>

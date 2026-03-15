@@ -2,6 +2,7 @@ import { useMemo, memo, useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Pin, X } from "lucide-react";
 import type { Entry } from "../../types/entry";
+import { EntryTextWithLinks } from "./EntryTextWithLinks";
 
 type SectionKey = "Today" | "Yesterday" | "Earlier";
 
@@ -159,6 +160,7 @@ const EntryRow = memo(function EntryRow({
       return;
     }
     if (e.key === "Enter" || e.key === " ") {
+      if ((e.target as HTMLElement)?.closest?.("a.entry-link")) return;
       e.preventDefault();
       onEntryClick?.(entry);
     }
@@ -203,14 +205,14 @@ const EntryRow = memo(function EntryRow({
             aria-label="Edit entry"
             rows={1}
           />
-        ) : (
+        ) : useHighlight ? (
           <p id={`entry-${entry.id}`} className="entry-row-text">
-            {useHighlight ? (
-              <span dangerouslySetInnerHTML={{ __html: content }} />
-            ) : (
-              content
-            )}
+            <span dangerouslySetInnerHTML={{ __html: content }} />
           </p>
+        ) : (
+          <div id={`entry-${entry.id}`} className="entry-row-text-wrap">
+            <EntryTextWithLinks text={entry.text} variant="stream" />
+          </div>
         )}
         {onEntryDelete && (
           <button
@@ -268,7 +270,10 @@ const EntryRow = memo(function EntryRow({
         aria-labelledby={`entry-${entry.id}`}
         role="button"
         tabIndex={0}
-        onClick={() => !isEditable && onEntryClick?.(entry)}
+        onClick={(e) => {
+          if ((e.target as HTMLElement)?.closest?.("a.entry-link")) return;
+          if (!isEditable) onEntryClick?.(entry);
+        }}
         onDoubleClick={handleDoubleClick}
         onKeyDown={handleKeyDown}
         onMouseEnter={() => {
@@ -412,6 +417,7 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
     return groupEntriesBySection(entries);
   }, [entries, sectionTitle]);
 
+  /* Empty timeline serves as first-run onboarding: no separate screens or flags. */
   if (entries.length === 0 && !sectionTitle) {
     return (
       <p className="stream-empty" aria-live="polite">

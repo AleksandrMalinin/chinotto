@@ -19,6 +19,9 @@
   --border-focus: rgba(138, 148, 200, 0.36);
   --section-fg: rgba(255, 255, 255, 0.32);
   --meta-fg: rgba(255, 255, 255, 0.55);
+  --accent: rgba(160, 170, 255, 0.88);
+  --accent-hover: rgba(188, 196, 255, 0.98);
+  --accent-soft: color-mix(in srgb, var(--accent) 72%, transparent);
   --accent-subtle: rgba(128, 138, 188, 0.08);
   --transition: 180ms ease-out;
 
@@ -346,6 +349,10 @@ body.chinotto-card-open {
 
 .app-header .chinotto-logo {
   color: var(--fg-dim);
+}
+
+.dev-simulate-banner {
+  margin-left: 1rem;
 }
 
 /* Logo transition: flying logo from center to header (position/size set in JS) */
@@ -1545,6 +1552,47 @@ body.welcome .app-bg {
   border-radius: 2px;
 }
 
+.entry-row-text-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.entry-row-text .entry-link,
+.entry-detail-text .entry-link {
+  color: var(--accent-soft);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color var(--transition);
+}
+.entry-row-text .entry-link .entry-link-text,
+.entry-detail-text .entry-link .entry-link-text {
+  text-decoration: none;
+}
+.entry-row-text .entry-link:hover,
+.entry-detail-text .entry-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.entry-row-text .entry-link:hover .entry-link-text,
+.entry-detail-text .entry-link:hover .entry-link-text {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.entry-domain-badge {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--fg-dim);
+  opacity: 0.72;
+}
+
+.entry-detail-text-inner {
+  display: block;
+}
+
 .entry-row-pin {
   flex-shrink: 0;
   margin-top: 0.15rem;
@@ -1686,6 +1734,10 @@ body.welcome .app-bg {
   white-space: pre-wrap;
   word-break: break-word;
   color: rgba(255, 255, 255, 0.9);
+}
+
+.entry-detail-text .entry-domain-badge {
+  margin-top: 0.35rem;
 }
 
 .entry-detail-trail {

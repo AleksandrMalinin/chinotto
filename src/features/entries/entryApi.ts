@@ -5,6 +5,14 @@ export async function createEntry(text: string): Promise<string> {
   return invoke<string>("create_entry", { text });
 }
 
+export async function restoreEntry(
+  id: string,
+  text: string,
+  created_at: string
+): Promise<string> {
+  return invoke<string>("restore_entry", { id, text, createdAt: created_at });
+}
+
 export async function updateEntry(entryId: string, text: string): Promise<void> {
   return invoke("update_entry", { entryId, text });
 }

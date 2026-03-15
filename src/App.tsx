@@ -15,6 +15,7 @@ import { getSearchFeedback } from "./features/entries/searchOverlayFeedback";
 import { Button } from "@/components/ui/button";
 import {
   createEntry,
+  restoreEntry,
   updateEntry,
   listEntries,
   searchEntries,
@@ -29,14 +30,30 @@ import {
 import type { Entry } from "./types/entry";
 import { getStoredIconVariantId } from "@/lib/iconVariants";
 import { setDesktopIcon } from "@/lib/setDesktopIcon";
+import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { Menu, MenuItem, PredefinedMenuItem, Submenu } from "@tauri-apps/api/menu";
+import { message as dialogMessage, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { getIdsInCooldown, markAsShown } from "@/lib/resurfaceSession";
 import { getAnalyticsPromptShown } from "@/lib/analytics";
+import {
+  getDevSimulateNewUser,
+  setDevSimulateNewUser,
+} from "@/lib/devSimulateNewUser";
 
 /** Voice capture is disabled in the main flow. Set to true to re-enable as an experimental feature. */
 const EXPERIMENTAL_VOICE_CAPTURE = false;
 
 const RESURFACE_SHOW_PROBABILITY = 0.65;
+
+function isTypingInInput(): boolean {
+  const el = document.activeElement;
+  return (
+    el instanceof HTMLInputElement ||
+    el instanceof HTMLTextAreaElement ||
+    (el instanceof HTMLElement && el.isContentEditable)
+  );
+}
 
 function loadEntries(query: string): Promise<Entry[]> {
   return query.trim() ? searchEntries(query) : listEntries();
@@ -81,7 +98,10 @@ export default function App() {
   const [settlingEntryIds, setSettlingEntryIds] = useState<Set<string>>(new Set());
   const [pinnedIds, setPinnedIds] = useState<string[]>([]);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
-  const [lastDeletedEntry, setLastDeletedEntry] = useState<Entry | null>(null);
+  const [lastDeletedEntry, setLastDeletedEntry] = useState<{
+    entry: Entry;
+    wasPinned: boolean;
+  } | null>(null);
   const [hoveredEntryId, setHoveredEntryId] = useState<string | null>(null);
   const [searchSelectedIndex, setSearchSelectedIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -99,6 +119,12 @@ export default function App() {
   } | null>(null);
 
   const refresh = useCallback(async (query: string) => {
+    if (getDevSimulateNewUser()) {
+      setEntries([]);
+      setPinnedIds([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const list = await loadEntries(query);
@@ -167,6 +193,105 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const sep = () => PredefinedMenuItem.new({ item: "Separator" });
+      const about = await PredefinedMenuItem.new({
+        item: { About: { name: "Chinotto", version: "0.1.0" } },
+      });
+      const hide = await PredefinedMenuItem.new({ item: "Hide" });
+      const hideOthers = await PredefinedMenuItem.new({ item: "HideOthers" });
+      const showAll = await PredefinedMenuItem.new({ item: "ShowAll" });
+      const quit = await PredefinedMenuItem.new({ item: "Quit" });
+      const chinottoSubmenu = await Submenu.new({
+        text: "Chinotto",
+        items: [
+          about,
+          await sep(),
+          hide,
+          hideOthers,
+          showAll,
+          await sep(),
+          quit,
+        ],
+      });
+
+      const exportItem = await MenuItem.new({
+        id: "export_entries",
+        text: "Export Entries…",
+        action: async () => {
+          const path = await saveDialog({
+            defaultPath: "chinotto-export.zip",
+            filters: [{ name: "ZIP", extensions: ["zip"] }],
+          });
+          if (path == null) return;
+          try {
+            await invoke("export_entries", { path });
+            await dialogMessage("Export completed successfully.");
+          } catch (e) {
+            await dialogMessage(String(e), { kind: "error" });
+          }
+        },
+      });
+      const backupItem = await MenuItem.new({
+        id: "backup_now",
+        text: "Backup Now",
+        action: async () => {
+          try {
+            await invoke("create_backup");
+            await dialogMessage("Backup completed successfully.");
+          } catch (e) {
+            await dialogMessage(String(e), { kind: "error" });
+          }
+        },
+      });
+      const fileSubmenu = await Submenu.new({
+        text: "File",
+        items: [exportItem, backupItem],
+      });
+
+      const undo = await PredefinedMenuItem.new({ item: "Undo" });
+      const redo = await PredefinedMenuItem.new({ item: "Redo" });
+      const cut = await PredefinedMenuItem.new({ item: "Cut" });
+      const copy = await PredefinedMenuItem.new({ item: "Copy" });
+      const paste = await PredefinedMenuItem.new({ item: "Paste" });
+      const selectAll = await PredefinedMenuItem.new({ item: "SelectAll" });
+      const editSubmenu = await Submenu.new({
+        text: "Edit",
+        items: [undo, redo, await sep(), cut, copy, paste, await sep(), selectAll],
+      });
+
+      const menuItems = [chinottoSubmenu, fileSubmenu, editSubmenu];
+      if (import.meta.env.DEV) {
+        const simNewUserItem = await MenuItem.new({
+          id: "dev_simulate_new_user",
+          text: getDevSimulateNewUser()
+            ? "Stop Simulating New User"
+            : "Simulate New User",
+          action: () => {
+            setDevSimulateNewUser(!getDevSimulateNewUser());
+            window.location.reload();
+          },
+        });
+        const developerSubmenu = await Submenu.new({
+          text: "Developer",
+          items: [simNewUserItem],
+        });
+        menuItems.push(developerSubmenu);
+      }
+      const menu = await Menu.new({ items: menuItems });
+      if (!cancelled) await menu.setAsAppMenu();
+    })().catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    invoke("create_backup_if_needed").catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (!introDismissed) return;
     if (getAnalyticsPromptShown()) {
       setIntroSettled(true);
@@ -179,6 +304,7 @@ export default function App() {
     return () => clearTimeout(t);
   }, [introDismissed]);
 
+  /* Focus capture input when main screen appears so first-run user can type immediately. */
   useEffect(() => {
     if (!introDismissed) return;
     let cancelled = false;
@@ -217,6 +343,7 @@ export default function App() {
   useEffect(() => {
     if (import.meta.env.DEV) {
       function onKeyDown(e: KeyboardEvent) {
+        if (isTypingInInput()) return;
         if ((e.metaKey || e.ctrlKey) && e.key === "r") {
           e.preventDefault();
           window.location.reload();
@@ -262,6 +389,7 @@ export default function App() {
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      if (isTypingInInput()) return;
       if (e.key === "Escape") {
         if (selectedEntry) {
           setSelectedEntry(null);
@@ -305,6 +433,7 @@ export default function App() {
   const SETTLING_DURATION_MS = 200;
 
   async function handleSubmit(text: string) {
+    if (getDevSimulateNewUser()) return;
     const id = await createEntry(text);
     if (justAddedTimeoutRef.current) clearTimeout(justAddedTimeoutRef.current);
     setJustAddedEntryId(id);
@@ -332,7 +461,7 @@ export default function App() {
       setJustAddedEntryId(null);
       justAddedTimeoutRef.current = null;
     }, 400);
-    refresh();
+    refresh(search);
     generateEmbedding(id);
     if (!shownThisSessionRef.current && !attemptedAfterSaveRef.current) {
       attemptedAfterSaveRef.current = true;
@@ -371,19 +500,25 @@ export default function App() {
     [refreshPinned]
   );
 
-  const handleEntryDelete = useCallback((entry: Entry) => {
-    setDeletingIds((prev) => new Set(prev).add(entry.id));
-    setLastDeletedEntry(entry);
-    if (selectedEntry?.id === entry.id) setSelectedEntry(null);
-    deleteEntry(entry.id).catch(() => {
-      setDeletingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(entry.id);
-        return next;
+  const handleEntryDelete = useCallback(
+    (entry: Entry) => {
+      setDeletingIds((prev) => new Set(prev).add(entry.id));
+      setLastDeletedEntry({
+        entry,
+        wasPinned: pinnedIds.includes(entry.id),
       });
-      setLastDeletedEntry(null);
-    });
-  }, [selectedEntry?.id]);
+      if (selectedEntry?.id === entry.id) setSelectedEntry(null);
+      deleteEntry(entry.id).catch(() => {
+        setDeletingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(entry.id);
+          return next;
+        });
+        setLastDeletedEntry(null);
+      });
+    },
+    [selectedEntry?.id, pinnedIds]
+  );
 
   const handleDeleteAnimationEnd = useCallback((entryId: string) => {
     setEntries((prev) => prev.filter((e) => e.id !== entryId));
@@ -453,21 +588,34 @@ export default function App() {
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      if (isTypingInInput()) return;
       if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey && lastDeletedEntry) {
         e.preventDefault();
-        createEntry(lastDeletedEntry.text).then(() => {
-          setLastDeletedEntry(null);
-          refresh();
-        });
+        const { entry, wasPinned } = lastDeletedEntry;
+        restoreEntry(entry.id, entry.text, entry.created_at)
+          .then((restoredId) => {
+            if (wasPinned) return pinEntry(restoredId);
+          })
+          .then(() => {
+            setLastDeletedEntry(null);
+            refresh(search);
+            refreshPinned();
+          })
+          .catch(() => {
+            setLastDeletedEntry(null);
+            refresh(search);
+            refreshPinned();
+          });
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [lastDeletedEntry, refresh]);
+  }, [lastDeletedEntry, refresh, search, refreshPinned]);
 
   /* Cmd+Backspace: delete hovered entry (row only gets keydown when focused, so use global + hover) */
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      if (isTypingInInput()) return;
       if (!(e.metaKey || e.ctrlKey) || e.key !== "Backspace") return;
       if (!hoveredEntryId) return;
       const entry = entries.find((e) => e.id === hoveredEntryId);
@@ -484,6 +632,7 @@ export default function App() {
   /* Cmd+P: pin hovered entry (matches shortcut list in Chinotto Card) */
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      if (isTypingInInput()) return;
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "p") return;
       if (!hoveredEntryId) return;
       if (pinnedIds.includes(hoveredEntryId)) return; /* already pinned */
@@ -500,6 +649,7 @@ export default function App() {
   /* Cmd+E: edit hovered/focused entry (ephemeral edit escape hatch) */
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      if (isTypingInInput()) return;
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "e") return;
       if (!hoveredEntryId) return;
       const entry = entries.find((ent) => ent.id === hoveredEntryId);
@@ -583,6 +733,14 @@ export default function App() {
                 Chinotto <span className="app-header-beta" aria-hidden="true">β</span>
               </span>
             </div>
+            {import.meta.env.DEV && introDismissed && getDevSimulateNewUser() && (
+              <span
+                className="dev-simulate-banner text-xs text-[var(--muted)]"
+                aria-live="polite"
+              >
+                Simulating new user — data intact
+              </span>
+            )}
             {import.meta.env.DEV && introDismissed && (
               <Button
                 type="button"
