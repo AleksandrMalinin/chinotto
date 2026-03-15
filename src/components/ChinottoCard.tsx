@@ -28,7 +28,7 @@ type Props = {
 const selectableVariants = SELECTABLE_ICON_VARIANT_IDS.map((id) => getIconVariant(id));
 
 const PRIVACY_EXPLAINER =
-  "We send only event names and simple numbers: for example “entry created” with the length of the text, or “search used” with how many results came back. We never send the text of your thoughts, your search query, or any identifier. Data goes to our analytics provider (Umami) and is used only to understand how the app is used. Analytics are optional and can be turned off in this panel at any time.";
+  "We send only simple event names and numbers — for example “entry created” with the text length or “search used” with the number of results. We never send the text of your thoughts, your search query, or any personal identifier. All thoughts stay on your device. Analytics are used only to understand how the app is used and can be turned off here at any time.";
 
 export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Props) {
   const handleVariantClick = (id: string) => {
