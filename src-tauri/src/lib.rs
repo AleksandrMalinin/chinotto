@@ -101,7 +101,12 @@ fn create_entry(db: tauri::State<Db>, text: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn restore_entry(db: tauri::State<Db>, id: String, text: String, created_at: String) -> Result<String, String> {
+fn restore_entry(
+    db: tauri::State<Db>,
+    id: String,
+    text: String,
+    created_at: String,
+) -> Result<String, String> {
     let trimmed = text.trim();
     if trimmed.is_empty() {
         return Err("entry text cannot be empty".to_string());
@@ -111,7 +116,8 @@ fn restore_entry(db: tauri::State<Db>, id: String, text: String, created_at: Str
         Err(e) => {
             if e.to_string().contains("UNIQUE constraint") {
                 let new_id = uuid::Uuid::new_v4().to_string();
-                db.create_entry(&new_id, trimmed, &created_at).map_err(|e| e.to_string())?;
+                db.create_entry(&new_id, trimmed, &created_at)
+                    .map_err(|e| e.to_string())?;
                 Ok(new_id)
             } else {
                 Err(e.to_string())
@@ -533,7 +539,9 @@ fn create_backup_if_needed(app: tauri::AppHandle) -> Result<(), String> {
         if path.extension().map_or(false, |e| e == "db") {
             if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
                 if let Some(suffix) = stem.strip_prefix("chinotto-") {
-                    if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(suffix, "%Y-%m-%d-%H-%M") {
+                    if let Ok(naive) =
+                        chrono::NaiveDateTime::parse_from_str(suffix, "%Y-%m-%d-%H-%M")
+                    {
                         let dt = chrono::Utc.from_utc_datetime(&naive);
                         if latest.map_or(true, |l| dt > l) {
                             latest = Some(dt);
@@ -545,7 +553,9 @@ fn create_backup_if_needed(app: tauri::AppHandle) -> Result<(), String> {
     }
     let need = match latest {
         None => true,
-        Some(l) => chrono::Utc::now().signed_duration_since(l).num_hours() >= AUTO_BACKUP_COOLDOWN_HOURS,
+        Some(l) => {
+            chrono::Utc::now().signed_duration_since(l).num_hours() >= AUTO_BACKUP_COOLDOWN_HOURS
+        }
     };
     if need {
         create_backup(app)
@@ -701,6 +711,7 @@ pub fn run() {
         .build();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(plugin_builder)
@@ -773,10 +784,7 @@ mod related_entries_tests {
 
     #[test]
     fn no_results_when_all_below_threshold() {
-        let with_sim = vec![
-            ("a".to_string(), 0.3),
-            ("b".to_string(), 0.4),
-        ];
+        let with_sim = vec![("a".to_string(), 0.3), ("b".to_string(), 0.4)];
         let ids = top_related_ids(with_sim, MIN_RELATED_SIMILARITY, 5);
         assert!(ids.is_empty());
     }
