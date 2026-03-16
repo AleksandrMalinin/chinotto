@@ -7,7 +7,7 @@ type Props = {
 };
 
 const EXPLAINER =
-  "We send only event names and simple numbers: for example “entry created” with the length of the text, or “search used” with how many results came back. We never send the text of your thoughts, your search query, or any identifier. Data goes to our analytics provider (Umami) and is used only to understand how the app is used. Analytics are optional and can be turned off in settings at any time.";
+  "We send only simple event names and numbers — for example “entry created” with the text length or “search used” with the number of results. We never send the text of your thoughts, your search query, or any personal identifier. All thoughts stay on your device. Analytics are used only to understand how the app is used and can be turned off in Settings at any time.";
 
 export function AnalyticsOptInModal({ onClose }: Props) {
   const [showLearnMore, setShowLearnMore] = useState(false);
@@ -58,11 +58,11 @@ export function AnalyticsOptInModal({ onClose }: Props) {
           Analytics (optional)
         </h2>
         <p className="analytics-optin-body">
-          Chinotto can send anonymous usage data—e.g. that you created an entry or used search—so we can improve the app. No thought text or search queries are ever sent. You can change this anytime in settings.
+          Chinotto sends only anonymous usage events (e.g. entry created or search used) to help improve the app. Your thoughts and search text are never sent. You can disable analytics anytime in Settings.
         </p>
         <div className="analytics-optin-actions">
           <Button onClick={handleAllow} className="analytics-optin-btn-primary">
-            Allow anonymous analytics
+            Allow analytics
           </Button>
           <Button variant="ghost" onClick={handleDecline} className="analytics-optin-btn-secondary">
             No thanks
