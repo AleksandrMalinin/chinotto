@@ -35,7 +35,7 @@ import { listen } from "@tauri-apps/api/event";
 import { Menu, MenuItem, PredefinedMenuItem, Submenu } from "@tauri-apps/api/menu";
 import { message as dialogMessage, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { getIdsInCooldown, markAsShown } from "@/lib/resurfaceSession";
-import { getAnalyticsPromptShown } from "@/lib/analytics";
+import { getAnalyticsPromptShown, track } from "@/lib/analytics";
 import {
   getDevSimulateNewUser,
   setDevSimulateNewUser,
@@ -373,6 +373,10 @@ export default function App() {
         shownThisSessionRef.current = true;
         markAsShown(r.entry.id);
         setResurfaced(r);
+        const ageDays = Math.floor(
+          (Date.now() - new Date(r.entry.created_at).getTime()) / (24 * 60 * 60 * 1000)
+        );
+        track({ event: "resurface_shown", age_days: ageDays });
       })
       .finally(() => {
         resurfaceInFlightRef.current = false;
@@ -435,6 +439,10 @@ export default function App() {
   async function handleSubmit(text: string) {
     if (getDevSimulateNewUser()) return;
     const id = await createEntry(text);
+    track({ event: "entry_created", text_length: text.length });
+    if (entries.length === 0) {
+      track({ event: "first_entry_created", text_length: text.length });
+    }
     if (justAddedTimeoutRef.current) clearTimeout(justAddedTimeoutRef.current);
     setJustAddedEntryId(id);
     setEphemeralEntryIds((prev) => new Set(prev).add(id));
@@ -478,6 +486,7 @@ export default function App() {
   }
 
   const handleOpenEntry = useCallback((entry: Entry) => {
+    track({ event: "entry_opened" });
     recordEntryOpen(entry.id);
     setSelectedEntry(entry);
   }, []);
@@ -488,6 +497,7 @@ export default function App() {
 
   const handlePin = useCallback(
     (entry: Entry) => {
+      track({ event: "entry_pinned" });
       pinEntry(entry.id).then(refreshPinned);
     },
     [refreshPinned]
@@ -502,6 +512,7 @@ export default function App() {
 
   const handleEntryDelete = useCallback(
     (entry: Entry) => {
+      track({ event: "entry_deleted" });
       setDeletingIds((prev) => new Set(prev).add(entry.id));
       setLastDeletedEntry({
         entry,
@@ -678,10 +689,13 @@ export default function App() {
 
   const handleDevPreviewResurface = useCallback(() => {
     getResurfacedEntry().then((r) => {
-      if (r) {
-        setResurfaced(r);
-      } else if (import.meta.env.DEV) {
-        setResurfaced(devMockResurfaced());
+      const res = r ?? (import.meta.env.DEV ? devMockResurfaced() : null);
+      if (res) {
+        setResurfaced(res);
+        const ageDays = Math.floor(
+          (Date.now() - new Date(res.entry.created_at).getTime()) / (24 * 60 * 60 * 1000)
+        );
+        track({ event: "resurface_shown", age_days: ageDays });
       }
     });
   }, []);
@@ -723,7 +737,12 @@ export default function App() {
                 ref={headerLogoRef}
                 type="button"
                 className="app-header-logo"
-                onClick={() => introDismissed && setIsChinottoCardOpen(true)}
+                onClick={() => {
+                  if (introDismissed) {
+                    track({ event: "settings_opened" });
+                    setIsChinottoCardOpen(true);
+                  }
+                }}
                 aria-label="About Chinotto"
                 tabIndex={introDismissed ? 0 : -1}
               >
@@ -769,6 +788,7 @@ export default function App() {
                   onClose={handleSearchClose}
                   onEnter={() => {
                     if (search.trim() && entries.length > 0) {
+                      track({ event: "search_used", result_count: entries.length });
                       const entry = entries[searchSelectedIndex] ?? entries[0];
                       handleOpenEntry(entry);
                     }
@@ -799,6 +819,7 @@ export default function App() {
                       selectedIndex={searchSelectedIndex}
                       onSelectIndex={setSearchSelectedIndex}
                       onSelectEntry={(entry) => {
+                        track({ event: "search_used", result_count: entries.length });
                         handleOpenEntry(entry);
                         handleSearchClose();
                       }}
@@ -929,6 +950,10 @@ export default function App() {
           entry={resurfaced.entry}
           reason={resurfaced.reason}
           onOpen={(entry) => {
+            const ageDays = Math.floor(
+              (Date.now() - new Date(entry.created_at).getTime()) / (24 * 60 * 60 * 1000)
+            );
+            track({ event: "resurface_opened", age_days: ageDays });
             handleOpenEntry(entry);
             setResurfaced(null);
           }}

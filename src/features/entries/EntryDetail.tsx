@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import type { Entry } from "../../types/entry";
 import { Button } from "@/components/ui/button";
 import { EntryTextWithLinks } from "./EntryTextWithLinks";
+import { track } from "@/lib/analytics";
 import { findSimilarEntries, getThoughtTrail } from "./entryApi";
 
 type Props = {
@@ -62,7 +63,10 @@ export function EntryDetail({ entry, onBack, onSelectEntry }: Props) {
     setTrailLoading(true);
     getThoughtTrail(entry.id)
       .then((list) => {
-        if (!cancelled) setTrail(list);
+        if (!cancelled) {
+          setTrail(list);
+          if (list.length > 1) track({ event: "thought_trail_opened" });
+        }
       })
       .finally(() => {
         if (!cancelled) setTrailLoading(false);
