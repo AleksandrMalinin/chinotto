@@ -24,7 +24,7 @@ Chinotto is a minimal desktop thinking tool for instantly capturing thoughts and
 - No markdown editor
 - No tasks, kanban, or templates
 - No AI chat
-- No embeddings (yet)
+- Embeddings used only for thought trail / related entries; no standalone “similar entries” UI
 - One canonical entity only: **Entry**
 
 ## Proposal guardrails
@@ -67,14 +67,14 @@ What the app does today. Single source of truth for “do we have this?” and �
 | Feature | Description |
 |---------|-------------|
 | **Resurface** | At most one per session; only on app open or after saving an entry. Temporal recall (24h / 7d / 30d ±3h or random fallback). Message is memory-style. Entries shown recently are in cooldown (7 days). Sometimes the app shows nothing—silence is acceptable. See `docs/recall-guardrails.md`. |
-| **Thought trail** | From an entry’s detail view: “Thought trail” shows how the thought evolved—entries ordered earlier → current → later, scored by keyword similarity (IDF-weighted) and temporal proximity. Max 4 related; labels like “12 days earlier” / “3 days later”. No embeddings. |
+| **Thought trail** | From an entry’s detail view: “Thought trail” shows how the thought evolved—entries ordered earlier → current → later, scored by keyword similarity (IDF-weighted) and temporal proximity. Max 4 related; labels like “12 days earlier” / “3 days later”. Keyword-based only (no embeddings in this view). |
 
 ### App chrome and settings
 
 | Feature | Description |
 |---------|-------------|
 | **Intro** | First run: short intro screen, then transition to main view. |
-| **Chinotto Card** | Click logo (top-left) → About + shortcuts list + **App icon** picker (dock/taskbar icon variant). Escape to close. |
+| **Settings (Chinotto Card)** | Click logo (top-left) → Settings panel: icon picker, privacy, shortcuts. Escape to close. |
 | **Focus input** | **Cmd+N** focuses the main capture input. |
 | **Export** | File → Export Entries…: all entries as Markdown (YAML frontmatter) in a ZIP; filenames by timestamp, chronological order. |
 | **Backup** | File → Backup Now. Automatic backup on launch (max once per 24h); last 7 in chinotto-backups/. |
@@ -90,7 +90,7 @@ What the app does today. Single source of truth for “do we have this?” and �
 | ⌘ E | Edit hovered/focused entry |
 | Esc | Close overlays / back to stream |
 
-(Chinotto Card also lists ⌘ N “Focus input”; not yet wired globally.)
+(Settings also lists ⌘ N “Focus input”; not yet wired globally.)
 
 ### Data model
 

@@ -9,11 +9,9 @@ Minimal testing for a local-first desktop tool. Focus: **correctness of core alg
 | Layer | Tool | New dependencies |
 |-------|------|------------------|
 | **Rust (backend)** | `cargo test` (built-in) | **None** |
-| **TypeScript (frontend)** | Node.js `node:test` + `node:assert` (built-in from Node 18+) | **None** |
+| **TypeScript (frontend)** | Vitest for component/unit tests; Node `node:test` + `node:assert` for some pure helpers | Vitest (devDep) |
 
-**No Jest, no Playwright, no Cypress, no heavy mocking.** The backend holds the important logic (temporal recall, thought trail ranking, importance); the frontend is mostly Tauri invoke and React. Test the backend in Rust; add a few TS tests only for pure helpers if desired.
-
-**Optional:** If you prefer a single test runner for TS with `describe`/`it` and one-liner setup, add **Vitest** as one devDependency (Vite-native, runs in Node, no browser). Still minimal; the strategy below works with or without it.
+**No Playwright, no Cypress.** The backend holds the important logic (temporal recall, thought trail ranking, importance); the frontend is mostly Tauri invoke and React. The project uses Vitest for TS tests and Node’s built-in test runner for a few pure modules (e.g. `resurfaceSession`, `urlInText`).
 
 ---
 
@@ -38,21 +36,21 @@ src-tauri/
   tests/             # optional: integration tests with in-memory DB (resurface, thought_trail)
     recall_integration.rs   # if you add integration tests later
 
-src/                 # optional: only if you add TS tests
-  lib/               
-    __tests__/       # or *.test.ts next to source
-      getIdsInCooldown.test.ts
+src/                 # *.test.ts / *.test.tsx next to source; some run with Node test
+  lib/
+    resurfaceSession.test.ts
+    urlInText.test.ts
   features/
     entries/
-      __tests__/
-        relativeToCurrent.test.ts
+      SearchOverlay.test.tsx
+      EntryTextWithLinks.test.tsx
 ```
 
 **Convention:**
 
 - **Rust:** Prefer **inline `#[cfg(test)] mod tests`** next to the code under test. Pure functions stay in the same file; tests see private helpers. No extra test-only crates.
 - **Integration:** Optional `src-tauri/tests/*.rs` for commands that need a real DB. Resurface integration tests live in `lib.rs` as `#[cfg(test)] mod resurface_integration` and use an in-memory DB (`:memory:`) plus `get_resurfaced_entry_impl` with a seeded RNG. They verify at most one entry per call, excluded ids never returned, and cooldown behaviour.
-- **TypeScript:** Colocate under `*.test.ts` next to the module. `src/lib/resurfaceSession.test.ts` tests session/cooldown guards and pure helpers (getIdsInCooldown, markAsShown, mayAttemptResurface, shouldInvokeBackend) with a mock storage. Run with `npm run test:ts` (Node + tsx). Do not test React components or Tauri invoke.
+- **TypeScript:** Colocate under `*.test.ts` / `*.test.tsx` next to the module. `src/lib/resurfaceSession.test.ts` and `urlInText.test.ts` run with Node (`npm run test:ts`); Vitest runs component tests (e.g. `SearchOverlay.test.tsx`). Do not test Tauri invoke.
 
 ---
 
@@ -65,7 +63,7 @@ Keep targets **low and meaningful** so tests stay cheap and focused:
 | **Rust: keywords.rs** | High (e.g. 90%+ lines) | Pure logic; no I/O. Easy to reach with a few tests. |
 | **Rust: lib.rs (pure helpers)** | Cover format_ago, importance_*, temporal_reason_anchor | These drive recall wording and ranking; small surface. |
 | **Rust: commands (get_resurfaced_entry, get_thought_trail)** | Optional integration tests; no strict % | Deterministic fixtures + in-memory DB; assert ordering and that result is in allowed set. |
-| **TypeScript** | Optional; only pure helpers | Low or 0% is fine; most logic is in Rust. |
+| **TypeScript** | Focus on pure helpers and selected components | Low or 0% is fine; most logic is in Rust. |
 | **Overall** | No mandatory project-wide % | Prefer “critical paths covered” over a high number. |
 
 **Do not:** Chase 80%+ on the whole repo, add snapshot tests for UI, or test third-party code.
@@ -86,39 +84,12 @@ Example: run only unit tests (no integration):
 cd src-tauri && cargo test
 ```
 
-### 5.2 TypeScript with Node built-in test runner (zero deps)
+### 5.2 TypeScript (Vitest + Node test)
 
 - Node 18+ required.
-- No config file if you use plain `.js` tests; for `.ts` you need to run with a runner that understands TS (e.g. `node --import tsx --test` with `tsx` as devDep, or `tsc` then `node --test` on emitted JS).
+- **Vitest** runs component/unit tests (`src/**/*.test.{ts,tsx}`). A few pure modules (e.g. `resurfaceSession`, `urlInText`) are run with Node’s built-in test runner (`node --test` with tsx). See `package.json` scripts: `test`, `test:rs`, `test:ts`.
 
-**package.json** (minimal):
-
-```json
-{
-  "scripts": {
-    "test": "cd src-tauri && cargo test",
-    "test:rs": "cd src-tauri && cargo test",
-    "test:ts": "node --test src/**/*.test.js"
-  }
-}
-```
-
-If you introduce **Vitest** (one devDep) for TS:
-
-```json
-{
-  "scripts": {
-    "test": "npm run test:rs && npm run test:ts",
-    "test:rs": "cd src-tauri && cargo test",
-    "test:ts": "vitest run"
-  },
-  "devDependencies": {
-    "vitest": "^2.0.0"
-  }
-}
-```
-
-**vitest.config.ts** (only if you add Vitest):
+**vitest.config.ts** (current):
 
 ```ts
 import { defineConfig } from "vitest/config";
@@ -138,8 +109,8 @@ export default defineConfig({
 });
 ```
 
-- **environment: "node"** – no browser; Tauri invoke is not available, so only test pure TS.
-- **globals: false** – use explicit `import { describe, it, expect } from "vitest"` (or stick with Node `node:test` and no Vitest).
+- **environment: "node"** – no browser; Tauri invoke is not available, so only pure TS is tested.
+- **globals: false** – tests use explicit `import { describe, it, expect } from "vitest"`; some modules use Node `node:test` instead.
 
 ---
 

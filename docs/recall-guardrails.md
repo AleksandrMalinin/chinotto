@@ -27,9 +27,9 @@ Resurfacing is **not** attempted or shown when any of the following is true:
 - **Search is open** (search UI visible or search query non-empty).
 - An **entry is being edited** (edit mode active).
 
-### 1.4 Timing (when we may show)
+### 1.4 Timing (when resurfacing is attempted)
 
-Resurfacing may **only** be attempted at these moments:
+Resurfacing is **only** attempted at these moments:
 
 1. **On app open** – after the intro is dismissed and the main view is ready (stream loaded, no search, no selection, no edit).
 2. **After the user saves an entry** – once per session, if we have not already shown a resurfaced entry this session.
