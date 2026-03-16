@@ -1,4 +1,6 @@
-
+<p align="center">
+  <img src="docs/logo.svg" width="80" alt="Chinotto" />
+</p>
 
 # Chinotto
 
