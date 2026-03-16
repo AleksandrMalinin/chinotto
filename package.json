@@ -9,8 +9,8 @@
     "test": "npm run test:rs && npm run test:ts",
     "test:rs": "cd src-tauri && cargo test",
     "test:ts": "node --import tsx --test src/lib/resurfaceSession.test.ts src/lib/urlInText.test.ts && vitest run",
-    "build:macos": "npm run build && tauri build && ./scripts/sign-macos.sh",
-    "tauri": "tauri",
+    "build:macos": "npm run build && CI=false tauri build && ./scripts/sign-macos.sh",
+    "tauri": "CI=false tauri",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -32,6 +32,7 @@
     "@tauri-apps/cli": "^2.0.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
+    "@types/node": "^22.10.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",

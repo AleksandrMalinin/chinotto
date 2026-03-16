@@ -109,7 +109,7 @@ describe("EntryTextWithLinks", () => {
 
     it("clicking a link does not trigger the parent entry row click handler", () => {
       const onEntryClick = vi.fn();
-      const { container } = render(
+      render(
         <article onClick={onEntryClick}>
           <div className="entry-row-text-wrap">
             <EntryTextWithLinks text="See https://example.com" variant="stream" />

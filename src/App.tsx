@@ -82,7 +82,7 @@ export default function App() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isChinottoCardOpen, setIsChinottoCardOpen] = useState(false);
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
-  const [introSettled, setIntroSettled] = useState(false);
+  const [, setIntroSettled] = useState(false);
   const [iconVariantId, setIconVariantId] = useState(() => getStoredIconVariantId());
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
   const [resurfaced, setResurfaced] = useState<{
