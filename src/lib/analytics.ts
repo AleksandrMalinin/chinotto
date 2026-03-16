@@ -1,17 +1,26 @@
 /**
  * Minimal product analytics via Umami. Anonymous, opt-in, batched, non-blocking.
  * Never sends entry text, search queries, or identifiers. See docs/analytics-design.md.
+ * Uses Tauri HTTP plugin fetch to avoid CORS (webview origin not allowed by Umami).
  */
+
+import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 
 const STORAGE_KEY = "chinotto-analytics-enabled";
 export const ANALYTICS_PROMPT_SHOWN_KEY = "chinotto-analytics-prompt-shown";
-const BATCH_INTERVAL_MS = 30_000;
+const BATCH_INTERVAL_MS = 2_000;
 const BATCH_SIZE_MAX = 10;
-const USER_AGENT = "Chinotto-Desktop/1.0";
+/** Browser-like UA required: Umami Cloud returns {"beep":"boop"} and does not register events when it flags the request as a bot (e.g. custom app UA). */
+const USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 export type AnalyticsEvent =
   | { event: "entry_created"; text_length: number }
+  | { event: "first_entry_created"; text_length: number }
+  | { event: "entry_deleted" }
+  | { event: "entry_pinned" }
   | { event: "search_used"; result_count?: number }
+  | { event: "settings_opened" }
   | { event: "entry_opened" }
   | { event: "resurface_shown"; age_days: number }
   | { event: "resurface_opened"; age_days: number }
@@ -71,6 +80,12 @@ function isEnabled(): boolean {
 export function setUmami(baseUrl: string | null, id: string | null): void {
   umamiBaseUrl = baseUrl?.trim() || null;
   websiteId = id?.trim() || null;
+  if (import.meta.env.DEV) {
+    console.log("[analytics] setUmami called", {
+      baseUrl: umamiBaseUrl ?? "(null)",
+      websiteId: websiteId ? `${websiteId.slice(0, 4)}…` : "(null)",
+    });
+  }
 }
 
 /** @deprecated Use setUmami(baseUrl, websiteId). Kept for compatibility. */
@@ -90,41 +105,68 @@ export function setEndpoint(url: string | null): void {
 function eventToData(payload: QueuedEvent): Record<string, string | number> {
   const data: Record<string, string | number> = { ts: payload.ts };
   if ("text_length" in payload) data.text_length = payload.text_length;
-  if ("age_days" in payload) data.age_days = payload.age_days;
   if ("result_count" in payload && payload.result_count !== undefined)
     data.result_count = payload.result_count;
+  if ("age_days" in payload) data.age_days = payload.age_days;
   return data;
 }
 
 function sendToUmami(queued: QueuedEvent): void {
-  if (!umamiBaseUrl || !websiteId) return;
+  if (!umamiBaseUrl || !websiteId) {
+    if (import.meta.env.DEV) {
+      console.log("[analytics] sendToUmami skipped: no baseUrl or websiteId");
+    }
+    return;
+  }
   const { event } = queued;
   const data = eventToData(queued);
-  const body = JSON.stringify({
-    type: "event",
-    payload: {
-      website: websiteId,
-      hostname: "Chinotto",
-      url: "/",
-      title: "Chinotto",
-      referrer: "",
-      language: typeof navigator !== "undefined" ? navigator.language : "en",
-      screen: typeof screen !== "undefined" ? `${screen.width}x${screen.height}` : "0x0",
-      name: event,
-      data,
-      id: getSessionId(),
-    },
-  });
+  const payload = {
+    website: websiteId,
+    hostname: "chinotto.app",
+    url: "/desktop",
+    title: "Chinotto",
+    referrer: "",
+    language: typeof navigator !== "undefined" ? navigator.language : "en",
+    screen: typeof screen !== "undefined" ? `${screen.width}x${screen.height}` : "0x0",
+    name: event,
+    data,
+    id: getSessionId(),
+  };
+  const body = JSON.stringify({ type: "event", payload });
   const url = `${umamiBaseUrl.replace(/\/$/, "")}/api/send`;
-  fetch(url, {
+  const headers = {
+    "Content-Type": "application/json",
+    "User-Agent": USER_AGENT,
+  };
+  if (import.meta.env.DEV) {
+    console.log("[analytics] sendToUmami full request", {
+      url,
+      method: "POST",
+      headers,
+      body: body,
+    });
+  }
+  tauriFetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "User-Agent": USER_AGENT,
-    },
+    headers,
     body,
-    keepalive: true,
-  }).catch(() => {});
+  })
+    .then((res) => {
+      res.text().then((text) => {
+        if (import.meta.env.DEV) {
+          console.log("[analytics] sendToUmami full response", {
+            status: res.status,
+            statusText: res.statusText,
+            body: text,
+          });
+        }
+      });
+    })
+    .catch((err) => {
+      if (import.meta.env.DEV) {
+        console.log("[analytics] sendToUmami fetch error", err);
+      }
+    });
 }
 
 function scheduleFlush(): void {
@@ -149,6 +191,22 @@ function flush(): void {
  * Only call with allowed event shapes (no text, no query, no identifiers).
  */
 export function track(payload: AnalyticsEvent): void {
+  if (import.meta.env.DEV) {
+    const enabled = isEnabled();
+    console.log("[analytics] track called", {
+      payload,
+      isEnabled: enabled,
+      reason: !enabled
+        ? !umamiBaseUrl
+          ? "no umamiBaseUrl (setUmami not called or null)"
+          : !websiteId
+            ? "no websiteId"
+            : !isOptIn()
+              ? "user opted out"
+              : "unknown"
+        : "ok",
+    });
+  }
   if (!isEnabled()) return;
   queue.push({ ...payload, ts: new Date().toISOString() });
   if (queue.length >= BATCH_SIZE_MAX) {
