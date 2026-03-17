@@ -20,8 +20,9 @@ src-tauri/.fastembed_cache/
 .DS_Store
 Thumbs.db
 
-# Apple API key (never commit)
+# Apple API key and release env (never commit)
 *.p8
+scripts/apple-release-env.sh
 
 # Local-only (not in repo)
 docs/pre-release-checklist.md

@@ -43,6 +43,28 @@ rm -f target/release/bundle/dmg/Chinotto_0.1.0_aarch64.dmg
 ./target/release/bundle/dmg/bundle_dmg.sh
 ```
 
+## Notarization rejected: "Archive contains critical validation errors"
+
+If Apple notarization fails and the log shows **invalid signature** / **no secure timestamp** / **hardened runtime** on paths like `Chinotto_0.1.0_aarch64.dmg/rw.XXXXX.Chinotto_0.1.0_aarch64.dmg/Chinotto.app`, the DMG was built from a dirty state: temp `rw.*.dmg` files were included in the volume, and the binary inside them is not the one Tauri signed.
+
+**Fix: clean everything, then create the DMG again.**
+
+From **src-tauri/**:
+
+```bash
+# 1. Remove all DMG artifacts (final + temp rw.*.dmg)
+rm -f target/release/bundle/dmg/Chinotto_0.1.0_aarch64.dmg
+rm -f target/release/bundle/dmg/rw.*.Chinotto_0.1.0_aarch64.dmg
+
+# 2. Ensure the app bundle folder has only Chinotto.app (no stray rw.*.dmg)
+rm -f target/release/bundle/macos/rw.*.dmg
+
+# 3. Recreate the DMG (script must already be patched)
+./target/release/bundle/dmg/bundle_dmg.sh
+```
+
+Then sign and submit the **new** DMG for notarization (and staple after approval). The `.app` in `target/release/bundle/macos/` is the one Tauri signed and notarized; the script uses that folder as the source, so the new DMG will contain only that valid app.
+
 ## Long-term Solution
 
 This is a Tauri bundler issue. Possible permanent fixes:
