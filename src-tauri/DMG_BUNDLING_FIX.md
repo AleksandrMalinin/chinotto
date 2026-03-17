@@ -28,18 +28,19 @@ The `target/release/bundle/dmg/bundle_dmg.sh` script has been manually patched a
 
 ## If the Build Fails Again
 
-If you run `cargo clean` or the script gets regenerated, you'll need to re-apply the fix:
+Tauri **regenerates** `bundle_dmg.sh` on every build, so the fix is lost each time. Do **not** run `tauri build` again after fixing (that would regenerate an unpatched script). Instead:
 
-1. Run `npm run tauri build` and let it fail (this generates the script)
-2. Run `./src-tauri/fix-dmg-bundler.sh` to patch the script
-3. Run `npm run tauri build` again - it should now succeed
+1. Run `npm run build && CI=false npx tauri build` and let it fail at the DMG step (this generates the script).
+2. From **src-tauri/** run: `./fix-dmg-bundler.sh` to patch the script.
+3. Create the DMG by running the patched script: `./target/release/bundle/dmg/bundle_dmg.sh`.
 
-## Automatic Fix (Alternative)
+The DMG will be at `src-tauri/target/release/bundle/dmg/Chinotto_0.1.0_aarch64.dmg`. You can then sign and notarize it as usual.
 
-Add this to package.json scripts to automatically fix on build failures:
+If `bundle_dmg.sh` fails with **`hdiutil: convert failed - File exists`**, the output DMG from a previous run is still there. Remove it and run the script again:
 
-```json
-"tauri:build": "npm run tauri build || (cd src-tauri && ./fix-dmg-bundler.sh && cd .. && npm run tauri build)"
+```bash
+rm -f target/release/bundle/dmg/Chinotto_0.1.0_aarch64.dmg
+./target/release/bundle/dmg/bundle_dmg.sh
 ```
 
 ## Long-term Solution
