@@ -26,4 +26,3 @@ scripts/apple-release-env.sh
 
 # Local-only (not in repo)
 docs/pre-release-checklist.md
-docs/release-macos.md

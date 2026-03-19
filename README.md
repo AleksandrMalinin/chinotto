@@ -21,6 +21,8 @@ Export them anytime.
 
 Prerequisites: Node.js, Rust, and system dependencies for [Tauri 2](https://v2.tauri.app/start/prerequisites/).
 
+**macOS distribution** (Developer ID sign + notarize): [docs/release-macos.md](docs/release-macos.md) and `./scripts/build-release-macos.sh`.
+
 ```bash
 npm install
 npm run tauri dev
