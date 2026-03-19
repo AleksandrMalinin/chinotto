@@ -670,15 +670,18 @@ const EXPERIMENTAL_VOICE_CAPTURE: bool = false;
 
 const VOICE_SHORTCUT: &str = "CommandOrControl+Shift+V";
 const VOICE_HOLD: &str = "Alt+Space";
+const CAPTURE_SHORTCUT: &str = "CommandOrControl+Shift+K";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     use std::str::FromStr;
     use tauri::Emitter;
+    use tauri::Manager;
     use tauri_plugin_global_shortcut::{Shortcut, ShortcutState};
 
     let voice_shortcut_id = Shortcut::from_str(VOICE_SHORTCUT).ok().map(|s| s.id());
     let voice_hold_id = Shortcut::from_str(VOICE_HOLD).ok().map(|s| s.id());
+    let capture_shortcut_id = Shortcut::from_str(CAPTURE_SHORTCUT).ok().map(|s| s.id());
 
     let voice_handler =
         move |app: &tauri::AppHandle,
@@ -697,13 +700,22 @@ pub fn run() {
                 }
                 _ => Ok(()),
             };
+
+            if matches!(event.state, ShortcutState::Pressed) && Some(id) == capture_shortcut_id {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.unminimize();
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+                let _ = app.emit("chinotto-capture-shortcut", ());
+            }
         };
 
-    let shortcuts: Vec<&str> = if EXPERIMENTAL_VOICE_CAPTURE {
-        vec![VOICE_SHORTCUT, VOICE_HOLD]
-    } else {
-        vec![]
-    };
+    let mut shortcuts: Vec<&str> = vec![CAPTURE_SHORTCUT];
+    if EXPERIMENTAL_VOICE_CAPTURE {
+        shortcuts.push(VOICE_SHORTCUT);
+        shortcuts.push(VOICE_HOLD);
+    }
     let plugin_builder = tauri_plugin_global_shortcut::Builder::new()
         .with_shortcuts(shortcuts)
         .expect("shortcuts")

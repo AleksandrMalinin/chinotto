@@ -22,6 +22,10 @@ export const EntryInput = forwardRef<EntryInputRef, Props>(function EntryInput(
   }, []);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Escape") {
+      (e.target as HTMLTextAreaElement).blur();
+      return;
+    }
     if (e.key !== "Enter" || e.shiftKey) return;
     e.preventDefault();
     const raw = (e.target as HTMLTextAreaElement).value.trim();

@@ -10,6 +10,7 @@ import { isOptIn, setOptIn } from "@/lib/analytics";
 
 const SHORTCUTS = [
   { keys: "Enter", action: "Save thought" },
+  { keys: "⌘ ⇧ K", action: "Quick capture" },
   { keys: "⌘ P", action: "Pin thought" },
   { keys: "⌘ K", action: "Search" },
   { keys: "⌘ N", action: "Focus input" },

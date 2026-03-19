@@ -34,6 +34,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Menu, MenuItem, PredefinedMenuItem, Submenu } from "@tauri-apps/api/menu";
 import { message as dialogMessage, save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { getIdsInCooldown, markAsShown } from "@/lib/resurfaceSession";
 import { getAnalyticsPromptShown, track } from "@/lib/analytics";
 import {
@@ -45,6 +46,7 @@ import {
 const EXPERIMENTAL_VOICE_CAPTURE = false;
 
 const RESURFACE_SHOW_PROBABILITY = 0.65;
+const FEEDBACK_EMAIL = "hello@chinotto.app";
 
 function isTypingInInput(): boolean {
   const el = document.activeElement;
@@ -117,6 +119,25 @@ export default function App() {
     width: number;
     height: number;
   } | null>(null);
+
+  const handleSendFeedback = useCallback(() => {
+    const subject = "Chinotto feedback";
+    const body = [
+      "Just write freely — even a rough thought helps.",
+      "",
+      "What were you trying to do?",
+      "",
+      "What felt off?",
+      "",
+      "What did you expect?",
+      "",
+      "Anything else?",
+    ].join("\n");
+    const mailtoUrl = `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    openUrl(mailtoUrl).catch(() => {
+      window.location.href = mailtoUrl;
+    });
+  }, []);
 
   const refresh = useCallback(async (query: string) => {
     if (getDevSimulateNewUser()) {
@@ -339,6 +360,24 @@ export default function App() {
       unlistenHoldStop.then((u) => u());
     };
   }, []);
+
+  useEffect(() => {
+    const unlistenCapture = listen("chinotto-capture-shortcut", () => {
+      if (isTypingInInput()) return;
+      if (selectedEntry) setSelectedEntry(null);
+      if (isSearchOpen) {
+        setIsSearchOpen(false);
+        setSearch("");
+      }
+      if (isChinottoCardOpen) setIsChinottoCardOpen(false);
+      requestAnimationFrame(() => {
+        entryInputRef.current?.focus();
+      });
+    });
+    return () => {
+      unlistenCapture.then((u) => u());
+    };
+  }, [selectedEntry, isSearchOpen, isChinottoCardOpen]);
 
   useEffect(() => {
     if (import.meta.env.DEV) {
@@ -924,6 +963,14 @@ export default function App() {
         <div className="app-studio-signature" aria-hidden="true">
           <span>Bogart Labs</span>
         </div>
+        <button
+          type="button"
+          className="app-feedback-link"
+          onClick={handleSendFeedback}
+          aria-label="Send feedback by email"
+        >
+          Share feedback
+        </button>
       </div>
       {!introDismissed && (
         <>
