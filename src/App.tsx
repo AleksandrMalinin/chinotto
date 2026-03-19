@@ -922,23 +922,25 @@ export default function App() {
                     onEntryHover={(entry) => setHoveredEntryId(entry ? entry.id : null)}
                   />
                 )}
-                <EntryStream
-                  entries={streamEntries}
-                  showHighlights={!!search.trim()}
-                  justAddedEntryId={justAddedEntryId}
-                  ephemeralEntryIds={ephemeralEntryIds}
-                  editingEntryId={editingEntryId}
-                  settlingEntryIds={settlingEntryIds}
-                  onEntryUpdate={handleEntryUpdate}
-                  onStartLateEdit={handleStartLateEdit}
-                  onEndEdit={handleEndEdit}
-                  onEntryClick={handleOpenEntry}
-                  onPinToggle={handlePin}
-                  onEntryDelete={handleEntryDelete}
-                  deletingIds={deletingIds}
-                  onDeleteAnimationEnd={handleDeleteAnimationEnd}
-                  onEntryHover={(entry) => setHoveredEntryId(entry ? entry.id : null)}
-                />
+                {streamEntries.length > 0 || pinnedEntries.length === 0 ? (
+                  <EntryStream
+                    entries={streamEntries}
+                    showHighlights={!!search.trim()}
+                    justAddedEntryId={justAddedEntryId}
+                    ephemeralEntryIds={ephemeralEntryIds}
+                    editingEntryId={editingEntryId}
+                    settlingEntryIds={settlingEntryIds}
+                    onEntryUpdate={handleEntryUpdate}
+                    onStartLateEdit={handleStartLateEdit}
+                    onEndEdit={handleEndEdit}
+                    onEntryClick={handleOpenEntry}
+                    onPinToggle={handlePin}
+                    onEntryDelete={handleEntryDelete}
+                    deletingIds={deletingIds}
+                    onDeleteAnimationEnd={handleDeleteAnimationEnd}
+                    onEntryHover={(entry) => setHoveredEntryId(entry ? entry.id : null)}
+                  />
+                ) : null}
               </>
             );
           })()}
