@@ -120,6 +120,7 @@ const EntryRow = memo(function EntryRow({
   const [hover, setHover] = useState(false);
   const [editValue, setEditValue] = useState(entry.text);
   const editInputRef = useRef<HTMLTextAreaElement>(null);
+  const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showPin = onPinToggle && (isPinned || hover);
 
   useEffect(() => {
@@ -138,6 +139,15 @@ const EntryRow = memo(function EntryRow({
     el.style.height = "auto";
     el.style.height = `${Math.max(el.scrollHeight, 24)}px`;
   }, [isEditable, editValue]);
+
+  useEffect(() => {
+    return () => {
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
+        clickTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   const useHighlight =
     !isEditable &&
@@ -187,6 +197,10 @@ const EntryRow = memo(function EntryRow({
     if (isEditable) return;
     e.preventDefault();
     e.stopPropagation();
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current);
+      clickTimeoutRef.current = null;
+    }
     onStartLateEdit?.(entry);
   };
 
@@ -272,7 +286,12 @@ const EntryRow = memo(function EntryRow({
         tabIndex={0}
         onClick={(e) => {
           if ((e.target as HTMLElement)?.closest?.("a.entry-link")) return;
-          if (!isEditable) onEntryClick?.(entry);
+          if (isEditable) return;
+          if (clickTimeoutRef.current) clearTimeout(clickTimeoutRef.current);
+          clickTimeoutRef.current = setTimeout(() => {
+            onEntryClick?.(entry);
+            clickTimeoutRef.current = null;
+          }, 180);
         }}
         onDoubleClick={handleDoubleClick}
         onKeyDown={handleKeyDown}
