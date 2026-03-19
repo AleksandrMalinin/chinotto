@@ -781,6 +781,13 @@ body.welcome .app-bg {
   transition: box-shadow 0.2s ease-out, outline 0.2s ease-out;
 }
 
+.chinotto-card-icon-tile:hover {
+  box-shadow:
+    0 0 0 1px rgba(10, 10, 14, 0.85),
+    0 0 0 2px rgba(255, 255, 255, 0.42),
+    0 0 12px rgba(255, 255, 255, 0.2);
+}
+
 .chinotto-card-icon-tile:focus {
   outline: none;
 }
