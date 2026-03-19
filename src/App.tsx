@@ -218,7 +218,7 @@ export default function App() {
     (async () => {
       const sep = () => PredefinedMenuItem.new({ item: "Separator" });
       const about = await PredefinedMenuItem.new({
-        item: { About: { name: "Chinotto", version: "0.1.0" } },
+        item: { About: { name: "Chinotto", version: "0.2.0" } },
       });
       const hide = await PredefinedMenuItem.new({ item: "Hide" });
       const hideOthers = await PredefinedMenuItem.new({ item: "HideOthers" });

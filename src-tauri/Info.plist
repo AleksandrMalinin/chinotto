@@ -13,9 +13,9 @@ Capture first. Revisit later.</string>
   <key>NSHumanReadableCopyright</key>
   <string>© 2026–present Bogart Labs.</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.1.0</string>
+  <string>0.2.0</string>
   <key>CFBundleVersion</key>
-  <string>0.1.0</string>
+  <string>0.2.0</string>
   <key>NSSpeechRecognitionUsageDescription</key>
   <string>Chinotto uses speech recognition so you can capture thoughts by voice.</string>
   <key>NSMicrophoneUsageDescription</key>
