@@ -53,6 +53,33 @@ What the app does today. Single source of truth for “do we have this?” and �
 | **Stream** | Entries in reverse chronological order (newest first). Click an entry to open detail. |
 | **Search** | **Cmd+K** (Mac) / **Ctrl+K** (Win/Linux) opens search. Full-text search (FTS5) across all entries. Escape or clear query to return to stream. |
 
+### Empty stream onboarding
+
+When the **main stream has no entries** (unpinned stream only; not the “no search results” message), the app shows the existing onboarding block (panel + copy). This is **progressive and state-based**, not a separate tutorial: no modals, no steps, no blocking of the capture input.
+
+| Piece | Behavior |
+|--------|-----------|
+| **Intro** | While the intro is open, onboarding content stays in a non-visible motion state and the trail panel’s CSS draw/drift does **not** start, so animations are not “spent” before the main UI is visible. After intro closes, the same **staggered entrance** runs as when the block returns after other triggers below. |
+| **Dismiss** | On the **first character** in the capture field, or after a **successful save** while the stream was still empty, the block **fades out** briefly (~150–250ms) and is removed; a **placeholder** keeps vertical space so layout does not jump. |
+| **Restore without saving** | If the user **clears the capture field** (trim-empty) and the stream is still empty, onboarding **shows again** with the same staggered entrance. |
+| **Stream non-empty** | No onboarding; no hints in the stream area. |
+| **Empty again after having entries** | When the stream goes from having entries to **zero** again, onboarding can reappear. If the user has **ever saved an entry** (see persistence below), the variant is **soft**; otherwise **full**. |
+
+**Variants (same copy and layout; different emphasis only)**
+
+| Variant | When | Effect |
+|---------|------|--------|
+| **full** | Stream empty and the user has **never** persisted `hasEverSaved` (see below). | Block at full opacity. |
+| **soft** | Stream empty and `hasEverSaved` is set (at least one entry was saved in the past, even if later deleted). | Same content; whole block at **lower opacity** (~58%) so it reads as a quiet reminder, not a first-run screen. |
+
+**Persistence**
+
+- `localStorage` key **`chinotto.hasEverSavedThought`** is set to `1` after a **successful** `create_entry`. It is not cleared when entries are deleted. Used only to choose **full** vs **soft** when the stream is empty again.
+
+**Optional feedback**
+
+- While the user types (before dismiss), a **short one-shot** accent can run on the trail SVG; reduced motion disables it.
+
 ### Entry actions
 
 | Action | How |

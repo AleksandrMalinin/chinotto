@@ -53,6 +53,8 @@ The product is “capture first, structure later.” The MVP avoids folders, pag
 
 Frontend calls backend via Tauri `invoke()` for `create_entry`, `list_entries`, and `search_entries`.
 
+**Empty stream onboarding:** Progressive UI when the main stream has no entries. State and triggers live in `src/App.tsx`; empty layout and motion in `src/features/entries/EntryStream.tsx`; draft callbacks in `src/features/entries/EntryInput.tsx`; trail panel in `src/components/StreamFlowPanel.tsx`. First-time vs “empty again” uses `src/lib/streamOnboarding.ts` (`localStorage` key `chinotto.hasEverSavedThought`). Product behavior: **`docs/product-spec.md`** → *Empty stream onboarding*.
+
 **Search:** FTS5 virtual table `entries_fts` is kept in sync with `entries` via triggers (insert, update, delete). Search uses prefix matching (partial words match), case-insensitive FTS, and results are ordered by BM25 relevance. If FTS returns no rows, a case-insensitive substring (LIKE) fallback is used. The overlay shows result count, highlights matches, and supports Enter (open selected/first) and Escape (close and focus capture input).
 
 **Related entries:** Shown on entry detail; computed by embedding cosine similarity (not FTS). Entries are embedded on save (AllMiniLML6V2); `find_similar_entries` returns the top-N by similarity. Root cause of noisy results was *no minimum score*: the top-N included weak matches (e.g. 0.2–0.4 similarity). We now require `cosine_similarity >= 0.5` so only clearly related entries are shown; if none pass, the block shows “None yet.” Normal search is unchanged (FTS only).
