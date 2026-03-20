@@ -72,3 +72,8 @@ export function recordEntryOpen(entryId: string): void {
 export async function deleteEntry(entryId: string): Promise<void> {
   return invoke("delete_entry", { entryId });
 }
+
+/** Wipes all entries (and pins/embeddings). Used by dev/debug UI only. */
+export async function deleteAllEntries(): Promise<void> {
+  return invoke("delete_all_entries", {});
+}

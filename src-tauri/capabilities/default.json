@@ -11,6 +11,7 @@
     "core:event:default",
     "dialog:allow-save",
     "dialog:allow-message",
+    "dialog:allow-ask",
     "opener:allow-default-urls",
     {
       "identifier": "opener:allow-open-url",

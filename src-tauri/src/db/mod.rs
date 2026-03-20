@@ -370,6 +370,15 @@ impl Db {
         Ok(())
     }
 
+    /// Remove every entry and related rows (pins, embeddings). For local debug tooling.
+    pub fn delete_all_entries(&self) -> Result<(), rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        conn.execute("DELETE FROM pinned_entries", [])?;
+        conn.execute("DELETE FROM entry_embeddings", [])?;
+        conn.execute("DELETE FROM entries", [])?;
+        Ok(())
+    }
+
     pub fn search_entries(&self, query: &str) -> Result<Vec<SearchEntryRow>, rusqlite::Error> {
         if query.trim().is_empty() {
             let rows = self.list_entries()?;

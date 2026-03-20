@@ -441,6 +441,11 @@ fn delete_entry(db: tauri::State<Db>, entry_id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn delete_all_entries(db: tauri::State<Db>) -> Result<(), String> {
+    db.delete_all_entries().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn export_entries(db: tauri::State<Db>, path: String) -> Result<(), String> {
     let mut rows = db.list_entries().map_err(|e| e.to_string())?;
     rows.reverse();
@@ -770,6 +775,7 @@ pub fn run() {
             get_pinned_entry_ids,
             record_entry_open,
             delete_entry,
+            delete_all_entries,
             export_entries,
             create_backup,
             create_backup_if_needed,

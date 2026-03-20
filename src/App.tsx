@@ -25,6 +25,7 @@ import {
   pinEntry,
   unpinEntry,
   recordEntryOpen,
+  deleteAllEntries,
   deleteEntry,
 } from "./features/entries/entryApi";
 import type { Entry } from "./types/entry";
@@ -33,7 +34,11 @@ import { setDesktopIcon } from "@/lib/setDesktopIcon";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Menu, MenuItem, PredefinedMenuItem, Submenu } from "@tauri-apps/api/menu";
-import { message as dialogMessage, save as saveDialog } from "@tauri-apps/plugin-dialog";
+import {
+  ask as dialogAsk,
+  message as dialogMessage,
+  save as saveDialog,
+} from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { getIdsInCooldown, markAsShown } from "@/lib/resurfaceSession";
 import { getAnalyticsPromptShown, track } from "@/lib/analytics";
@@ -111,6 +116,7 @@ export default function App() {
   const [searchSelectedIndex, setSearchSelectedIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const entryInputRef = useRef<EntryInputRef>(null);
+  const devDeleteAllThoughtsRef = useRef<(() => Promise<void>) | null>(null);
   const headerLogoRef = useRef<HTMLButtonElement>(null);
   const shownThisSessionRef = useRef(false);
   const attemptedAfterSaveRef = useRef(false);
@@ -297,9 +303,21 @@ export default function App() {
             window.location.reload();
           },
         });
+        const devMenuItems = [simNewUserItem];
+        if (entries.length > 0) {
+          devMenuItems.push(
+            await MenuItem.new({
+              id: "dev_delete_all_thoughts",
+              text: "Delete All Thoughts…",
+              action: () => {
+                void devDeleteAllThoughtsRef.current?.();
+              },
+            })
+          );
+        }
         const developerSubmenu = await Submenu.new({
           text: "Developer",
-          items: [simNewUserItem],
+          items: devMenuItems,
         });
         menuItems.push(developerSubmenu);
       }
@@ -309,7 +327,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [entries.length]);
 
   useEffect(() => {
     invoke("create_backup_if_needed").catch(() => {});
@@ -742,6 +760,38 @@ export default function App() {
     });
   }, []);
 
+  const handleDevDeleteAllThoughts = useCallback(async () => {
+    if (!import.meta.env.DEV) return;
+    const ok = await dialogAsk(
+      "Delete every thought from this Mac? This cannot be undone.",
+      {
+        title: "Delete all (debug)",
+        kind: "warning",
+        okLabel: "Delete all",
+      }
+    );
+    if (!ok) return;
+    try {
+      await deleteAllEntries();
+      setSelectedEntry(null);
+      setResurfaced(null);
+      setEditingEntryId(null);
+      setDeletingIds(new Set());
+      setLastDeletedEntry(null);
+      setJustAddedEntryId(null);
+      setEphemeralEntryIds(new Set());
+      setSettlingEntryIds(new Set());
+      setHoveredEntryId(null);
+      setSearch("");
+      setIsSearchOpen(false);
+      await refresh("");
+    } catch (e) {
+      void dialogMessage(String(e), { kind: "error", title: "Chinotto" });
+    }
+  }, [refresh]);
+
+  devDeleteAllThoughtsRef.current = handleDevDeleteAllThoughts;
+
   const handleIntroDismissRequest = useCallback(() => {
     setIntroTransitioning(true);
     const rect = headerLogoRef.current?.getBoundingClientRect();
@@ -803,16 +853,30 @@ export default function App() {
               </span>
             )}
             {import.meta.env.DEV && introDismissed && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="dev-preview-resurface text-[var(--muted)] hover:text-[var(--fg-dim)] text-xs"
-                onClick={handleDevPreviewResurface}
-                aria-label="Preview resurfaced overlay (dev)"
-              >
-                Preview resurface
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="dev-preview-resurface text-[var(--muted)] hover:text-[var(--fg-dim)] text-xs"
+                  onClick={handleDevPreviewResurface}
+                  aria-label="Preview resurfaced overlay (dev)"
+                >
+                  Preview resurface
+                </Button>
+                {entries.length > 0 ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="dev-delete-all-thoughts text-[var(--muted)] hover:text-[var(--fg-dim)] text-xs"
+                    onClick={() => void handleDevDeleteAllThoughts()}
+                    aria-label="Delete all thoughts from database (dev)"
+                  >
+                    Delete all thoughts
+                  </Button>
+                ) : null}
+              </>
             )}
           </header>
           {isSearchOpen && (
