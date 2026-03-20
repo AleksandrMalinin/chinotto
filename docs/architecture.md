@@ -9,7 +9,7 @@
 
 ## Updates
 
-- **In-app updates:** `tauri-plugin-updater` and `tauri-plugin-process` (check on launch in production builds; minimal bottom-left nudge). Metadata and signed update bundles come from **GitHub Releases** via `latest.json` (endpoint in `src-tauri/tauri.conf.json`). Release builds require `TAURI_SIGNING_PRIVATE_KEY` matching the embedded public key; see `docs/updater.md`. Tag push `v*` runs `.github/workflows/release.yml` (Apple Silicon target by default).
+- **In-app updates:** `tauri-plugin-updater` and `tauri-plugin-process` (check on launch in production builds; minimal bottom-left nudge). Metadata and signed update bundles come from **GitHub Releases** via `latest.json` (endpoint in `src-tauri/tauri.conf.json`). Release builds require `TAURI_SIGNING_PRIVATE_KEY` matching the embedded public key; see `docs/updater.md`. Tag push `v*` runs `.github/workflows/release.yml` (Apple Silicon target by default). Optional **Developer ID + notarization** in CI via Apple certificate and App Store Connect API secrets (same doc).
 
 ## Why Tauri
 

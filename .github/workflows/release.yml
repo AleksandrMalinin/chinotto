@@ -41,18 +41,57 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Optional: Developer ID .p12 (base64) + password + full signing identity string.
+      # See docs/updater.md → “Apple code signing & notarization (CI)”.
+      - name: Import Apple Developer ID certificate
+        if: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_SIGNING_IDENTITY != '' }}
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY_IN: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+          printf '%s' "$APPLE_CERTIFICATE" | /usr/bin/base64 -D > /tmp/certificate.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
+          security import /tmp/certificate.p12 -k build.keychain -P "${APPLE_CERTIFICATE_PASSWORD:-}" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          rm -f /tmp/certificate.p12
+          security find-identity -v -p codesigning build.keychain
+          {
+            echo "APPLE_SIGNING_IDENTITY<<EOF"
+            echo "$APPLE_SIGNING_IDENTITY_IN"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+      # Optional: App Store Connect API key (.p8 contents) for notarization (same as local release).
+      - name: Write App Store Connect API key
+        if: ${{ secrets.APPLE_CONNECT_P8 != '' && secrets.APPLE_API_KEY != '' && secrets.APPLE_API_ISSUER != '' }}
+        env:
+          APPLE_CONNECT_P8: ${{ secrets.APPLE_CONNECT_P8 }}
+        run: |
+          set -euo pipefail
+          KEY_PATH="${RUNNER_TEMP}/api_key.p8"
+          echo "$APPLE_CONNECT_P8" > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          echo "APPLE_API_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+
       - name: Build and upload release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         with:
-          # Repo uses npm ci + package-lock.json; pnpm-lock.yaml would make the action pick pnpm instead.
           tauriScript: npm run tauri
           tagName: v__VERSION__
           releaseName: Chinotto v__VERSION__
-          releaseBody: "Apple Silicon (aarch64) build. Attach notarized DMG locally if needed; `latest.json` supports in-app updates."
+          releaseBody: "Apple Silicon (aarch64). Signed/notarized in CI when Apple secrets are set; see docs/updater.md."
           releaseDraft: false
           prerelease: false
           args: --target aarch64-apple-darwin

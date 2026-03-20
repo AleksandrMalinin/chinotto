@@ -28,14 +28,45 @@ Updates **must** be signed. The **public** key is embedded in `tauri.conf.json` 
 
 For `.github/workflows/release.yml`:
 
+### Updater (minisign) — required
+
 | Secret | Required | Purpose |
 |--------|----------|---------|
-| `TAURI_SIGNING_PRIVATE_KEY` | Yes | Private key (same pair as `pubkey` in config) so CI can sign update artifacts |
-| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | If key has password | Optional |
+| `TAURI_SIGNING_PRIVATE_KEY` | Yes | Minisign private key (same pair as `pubkey` in `tauri.conf.json`) |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | If the minisign key has a password | Optional |
 
 `GITHUB_TOKEN` is provided automatically for uploading the release.
 
-**Optional (local-style macOS signing/notarization in CI):** not configured in the default workflow; add certificate import + Apple API key steps if you want signed/notarized CI builds.
+### Apple code signing & notarization (CI) — optional
+
+Set these **together** when you want **Developer ID**–signed and **notarized** macOS builds on the runner (same model as [Tauri macOS signing](https://v2.tauri.app/distribute/sign/macos/)).
+
+**1. Certificate (.p12)**
+
+1. Keychain Access → My Certificates → **Developer ID Application** → export as `.p12` with a password.
+2. Base64 (single line):
+   ```bash
+   openssl base64 -A -in DeveloperID.p12 -out cert-base64.txt
+   ```
+3. Repository **Actions** secrets:
+
+| Secret | Purpose |
+|--------|---------|
+| `APPLE_CERTIFICATE` | Full contents of `cert-base64.txt` |
+| `APPLE_CERTIFICATE_PASSWORD` | `.p12` export password (can be empty if none) |
+| `APPLE_SIGNING_IDENTITY` | Exact string from `security find-identity -v -p codesigning`, e.g. `Developer ID Application: Your Name (TEAMID)` |
+
+**2. App Store Connect API key (notarization)**
+
+Create an API key under App Store Connect → Users and Access → Integrations → **App Store Connect API**.
+
+| Secret | Purpose |
+|--------|---------|
+| `APPLE_CONNECT_P8` | Entire `.p8` file contents (PEM text) |
+| `APPLE_API_KEY` | Key ID (e.g. `ABC123DEF4`) |
+| `APPLE_API_ISSUER` | Issuer ID (UUID from the keys page) |
+
+If `APPLE_CONNECT_P8` / `APPLE_API_KEY` / `APPLE_API_ISSUER` are omitted, CI still **codesigns** when the certificate secrets are set; **notarization** runs only when all three API secrets are set.
 
 ## CI artifacts
 
