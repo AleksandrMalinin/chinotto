@@ -63,7 +63,7 @@ export type EntryStreamProps = {
   onEntryHover?: (entry: Entry | null) => void;
   /**
    * Empty main stream only: progressive onboarding. `null` = user dismissed (placeholder, no copy).
-   * Omit for legacy static block (e.g. callers that do not wire App state).
+   * Omit to use default full onboarding (static defaults; no App-driven exit/soft variant).
    */
   emptyOnboarding?: EmptyOnboardingConfig | null;
   /**
@@ -134,6 +134,13 @@ const emptyOnboardingContainerInstant = {
 
 const ONBOARDING_EXIT_S = 0.2;
 
+const defaultEmptyOnboardingConfig: EmptyOnboardingConfig = {
+  variant: "full",
+  exiting: false,
+  typingAccent: false,
+  onExitComplete: () => {},
+};
+
 function EmptyStreamOnboarding({
   variant,
   exiting,
@@ -203,7 +210,7 @@ function EmptyStreamOnboarding({
             Start typing above
             <br />
             <br />
-            <kbd className="stream-empty-kbd">Enter</kbd> saves
+            <kbd className="stream-empty-kbd">Enter</kbd> to save
           </motion.p>
         </motion.div>
       </motion.div>
@@ -577,7 +584,7 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
     return groupEntriesBySection(entries);
   }, [entries, sectionTitle]);
 
-  /* Empty timeline: search vs progressive onboarding vs legacy static block. */
+  /* Empty timeline: search vs progressive onboarding (single implementation). */
   if (entries.length === 0 && !sectionTitle) {
     if (showHighlights) {
       return (
@@ -594,58 +601,15 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
         />
       );
     }
-    if (emptyOnboarding != null) {
-      return (
-        <EmptyStreamOnboarding
-          {...emptyOnboarding}
-          reduceMotion={reduceMotion}
-          deferEmptyPanelMotion={deferEmptyPanelMotion}
-          revealEmptyOnboarding={revealEmptyOnboarding}
-        />
-      );
-    }
-
-    const onboardingItem = reduceMotion ? emptyOnboardingInstant : emptyOnboardingItem;
-    const onboardingContainer = reduceMotion
-      ? emptyOnboardingContainerInstant
-      : emptyOnboardingContainer;
-
+    const onboardingConfig: EmptyOnboardingConfig =
+      emptyOnboarding ?? defaultEmptyOnboardingConfig;
     return (
-      <motion.div
-        className="stream-empty stream-empty-onboarding"
-        aria-live="polite"
-        initial="hidden"
-        animate={revealEmptyOnboarding ? "visible" : "hidden"}
-        variants={onboardingContainer}
-        style={{ pointerEvents: "none" }}
-      >
-        <motion.div variants={onboardingItem}>
-          <StreamFlowPanel
-            calm={!!reduceMotion}
-            deferMotion={deferEmptyPanelMotion && !reduceMotion}
-          />
-        </motion.div>
-
-        <motion.div className="stream-empty-onboarding-copy" variants={onboardingContainer}>
-          <motion.h2 className="stream-empty-title" variants={onboardingItem}>
-            Just write. No structure.
-          </motion.h2>
-          <motion.p className="stream-empty-lead" variants={onboardingItem}>
-            Start with one line.
-          </motion.p>
-          <motion.p className="stream-empty-meta" variants={onboardingItem}>
-            Your thoughts leave a trail.
-            <br />
-            You’ll see them again when it matters.
-          </motion.p>
-          <motion.p className="stream-empty-hint" variants={onboardingItem}>
-            Start typing above
-            <br />
-            <br />
-            <kbd className="stream-empty-kbd">Enter</kbd> saves
-          </motion.p>
-        </motion.div>
-      </motion.div>
+      <EmptyStreamOnboarding
+        {...onboardingConfig}
+        reduceMotion={reduceMotion}
+        deferEmptyPanelMotion={deferEmptyPanelMotion}
+        revealEmptyOnboarding={revealEmptyOnboarding}
+      />
     );
   }
 
