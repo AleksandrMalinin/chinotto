@@ -98,6 +98,8 @@ export default function App() {
   const [introTransitioning, setIntroTransitioning] = useState(false);
   const [emptyOnboardingIntroDelayReady, setEmptyOnboardingIntroDelayReady] = useState(false);
   const [entries, setEntries] = useState<Entry[]>([]);
+  /** True after a full list load (no search query); used so the ⌘K control stays hidden while FTS results are empty. */
+  const [hasEntriesInDb, setHasEntriesInDb] = useState(false);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -171,6 +173,7 @@ export default function App() {
     if (getDevSimulateNewUser()) {
       setEntries([]);
       setPinnedIds([]);
+      setHasEntriesInDb(false);
       setLoading(false);
       return;
     }
@@ -179,6 +182,7 @@ export default function App() {
       const list = await loadEntries(query);
       setEntries(list);
       if (!query.trim()) {
+        setHasEntriesInDb(list.length > 0);
         const ids = await getPinnedEntryIds();
         setPinnedIds(ids);
       }
@@ -204,6 +208,11 @@ export default function App() {
     const streamEntries = entries.filter((e) => !pinnedIds.includes(e.id));
     return { pinnedEntries, streamEntries };
   }, [entries, pinnedIds]);
+
+  const showSearchTrigger = useMemo(
+    () => (!search.trim() ? entries.length > 0 : hasEntriesInDb),
+    [search, entries, hasEntriesInDb]
+  );
 
   useEffect(() => {
     const len = streamEntries.length;
@@ -699,7 +708,23 @@ export default function App() {
   );
 
   const handleDeleteAnimationEnd = useCallback((entryId: string) => {
-    setEntries((prev) => prev.filter((e) => e.id !== entryId));
+    setEntries((prev) => {
+      const next = prev.filter((e) => e.id !== entryId);
+      queueMicrotask(() => {
+        if (next.length === 0) {
+          if (getDevSimulateNewUser()) {
+            setHasEntriesInDb(false);
+          } else {
+            listEntries()
+              .then((full) => setHasEntriesInDb(full.length > 0))
+              .catch(() => {});
+          }
+        } else {
+          setHasEntriesInDb(true);
+        }
+      });
+      return next;
+    });
     setPinnedIds((prev) => prev.filter((id) => id !== entryId));
     setDeletingIds((prev) => {
       const next = new Set(prev);
@@ -1052,16 +1077,18 @@ export default function App() {
               onSubmit={handleSubmit}
               onDraftChange={onCaptureDraftChange}
             />
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="search-trigger-inline text-[var(--muted)] hover:text-[var(--fg-dim)]"
-              onClick={() => setIsSearchOpen(true)}
-              aria-label="Search (⌘K)"
-            >
-              ⌘K
-            </Button>
+            {showSearchTrigger ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="search-trigger-inline text-[var(--muted)] hover:text-[var(--fg-dim)]"
+                onClick={() => setIsSearchOpen(true)}
+                aria-label="Search (⌘K)"
+              >
+                ⌘K
+              </Button>
+            ) : null}
           </div>
       {loading ? (
         <p className="stream-loading">Loading…</p>
