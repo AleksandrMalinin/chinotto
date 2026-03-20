@@ -324,16 +324,27 @@ body.chinotto-card-open {
   transition: opacity 0.2s ease-out;
 }
 
+/* Headline gradient matches empty onboarding `.stream-empty-title` (sizes stay intro-specific). */
+.stream-empty-title,
+.intro-screen-line {
+  background: linear-gradient(
+    102deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(198, 206, 255, 0.92) 38%,
+    rgba(255, 255, 255, 0.9) 72%,
+    rgba(255, 220, 200, 0.82) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
 .intro-screen-line {
   margin: 0;
   font-size: 20px;
   font-weight: 300;
   letter-spacing: 0.02em;
   line-height: 1.35;
-  color: rgba(255, 255, 255, 0.92);
-  text-shadow:
-    0 0 24px rgba(255, 255, 255, 0.12),
-    0 0 48px rgba(160, 180, 240, 0.08);
 }
 
 .intro-screen-line-1 {
@@ -353,13 +364,13 @@ body.chinotto-card-open {
   letter-spacing: 0.04em;
   line-height: 1.4;
   text-align: center;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, 0.42);
   opacity: 0;
   transition: opacity 0.65s ease-out;
 }
 
 .intro-screen-proceed-hint-visible {
-  opacity: 0.35;
+  opacity: 1;
   animation: intro-hint-breath 2.8s ease-in-out infinite;
   animation-delay: 0.65s; /* Wait for the fade-in to finish. */
 }
@@ -376,14 +387,12 @@ body.chinotto-card-open {
 }
 
 @keyframes intro-hint-breath {
-  0% {
-    opacity: 0.35;
+  0%,
+  100% {
+    opacity: 0.55;
   }
   50% {
-    opacity: 0.68;
-  }
-  100% {
-    opacity: 0.35;
+    opacity: 1;
   }
 }
 
@@ -398,8 +407,7 @@ body.chinotto-card-open {
   font-size: 11px;
   font-weight: 400;
   letter-spacing: 0.07em;
-  color: rgba(255, 255, 255, 0.95);
-  opacity: 0.35;
+  color: rgba(255, 255, 255, 0.52);
 }
 
 /* Main app visibility during intro transition */
