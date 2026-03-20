@@ -7,6 +7,14 @@
 - **SQLite:** Local storage; one file per app instance, no server.
 - **SQLite FTS5:** Full-text search over entries.
 
+## Testing
+
+- **Rust:** `cargo test` (built-in harness). Unit tests live in `#[cfg(test)] mod tests` under `src-tauri/src/`; optional integration-style tests use in-memory SQLite where needed.
+- **TypeScript:** **Vitest** for `src/**/*.test.{ts,tsx}` (node environment; `@testing-library/react` where used). A few pure modules use **Node’s built-in test runner** via `node --import tsx --test` (see `package.json` → `test:ts`).
+- **Commands:** `npm test` runs `test:rs` then `test:ts`. No Playwright/Cypress; Tauri `invoke` is not exercised in automated tests.
+
+Rationale, layout, and coverage targets: **`docs/testing-strategy.md`**.
+
 ## Updates
 
 - **In-app updates:** `tauri-plugin-updater` and `tauri-plugin-process` (check on launch in production builds; minimal bottom-left nudge). Metadata and signed update bundles come from **GitHub Releases** via `latest.json` (endpoint in `src-tauri/tauri.conf.json`). Release builds require `TAURI_SIGNING_PRIVATE_KEY` matching the embedded public key; see `docs/updater.md`. Tag push `v*` runs `.github/workflows/release.yml` (Apple Silicon target by default). Optional **Developer ID + notarization** in CI via Apple certificate and App Store Connect API secrets (same doc).
