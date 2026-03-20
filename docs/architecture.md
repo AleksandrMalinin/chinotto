@@ -7,6 +7,10 @@
 - **SQLite:** Local storage; one file per app instance, no server.
 - **SQLite FTS5:** Full-text search over entries.
 
+## Updates
+
+- **In-app updates:** `tauri-plugin-updater` and `tauri-plugin-process` (check on launch in production builds; minimal bottom-left nudge). Metadata and signed update bundles come from **GitHub Releases** via `latest.json` (endpoint in `src-tauri/tauri.conf.json`). Release builds require `TAURI_SIGNING_PRIVATE_KEY` matching the embedded public key; see `docs/updater.md`. Tag push `v*` runs `.github/workflows/release.yml` (Apple Silicon target by default).
+
 ## Why Tauri
 
 - Desktop-only target; no need for a full browser or Electron’s weight.

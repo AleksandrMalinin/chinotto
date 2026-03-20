@@ -48,6 +48,10 @@ npm run tauri dev
 - **Export** — entries can be exported as Markdown
 - **Backup** — automatic local backups
 
+## Updates
+
+In-app updates use GitHub Releases (`latest.json`). Configure signing and CI secrets per [docs/updater.md](docs/updater.md).
+
 ## Related
 
 - [Chinotto web](https://github.com/AleksandrMalinin/chinotto-web) — web companion / info site
