@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - "v*"
+  # Use when a tag already exists at the same commit (push is a no-op → no `push` event).
+  workflow_dispatch:
 
 jobs:
   publish:
