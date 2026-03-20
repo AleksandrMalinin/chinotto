@@ -345,14 +345,51 @@ body.chinotto-card-open {
   animation: intro-text-in 1.2s 4.5s ease-out both;
 }
 
+.intro-screen-proceed-hint {
+  margin: 1.75rem 0 0;
+  max-width: 22em;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.9);
+  opacity: 0;
+  transition: opacity 0.65s ease-out;
+}
+
+.intro-screen-proceed-hint-visible {
+  opacity: 0.35;
+  animation: intro-hint-breath 2.8s ease-in-out infinite;
+  animation-delay: 0.65s; /* Wait for the fade-in to finish. */
+}
+
+.intro-screen-exiting .intro-screen-proceed-hint {
+  opacity: 0;
+  animation: none;
+  transition: opacity 0.2s ease-out;
+}
+
 @keyframes intro-text-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
+@keyframes intro-hint-breath {
+  0% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.68;
+  }
+  100% {
+    opacity: 0.35;
+  }
+}
+
 .intro-screen-hint {
   position: absolute;
-  bottom: 3rem;
+  bottom: 2.35rem;
   left: 0;
   right: 0;
   z-index: 1;
@@ -362,7 +399,7 @@ body.chinotto-card-open {
   font-weight: 400;
   letter-spacing: 0.07em;
   color: rgba(255, 255, 255, 0.95);
-  opacity: 0.4;
+  opacity: 0.35;
 }
 
 /* Main app visibility during intro transition */

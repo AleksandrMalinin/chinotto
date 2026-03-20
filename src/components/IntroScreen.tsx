@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 
 const MIN_DRAG_PX = 40;
+/** After line 2 `intro-text-in` ends (4.5s delay + 1.2s), show proceed hint. */
+const PROCEED_HINT_DELAY_MS = 5800;
 
 type ExitDirection = "up" | "left" | "right";
 
@@ -8,9 +10,20 @@ type Props = {
   onDismissRequest: () => void;
 };
 
+function isModifierOnlyKey(e: KeyboardEvent): boolean {
+  return (
+    e.key === "Shift" ||
+    e.key === "Control" ||
+    e.key === "Alt" ||
+    e.key === "Meta" ||
+    e.key === "OS"
+  );
+}
+
 export function IntroScreen({ onDismissRequest }: Props) {
   const [exiting, setExiting] = useState(false);
   const [exitDirection, setExitDirection] = useState<ExitDirection>("up");
+  const [proceedHintVisible, setProceedHintVisible] = useState(false);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
 
   const startExit = useCallback(
@@ -61,12 +74,16 @@ export function IntroScreen({ onDismissRequest }: Props) {
   );
 
   useEffect(() => {
+    const id = window.setTimeout(() => setProceedHintVisible(true), PROCEED_HINT_DELAY_MS);
+    return () => clearTimeout(id);
+  }, []);
+
+  useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (exiting) return;
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        startExit("up");
-      }
+      if (e.repeat || isModifierOnlyKey(e)) return;
+      e.preventDefault();
+      startExit("up");
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -90,6 +107,12 @@ export function IntroScreen({ onDismissRequest }: Props) {
       <div className="intro-screen-copy">
         <p className="intro-screen-line intro-screen-line-1">Capture first.</p>
         <p className="intro-screen-line intro-screen-line-2">Revisit later.</p>
+        <p
+          className={`intro-screen-proceed-hint ${proceedHintVisible ? "intro-screen-proceed-hint-visible" : ""}`}
+          aria-hidden="true"
+        >
+          Press any key
+        </p>
       </div>
       <p className="intro-screen-hint">Local-first · Offline by default</p>
     </div>
