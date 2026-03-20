@@ -1838,6 +1838,252 @@ body.welcome .app-bg {
   transition: color var(--transition);
 }
 
+.stream-empty-onboarding {
+  --empty-onboard-pad: clamp(1rem, 4vw, 1.75rem);
+  width: 100%;
+  max-width: min(900px, 94vw);
+  margin: 0 auto;
+  padding: 0 var(--empty-onboard-pad);
+  min-height: min(58vh, 520px);
+  display: grid;
+  gap: clamp(1.75rem, 4vw, 2.75rem);
+  align-items: center;
+  justify-items: center;
+  transform: translateY(-12px);
+}
+
+@media (min-width: 640px) {
+  .stream-empty-onboarding {
+    grid-template-columns: minmax(200px, 40%) minmax(0, 1fr);
+    gap: 2rem clamp(3rem, 7vw, 5.5rem);
+    justify-items: stretch;
+  }
+
+  .stream-empty-onboarding .stream-flow-panel--onboarding {
+    margin-left: 0;
+    margin-right: auto;
+  }
+}
+
+/* Stream flow panel: empty-stream onboarding (glass, blobs, strokes) */
+.stream-flow-panel {
+  position: relative;
+  border-radius: 22px;
+  isolation: isolate;
+}
+
+.stream-flow-panel--onboarding {
+  width: 100%;
+  max-width: min(340px, max(220px, 42vw));
+  aspect-ratio: 11 / 13;
+  margin: 0 auto;
+  --stream-flow-path-delay-a: 0.4s;
+  --stream-flow-path-delay-b: 0.65s;
+  --stream-flow-path-delay-c: 0.85s;
+}
+
+.stream-flow-blobs {
+  position: absolute;
+  inset: -12%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.stream-flow-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(42px);
+  mix-blend-mode: screen;
+  opacity: 0.85;
+  animation: stream-flow-blob-drift var(--blob-dur, 22s) ease-in-out infinite alternate;
+}
+
+.stream-flow-blob--violet {
+  width: 55%;
+  height: 48%;
+  left: -5%;
+  top: 8%;
+  background: rgba(124, 58, 237, 0.34);
+  --blob-dur: 26s;
+}
+
+.stream-flow-blob--cyan {
+  width: 52%;
+  height: 52%;
+  right: -8%;
+  top: 28%;
+  background: rgba(6, 182, 212, 0.28);
+  --blob-dur: 19s;
+  animation-delay: -4s;
+}
+
+.stream-flow-blob--ember {
+  width: 48%;
+  height: 44%;
+  left: 18%;
+  bottom: -6%;
+  background: rgba(249, 115, 22, 0.22);
+  --blob-dur: 24s;
+  animation-delay: -9s;
+}
+
+@keyframes stream-flow-blob-drift {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(6%, -5%) scale(1.06);
+  }
+}
+
+.stream-flow-glass {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: 22px;
+  background: linear-gradient(
+    145deg,
+    rgba(18, 18, 28, 0.55) 0%,
+    rgba(12, 14, 22, 0.35) 48%,
+    rgba(20, 22, 34, 0.5) 100%
+  );
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+    0 0 40px -12px rgba(100, 110, 180, 0.2),
+    0 0 72px -28px rgba(70, 100, 180, 0.12),
+    0 20px 48px -20px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.stream-flow-svg {
+  position: relative;
+  z-index: 2;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 14% 12% 16%;
+  box-sizing: border-box;
+}
+
+.stream-flow-path {
+  fill: none;
+}
+
+.stream-flow-path--a {
+  stroke-dasharray: 420;
+  stroke-dashoffset: 420;
+  animation: stream-flow-draw 2.8s cubic-bezier(0.22, 1, 0.36, 1) var(--stream-flow-path-delay-a) forwards;
+}
+
+.stream-flow-path--b {
+  stroke-dasharray: 360;
+  stroke-dashoffset: 360;
+  animation: stream-flow-draw 2.5s cubic-bezier(0.22, 1, 0.36, 1) var(--stream-flow-path-delay-b) forwards;
+}
+
+.stream-flow-path--c {
+  stroke-dasharray: 280;
+  stroke-dashoffset: 280;
+  animation: stream-flow-draw 2.2s cubic-bezier(0.22, 1, 0.36, 1) var(--stream-flow-path-delay-c) forwards;
+}
+
+@keyframes stream-flow-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.stream-empty-onboarding-copy {
+  text-align: left;
+  max-width: none;
+  width: 100%;
+  min-width: 0;
+}
+
+.stream-empty-kicker {
+  margin: 0 0 0.5rem;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.stream-empty-title {
+  margin: 0 0 1rem;
+  font-size: clamp(1.75rem, 4.2vw, 2.35rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.12;
+}
+
+.stream-empty-onboarding .stream-empty-title {
+  font-size: clamp(1.1rem, 2.15vw, 1.35rem);
+  line-height: 1.38;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.85rem;
+  text-wrap: balance;
+}
+
+.stream-empty-lead {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.stream-empty-meta {
+  margin: 1rem 0 0;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.52);
+}
+
+.stream-empty-hint {
+  margin: 1.5rem 0 0;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.stream-empty-kbd {
+  display: inline-block;
+  padding: 0.12em 0.45em 0.14em;
+  font-family: inherit;
+  font-size: 0.92em;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+}
+
+.stream-empty-kbd-plus {
+  margin: 0 0.15em;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stream-flow-blob {
+    animation: none;
+  }
+
+  .stream-flow-path--a,
+  .stream-flow-path--b,
+  .stream-flow-path--c {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
+
 /* Entry detail */
 .entry-detail {
   margin-top: 1.5rem;
