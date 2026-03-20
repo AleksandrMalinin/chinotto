@@ -1,6 +1,7 @@
 import { useMemo, memo, useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Pin, X } from "lucide-react";
+import { StreamFlowPanel } from "@/components/StreamFlowPanel";
 import type { Entry } from "../../types/entry";
 import { EntryTextWithLinks } from "./EntryTextWithLinks";
 
@@ -74,6 +75,40 @@ function formatTime(iso: string): string {
 }
 
 const SECTION_ORDER: SectionKey[] = ["Today", "Yesterday", "Earlier"];
+
+const emptyOnboardingEase = [0.22, 1, 0.36, 1] as const;
+
+const emptyOnboardingItem = {
+  hidden: { opacity: 0, y: 18, filter: "blur(8px)" },
+  visible: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: { duration: 0.52, ease: emptyOnboardingEase },
+  },
+};
+
+const emptyOnboardingContainer = {
+  hidden: {},
+  visible: {
+    transition: { staggerChildren: 0.1, delayChildren: 0.14 },
+  },
+};
+
+const emptyOnboardingInstant = {
+  hidden: { opacity: 1, y: 0, filter: "blur(0px)" },
+  visible: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: { duration: 0 },
+  },
+};
+
+const emptyOnboardingContainerInstant = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0, delayChildren: 0 } },
+};
 
 function groupEntriesBySection(entries: Entry[]): { section: SectionKey; entries: Entry[] }[] {
   const groups = new Map<SectionKey, Entry[]>();
@@ -429,6 +464,8 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
   onDeleteAnimationEnd,
   onEntryHover,
 }) {
+  const reduceMotion = useReducedMotion();
+
   const sections = useMemo(() => {
     if (sectionTitle) {
       return [{ section: sectionTitle, entries }];
@@ -438,10 +475,50 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
 
   /* Empty timeline serves as first-run onboarding: no separate screens or flags. */
   if (entries.length === 0 && !sectionTitle) {
+    if (showHighlights) {
+      return (
+        <p className="stream-empty" aria-live="polite">
+          No thoughts match your search.
+        </p>
+      );
+    }
+    const onboardingItem = reduceMotion ? emptyOnboardingInstant : emptyOnboardingItem;
+    const onboardingContainer = reduceMotion
+      ? emptyOnboardingContainerInstant
+      : emptyOnboardingContainer;
+
     return (
-      <p className="stream-empty" aria-live="polite">
-        No entries yet. Type above and press Enter to add one.
-      </p>
+      <motion.div
+        className="stream-empty stream-empty-onboarding"
+        aria-live="polite"
+        initial="hidden"
+        animate="visible"
+        variants={onboardingContainer}
+      >
+        <motion.div variants={onboardingItem}>
+          <StreamFlowPanel />
+        </motion.div>
+
+        <motion.div className="stream-empty-onboarding-copy" variants={onboardingContainer}>
+          <motion.h2 className="stream-empty-title" variants={onboardingItem}>
+            Just write. No structure.
+          </motion.h2>
+          <motion.p className="stream-empty-lead" variants={onboardingItem}>
+            Start with one line.
+          </motion.p>
+          <motion.p className="stream-empty-meta" variants={onboardingItem}>
+            Your thoughts leave a trail.
+            <br />
+            You’ll see them again when it matters.
+          </motion.p>
+          <motion.p className="stream-empty-hint" variants={onboardingItem}>
+            Start typing above
+            <br />
+            <br />
+            <kbd className="stream-empty-kbd">Enter</kbd> saves
+          </motion.p>
+        </motion.div>
+      </motion.div>
     );
   }
 
