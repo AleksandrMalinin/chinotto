@@ -6,7 +6,7 @@ Extracted from the desktop app for reuse as a reference when building the market
 
 ## 1. Visual identity summary
 
-Chinotto presents a **calm, dark thinking space**: deep charcoal background with subtle radial gradient glow and optional soft grain overlay. Typography is editorial (large input, readable body) with restrained letter-spacing. UI uses thin borders, low-contrast surfaces, and cool blue–grey accents. Motion is minimal: soft entry animations, gentle hover states, and a slow ambient glow. The feel is desktop-native and minimal—no productivity-dashboard chrome, no playful or flashy motion. (Source: comment block and implementation in `src/index.css`.)
+Chinotto presents a **calm, dark thinking space**: deep charcoal background with subtle radial gradient glow and optional soft grain overlay. Typography is editorial (large input, readable body) with restrained letter-spacing. UI uses thin borders, low-contrast surfaces, and cool blue–grey accents. Motion is minimal in the main shell: soft entry animations, gentle hover states, and a slow ambient glow. The first-run empty stream uses **`StreamFlowPanel`** (glass, inner blobs, gradient strokes) in a two-column layout with staggered copy and keyboard hints. The welcome intro stays copy + ambient blobs + logo transition only. The feel is desktop-native and minimal—no productivity-dashboard chrome. (Source: comment block and implementation in `src/index.css`.)
 
 ---
 
@@ -261,7 +261,7 @@ Used for hierarchy and states: 0.04–0.06 (grain, overlays), 0.08–0.12 (borde
 - **Hover:** Slight border lighten; background `var(--accent-subtle)` or `rgba(128,138,188,0.06)`; text to `--fg` or `--fg-dim`. Buttons use variant-specific hovers (see button.tsx).
 - **Active:** Entry row clickable: `rgba(128,138,188,0.04)`.
 - **Focus:** Consistently `outline: 1px solid var(--border-focus)` with `outline-offset: 2px` (sometimes 4px); `border-radius: 4px` or `6px` on focus. Inputs often use bottom-border + box-shadow instead of ring.
-- **Empty states:** `.stream-empty`, `.stream-loading`: 13px, `--meta-fg`, no heavy illustration.
+- **Empty states:** `.stream-empty`, `.stream-loading`: 13px, `--meta-fg`. Search-empty stays minimal. First-run onboarding (`.stream-empty-onboarding`) uses a two-column layout, `StreamFlowPanel`, staggered motion, and keyboard hints; respects `prefers-reduced-motion`.
 - **Motion:** No bounce/spring. Ease-out 180–220ms for UI; 0.25s–0.5s for overlays/entrance; ambient glow ~20s; intro blobs 45–55s drift. Entry list uses Framer Motion for list items (see `EntryStream.tsx`).
 
 ---
