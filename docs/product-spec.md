@@ -59,7 +59,7 @@ When the **main stream has no entries** (unpinned stream only; not the “no sea
 
 | Piece | Behavior |
 |--------|-----------|
-| **Intro** | While the intro is open, onboarding content stays in a non-visible motion state and the trail panel’s CSS draw/drift does **not** start, so animations are not “spent” before the main UI is visible. After intro closes, the same **staggered entrance** runs as when the block returns after other triggers below. |
+| **Intro** | While the intro is open, onboarding content stays in a non-visible motion state and the trail panel’s CSS draw/drift does **not** start. When the user **starts** exiting intro (main fades in, logo flies to header), the **staggered entrance** and trail motion begin shortly after (~750ms)—same handoff as the main UI, not when the logo move ends, with a minimal beat so the motion is easy to notice. Same stagger again when the block returns after other triggers below. |
 | **Dismiss** | On the **first character** in the capture field, or after a **successful save** while the stream was still empty, the block **fades out** briefly (~150–250ms) and is removed; a **placeholder** keeps vertical space so layout does not jump. |
 | **Restore without saving** | If the user **clears the capture field** (trim-empty) and the stream is still empty, onboarding **shows again** with the same staggered entrance. |
 | **Stream non-empty** | No onboarding; no hints in the stream area. |

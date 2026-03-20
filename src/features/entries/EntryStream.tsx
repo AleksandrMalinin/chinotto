@@ -106,14 +106,14 @@ const emptyOnboardingItem = {
     opacity: 1,
     y: 0,
     filter: "blur(0px)",
-    transition: { duration: 0.52, ease: emptyOnboardingEase },
+    transition: { duration: 0.62, ease: emptyOnboardingEase },
   },
 };
 
 const emptyOnboardingContainer = {
   hidden: {},
   visible: {
-    transition: { staggerChildren: 0.1, delayChildren: 0.14 },
+    transition: { staggerChildren: 0.12, delayChildren: 0.18 },
   },
 };
 

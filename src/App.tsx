@@ -58,6 +58,8 @@ const EXPERIMENTAL_VOICE_CAPTURE = false;
 
 const RESURFACE_SHOW_PROBABILITY = 0.65;
 const FEEDBACK_EMAIL = "hello@chinotto.app";
+/** Tiny offset after intro→main handoff so empty onboarding stagger reads clearly. */
+const EMPTY_ONBOARDING_POST_INTRO_DELAY_MS = 750;
 
 function isTypingInInput(): boolean {
   const el = document.activeElement;
@@ -90,6 +92,7 @@ export default function App() {
   const appUpdater = useAppUpdater();
   const [introDismissed, setIntroDismissed] = useState(false);
   const [introTransitioning, setIntroTransitioning] = useState(false);
+  const [emptyOnboardingIntroDelayReady, setEmptyOnboardingIntroDelayReady] = useState(false);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -261,6 +264,22 @@ export default function App() {
       document.body.classList.remove("intro-open");
     };
   }, [introDismissed]);
+
+  useEffect(() => {
+    if (introDismissed) {
+      setEmptyOnboardingIntroDelayReady(true);
+      return;
+    }
+    if (!introTransitioning) {
+      setEmptyOnboardingIntroDelayReady(false);
+      return;
+    }
+    setEmptyOnboardingIntroDelayReady(false);
+    const id = window.setTimeout(() => {
+      setEmptyOnboardingIntroDelayReady(true);
+    }, EMPTY_ONBOARDING_POST_INTRO_DELAY_MS);
+    return () => clearTimeout(id);
+  }, [introDismissed, introTransitioning]);
 
   useEffect(() => {
     if (isChinottoCardOpen) {
@@ -876,6 +895,10 @@ export default function App() {
     .filter(Boolean)
     .join(" ");
 
+  /** Empty onboarding runs with main handoff, not after logo lands; short delay accents stagger. */
+  const emptyOnboardingIntroReady =
+    introDismissed || (introTransitioning && emptyOnboardingIntroDelayReady);
+
   return (
     <>
       <div className={mainAppClass}>
@@ -1047,8 +1070,8 @@ export default function App() {
                   deletingIds={deletingIds}
                   onDeleteAnimationEnd={handleDeleteAnimationEnd}
                   onEntryHover={(entry) => setHoveredEntryId(entry ? entry.id : null)}
-                  deferEmptyPanelMotion={!introDismissed}
-                  revealEmptyOnboarding={introDismissed}
+                  deferEmptyPanelMotion={!emptyOnboardingIntroReady}
+                  revealEmptyOnboarding={emptyOnboardingIntroReady}
                 />
               )}
               {streamEntries.length > 0 || pinnedEntries.length === 0 ? (
@@ -1068,8 +1091,8 @@ export default function App() {
                   deletingIds={deletingIds}
                   onDeleteAnimationEnd={handleDeleteAnimationEnd}
                   onEntryHover={(entry) => setHoveredEntryId(entry ? entry.id : null)}
-                  deferEmptyPanelMotion={!introDismissed}
-                  revealEmptyOnboarding={introDismissed}
+                  deferEmptyPanelMotion={!emptyOnboardingIntroReady}
+                  revealEmptyOnboarding={emptyOnboardingIntroReady}
                   emptyOnboarding={
                     pinnedEntries.length === 0 && streamEntries.length === 0
                       ? emptyOnboardingDismissed
@@ -1099,8 +1122,8 @@ export default function App() {
               deletingIds={deletingIds}
               onDeleteAnimationEnd={handleDeleteAnimationEnd}
               onEntryHover={(entry) => setHoveredEntryId(entry ? entry.id : null)}
-              deferEmptyPanelMotion={!introDismissed}
-              revealEmptyOnboarding={introDismissed}
+              deferEmptyPanelMotion={!emptyOnboardingIntroReady}
+              revealEmptyOnboarding={emptyOnboardingIntroReady}
             />
           )}
         </>
