@@ -489,7 +489,13 @@ body.chinotto-card-open {
 }
 
 .app-header .chinotto-logo {
+  display: block;
   color: var(--fg-dim);
+  transition: color var(--transition);
+}
+
+.app-header-logo:hover .chinotto-logo {
+  color: var(--fg);
 }
 
 .dev-simulate-banner {

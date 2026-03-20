@@ -899,7 +899,7 @@ export default function App() {
                 aria-label="About Chinotto"
                 tabIndex={introDismissed ? 0 : -1}
               >
-                <ChinottoLogo size={32} />
+                <ChinottoLogo size={32} className="chinotto-logo" />
               </button>
               <span className="app-header-name">
                 Chinotto <span className="app-header-beta" aria-hidden="true">β</span>
