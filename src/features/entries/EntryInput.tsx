@@ -3,12 +3,14 @@ import { Textarea } from "@/components/ui/textarea";
 
 type Props = {
   onSubmit: (text: string) => void;
+  /** Fires on each change so the shell can react while the stream is still empty (progressive onboarding). */
+  onDraftChange?: (value: string) => void;
 };
 
 export type EntryInputRef = { focus: () => void };
 
 export const EntryInput = forwardRef<EntryInputRef, Props>(function EntryInput(
-  { onSubmit },
+  { onSubmit, onDraftChange },
   ref
 ) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -41,6 +43,7 @@ export const EntryInput = forwardRef<EntryInputRef, Props>(function EntryInput(
         className="entry-input !py-0"
         placeholder="Capture a thought…"
         onKeyDown={handleKeyDown}
+        onChange={(e) => onDraftChange?.(e.target.value)}
         rows={2}
         aria-label="New entry"
       />
