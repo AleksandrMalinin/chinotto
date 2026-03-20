@@ -46,13 +46,16 @@ jobs:
       # Optional: Developer ID .p12 (base64) + password + full signing identity string.
       # See docs/updater.md → “Apple code signing & notarization (CI)”.
       - name: Import Apple Developer ID certificate
-        if: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_SIGNING_IDENTITY != '' }}
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY_IN: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: |
           set -euo pipefail
+          if [ -z "${APPLE_CERTIFICATE:-}" ] || [ -z "${APPLE_SIGNING_IDENTITY_IN:-}" ]; then
+            echo "::notice::Skipping Apple certificate import (set APPLE_CERTIFICATE and APPLE_SIGNING_IDENTITY to enable)."
+            exit 0
+          fi
           KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
           printf '%s' "$APPLE_CERTIFICATE" | /usr/bin/base64 -D > /tmp/certificate.p12
           security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
@@ -71,11 +74,16 @@ jobs:
 
       # Optional: App Store Connect API key (.p8 contents) for notarization (same as local release).
       - name: Write App Store Connect API key
-        if: ${{ secrets.APPLE_CONNECT_P8 != '' && secrets.APPLE_API_KEY != '' && secrets.APPLE_API_ISSUER != '' }}
         env:
           APPLE_CONNECT_P8: ${{ secrets.APPLE_CONNECT_P8 }}
+          APPLE_API_KEY_CHECK: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER_CHECK: ${{ secrets.APPLE_API_ISSUER }}
         run: |
           set -euo pipefail
+          if [ -z "${APPLE_CONNECT_P8:-}" ] || [ -z "${APPLE_API_KEY_CHECK:-}" ] || [ -z "${APPLE_API_ISSUER_CHECK:-}" ]; then
+            echo "::notice::Skipping notarization key (set APPLE_CONNECT_P8, APPLE_API_KEY, and APPLE_API_ISSUER to enable)."
+            exit 0
+          fi
           KEY_PATH="${RUNNER_TEMP}/api_key.p8"
           echo "$APPLE_CONNECT_P8" > "$KEY_PATH"
           chmod 600 "$KEY_PATH"
