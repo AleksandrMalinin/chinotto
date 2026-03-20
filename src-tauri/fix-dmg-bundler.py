@@ -21,7 +21,7 @@ SRC_FOLDER="$(cd "$2" > /dev/null; pwd)"'''
 new = '''# Tauri calls with no args; use defaults when $1 is empty
 if [[ -z "$1" ]]; then
 	SCRIPT_DIR_TEMP="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-	DMG_PATH="${SCRIPT_DIR_TEMP}/Chinotto_0.2.0_aarch64.dmg"
+	DMG_PATH="${SCRIPT_DIR_TEMP}/Chinotto_0.2.1_aarch64.dmg"
 	SRC_FOLDER="${SCRIPT_DIR_TEMP}/../macos"
 	SKIP_JENKINS=1
 	SANDBOX_SAFE=1
