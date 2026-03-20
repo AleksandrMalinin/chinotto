@@ -23,18 +23,17 @@ Chinotto’s recall (resurfacing, thought trail, search) must stay **quiet and n
 
 Resurfacing is **not** attempted or shown when any of the following is true:
 
-- The user is **actively typing** in the capture input (we only attempt at defined moments: app open or after save).
+- The user is **actively typing** in the capture input (we only attempt at the defined moment: main-ready after intro).
 - **Search is open** (search UI visible or search query non-empty).
 - An **entry is being edited** (edit mode active).
 
 ### 1.4 Timing (when resurfacing is attempted)
 
-Resurfacing is **only** attempted at these moments:
+Resurfacing is **only** attempted **once per session** when the main view becomes ready after intro:
 
-1. **On app open** – after the intro is dismissed and the main view is ready (stream loaded, no search, no selection, no edit).
-2. **After the user saves an entry** – once per session, if we have not already shown a resurfaced entry this session.
+- Intro dismissed, stream loaded (not loading), no search open, no query, no selected entry, no row in late edit.
 
-We do **not** resurface on focus changes, on idle, or on arbitrary timers.
+We do **not** resurface immediately after saving an entry (that would interrupt capture). We do **not** resurface on focus changes, on idle, or on arbitrary timers.
 
 ### 1.5 Frequency (silence is acceptable)
 
@@ -47,12 +46,10 @@ We do **not** resurface on focus changes, on idle, or on arbitrary timers.
 ## 2. Session logic
 
 - **Session:** One run of the app (from launch until quit). No persistent “session” id; we use a ref that resets on reload.
-- **One shot per session:** A ref `triedResurfaceRef` is set to `true` when we **attempt** resurfacing (whether we show something or not). We only **show** at most one overlay per session; we only **attempt** at most twice per session: once on open, and optionally once after the next save if we didn’t show on open.
-- **Flow:**
-  1. App opens → intro → intro dismissed → conditions checked (no search, no selection, no edit, not already attempted). If OK, attempt resurface. If we get a result and pass the show probability, show it and mark session as “shown”. If we don’t show (no result or skipped by probability), we leave “attempted” true for the open path but do **not** set “shown”.
-  2. User saves an entry. If we have not yet **shown** a resurfaced entry this session and conditions are OK, attempt resurface once. If we show, mark as shown. No further attempts this session.
+- **One shot per session (open path):** A ref records that we already ran the open attempt. We **show** at most one overlay per session (if the backend returns a candidate and show probability passes). If we don’t show (no result or skipped by probability), we still consume the single open attempt—no retry after save.
+- **Flow:** App opens → intro dismissed → when guards pass (`mayAttemptResurface` in `resurfaceSession.ts`), schedule one `tryResurface` after a short delay. No second attempt when the user saves an entry.
 
-So: **max one attempt on open**, **max one attempt after first save** (only if we didn’t show on open), **max one display per session**.
+So: **max one attempt per session** (on main-ready after intro), **max one display per session**.
 
 ---
 
@@ -71,8 +68,8 @@ So: **max one attempt on open**, **max one attempt after first save** (only if w
 |-------------------|----------------|
 | Max 1 per session | Ref: “shown this session”; only one overlay displayed. |
 | Cooldown 7 days   | LocalStorage history with timestamps; exclude those IDs when calling backend. |
-| No show when typing | Only attempt on open or after save, never on input focus or keypress. |
+| No show when typing | Only attempt when main is ready after intro, never on input focus or keypress. |
 | No show when search open | Guard: `!isSearchOpen && search.trim() === ""`. |
 | No show when editing | Guard: `editingEntryId === null`. |
-| Timing: open or after save | Attempt once when conditions met after intro; optionally once after first save if not yet shown. |
+| Timing: main ready after intro | Single attempt when guards pass; not right after save. |
 | Sometimes nothing | Show probability applied when we have a candidate; otherwise stay silent. |
