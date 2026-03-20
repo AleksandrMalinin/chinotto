@@ -48,6 +48,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          # Repo uses npm ci + package-lock.json; pnpm-lock.yaml would make the action pick pnpm instead.
+          tauriScript: npm run tauri
           tagName: v__VERSION__
           releaseName: Chinotto v__VERSION__
           releaseBody: "Apple Silicon (aarch64) build. Attach notarized DMG locally if needed; `latest.json` supports in-app updates."
