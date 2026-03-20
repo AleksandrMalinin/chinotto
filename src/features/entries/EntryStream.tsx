@@ -25,6 +25,14 @@ function toHighlightHtml(highlighted: string): string {
     .replace(new RegExp(HIGHLIGHT_END, "g"), "</mark>");
 }
 
+/** Wired from App: fade out on first typing/save; soft variant after user has saved before. */
+export type EmptyOnboardingConfig = {
+  variant: "full" | "soft";
+  exiting: boolean;
+  typingAccent: boolean;
+  onExitComplete: () => void;
+};
+
 export type EntryStreamProps = {
   entries: Entry[];
   showHighlights?: boolean;
@@ -53,6 +61,20 @@ export type EntryStreamProps = {
   onDeleteAnimationEnd?: (entryId: string) => void;
   /** Called when pointer enters/leaves a row (for global Cmd+Backspace to delete hovered) */
   onEntryHover?: (entry: Entry | null) => void;
+  /**
+   * Empty main stream only: progressive onboarding. `null` = user dismissed (placeholder, no copy).
+   * Omit for legacy static block (e.g. callers that do not wire App state).
+   */
+  emptyOnboarding?: EmptyOnboardingConfig | null;
+  /**
+   * When true, empty-state trail panel holds CSS motion until intro is dismissed (launch / relaunch).
+   */
+  deferEmptyPanelMotion?: boolean;
+  /**
+   * When false (intro still open), empty onboarding stays invisible and motion children stay in `hidden`.
+   * When true, outer opacity fades in and stagger runs — same soft entrance as before progressive wiring.
+   */
+  revealEmptyOnboarding?: boolean;
 };
 
 function getSectionKey(iso: string): SectionKey {
@@ -109,6 +131,85 @@ const emptyOnboardingContainerInstant = {
   hidden: {},
   visible: { transition: { staggerChildren: 0, delayChildren: 0 } },
 };
+
+const ONBOARDING_EXIT_S = 0.2;
+
+function EmptyStreamOnboarding({
+  variant,
+  exiting,
+  typingAccent,
+  onExitComplete,
+  reduceMotion,
+  deferEmptyPanelMotion = false,
+  revealEmptyOnboarding = true,
+}: EmptyOnboardingConfig & {
+  reduceMotion: boolean | null;
+  deferEmptyPanelMotion?: boolean;
+  revealEmptyOnboarding?: boolean;
+}) {
+  const onboardingItem = reduceMotion ? emptyOnboardingInstant : emptyOnboardingItem;
+  const onboardingContainer = reduceMotion
+    ? emptyOnboardingContainerInstant
+    : emptyOnboardingContainer;
+
+  const exitDuration = reduceMotion ? 0.12 : ONBOARDING_EXIT_S;
+  const innerPhase = revealEmptyOnboarding ? "visible" : "hidden";
+
+  return (
+    <motion.div
+      className="stream-empty stream-empty-onboarding stream-empty-onboarding--progressive"
+      aria-live="polite"
+      initial={false}
+      animate={{
+        opacity: exiting ? 0 : variant === "soft" ? 0.58 : 1,
+      }}
+      transition={{
+        duration: exiting ? exitDuration : 0,
+        ease: "easeOut",
+      }}
+      onAnimationComplete={() => {
+        if (exiting) onExitComplete();
+      }}
+      style={{ pointerEvents: "none" }}
+    >
+      {/* Entrance = same stagger as after “typed then cleared”: inner hidden → visible only when revealEmptyOnboarding. */}
+      <motion.div
+        className="stream-empty-onboarding-inner"
+        variants={onboardingContainer}
+        initial="hidden"
+        animate={innerPhase}
+      >
+        <motion.div className="stream-empty-onboarding-visual" variants={onboardingItem}>
+          <StreamFlowPanel
+            calm={!!reduceMotion}
+            typingAccent={typingAccent && !exiting}
+            deferMotion={deferEmptyPanelMotion && !reduceMotion}
+          />
+        </motion.div>
+
+        <motion.div className="stream-empty-onboarding-copy" variants={onboardingContainer}>
+          <motion.h2 className="stream-empty-title" variants={onboardingItem}>
+            Just write. No structure.
+          </motion.h2>
+          <motion.p className="stream-empty-lead" variants={onboardingItem}>
+            Start with one line.
+          </motion.p>
+          <motion.p className="stream-empty-meta" variants={onboardingItem}>
+            Your thoughts leave a trail.
+            <br />
+            You’ll see them again when it matters.
+          </motion.p>
+          <motion.p className="stream-empty-hint" variants={onboardingItem}>
+            Start typing above
+            <br />
+            <br />
+            <kbd className="stream-empty-kbd">Enter</kbd> saves
+          </motion.p>
+        </motion.div>
+      </motion.div>
+    </motion.div>
+  );
+}
 
 function groupEntriesBySection(entries: Entry[]): { section: SectionKey; entries: Entry[] }[] {
   const groups = new Map<SectionKey, Entry[]>();
@@ -463,6 +564,9 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
   deletingIds,
   onDeleteAnimationEnd,
   onEntryHover,
+  emptyOnboarding,
+  deferEmptyPanelMotion = false,
+  revealEmptyOnboarding = true,
 }) {
   const reduceMotion = useReducedMotion();
 
@@ -473,7 +577,7 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
     return groupEntriesBySection(entries);
   }, [entries, sectionTitle]);
 
-  /* Empty timeline serves as first-run onboarding: no separate screens or flags. */
+  /* Empty timeline: search vs progressive onboarding vs legacy static block. */
   if (entries.length === 0 && !sectionTitle) {
     if (showHighlights) {
       return (
@@ -482,6 +586,25 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
         </p>
       );
     }
+    if (emptyOnboarding === null) {
+      return (
+        <div
+          className="stream-empty stream-empty-onboarding stream-empty-onboarding--dismissed-placeholder"
+          aria-hidden="true"
+        />
+      );
+    }
+    if (emptyOnboarding != null) {
+      return (
+        <EmptyStreamOnboarding
+          {...emptyOnboarding}
+          reduceMotion={reduceMotion}
+          deferEmptyPanelMotion={deferEmptyPanelMotion}
+          revealEmptyOnboarding={revealEmptyOnboarding}
+        />
+      );
+    }
+
     const onboardingItem = reduceMotion ? emptyOnboardingInstant : emptyOnboardingItem;
     const onboardingContainer = reduceMotion
       ? emptyOnboardingContainerInstant
@@ -492,11 +615,15 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
         className="stream-empty stream-empty-onboarding"
         aria-live="polite"
         initial="hidden"
-        animate="visible"
+        animate={revealEmptyOnboarding ? "visible" : "hidden"}
         variants={onboardingContainer}
+        style={{ pointerEvents: "none" }}
       >
         <motion.div variants={onboardingItem}>
-          <StreamFlowPanel />
+          <StreamFlowPanel
+            calm={!!reduceMotion}
+            deferMotion={deferEmptyPanelMotion && !reduceMotion}
+          />
         </motion.div>
 
         <motion.div className="stream-empty-onboarding-copy" variants={onboardingContainer}>

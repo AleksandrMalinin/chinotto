@@ -1852,6 +1852,27 @@ body.welcome .app-bg {
   transform: translateY(-12px);
 }
 
+/* Keeps vertical rhythm after the block fades out (avoid layout jump). */
+.stream-empty-onboarding--dismissed-placeholder {
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.stream-empty-onboarding--progressive .stream-empty-onboarding-inner {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  gap: inherit;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+}
+
+.stream-empty-onboarding--progressive .stream-empty-onboarding-visual {
+  min-width: 0;
+  width: 100%;
+}
+
 @media (min-width: 640px) {
   .stream-empty-onboarding {
     grid-template-columns: minmax(200px, 40%) minmax(0, 1fr);
@@ -1880,6 +1901,59 @@ body.welcome .app-bg {
   --stream-flow-path-delay-a: 0.4s;
   --stream-flow-path-delay-b: 0.65s;
   --stream-flow-path-delay-c: 0.85s;
+}
+
+/* Static “drawn” look: no looping blob drift or path redraw (empty-state onboarding). */
+.stream-flow-panel--calm .stream-flow-blob {
+  animation: none;
+}
+
+.stream-flow-panel--calm .stream-flow-path--a,
+.stream-flow-panel--calm .stream-flow-path--b,
+.stream-flow-panel--calm .stream-flow-path--c {
+  animation: none;
+  stroke-dashoffset: 0;
+}
+
+/* Trail panel mounts under intro on launch; without this, draw/blob motion finishes before intro closes. */
+.stream-flow-panel--motion-deferred .stream-flow-blob {
+  animation: none;
+}
+
+.stream-flow-panel--motion-deferred .stream-flow-path--a,
+.stream-flow-panel--motion-deferred .stream-flow-path--b,
+.stream-flow-panel--motion-deferred .stream-flow-path--c {
+  animation: none;
+}
+
+.stream-flow-panel--motion-deferred .stream-flow-path--a {
+  stroke-dashoffset: 420;
+}
+
+.stream-flow-panel--motion-deferred .stream-flow-path--b {
+  stroke-dashoffset: 360;
+}
+
+.stream-flow-panel--motion-deferred .stream-flow-path--c {
+  stroke-dashoffset: 280;
+}
+
+/* Single short pulse when the user types (progressive onboarding). */
+.stream-flow-panel--typing-accent .stream-flow-svg {
+  animation: stream-flow-svg-typing-pulse 0.45s ease-out 1;
+}
+
+@keyframes stream-flow-svg-typing-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+
+  50% {
+    opacity: 0.92;
+    filter: brightness(1.12);
+  }
 }
 
 .stream-flow-blobs {
@@ -2081,6 +2155,10 @@ body.welcome .app-bg {
   .stream-flow-path--c {
     animation: none;
     stroke-dashoffset: 0;
+  }
+
+  .stream-flow-panel--typing-accent .stream-flow-svg {
+    animation: none;
   }
 }
 

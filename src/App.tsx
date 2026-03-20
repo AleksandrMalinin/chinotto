@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { IntroScreen } from "@/components/IntroScreen";
 import { LogoTransition } from "@/components/LogoTransition";
 import { ChinottoLogo } from "@/components/ChinottoLogo";
@@ -47,6 +47,10 @@ import {
   setDevSimulateNewUser,
 } from "@/lib/devSimulateNewUser";
 import { useAppUpdater } from "@/lib/appUpdater";
+import {
+  hasEverSavedThought,
+  setHasEverSavedThought,
+} from "@/lib/streamOnboarding";
 import { UpdateNudge } from "@/components/UpdateNudge";
 
 /** Voice capture is disabled in the main flow. Set to true to re-enable as an experimental feature. */
@@ -107,6 +111,12 @@ export default function App() {
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [settlingEntryIds, setSettlingEntryIds] = useState<Set<string>>(new Set());
   const [pinnedIds, setPinnedIds] = useState<string[]>([]);
+  /** After first save we show a softer empty state when the stream is empty again. */
+  const [hasEverSaved, setHasEverSavedState] = useState(() => hasEverSavedThought());
+  /** Progressive onboarding: hidden after first keystroke/save until stream was non-empty then empty again. */
+  const [emptyOnboardingDismissed, setEmptyOnboardingDismissed] = useState(false);
+  const [emptyOnboardingExiting, setEmptyOnboardingExiting] = useState(false);
+  const [emptyOnboardingTypingAccent, setEmptyOnboardingTypingAccent] = useState(false);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [lastDeletedEntry, setLastDeletedEntry] = useState<{
     entry: Entry;
@@ -122,6 +132,8 @@ export default function App() {
   const attemptedAfterSaveRef = useRef(false);
   const justAddedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ephemeralTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const prevStreamLenRef = useRef(0);
+  const emptyOnboardingExitStartedRef = useRef(false);
   const [logoEndRect, setLogoEndRect] = useState<{
     left: number;
     top: number;
@@ -177,6 +189,52 @@ export default function App() {
     const t = setTimeout(() => refresh(search), 120);
     return () => clearTimeout(t);
   }, [search, refresh]);
+
+  const { pinnedEntries, streamEntries } = useMemo(() => {
+    const pinnedEntries = pinnedIds
+      .map((id) => entries.find((e) => e.id === id))
+      .filter((e): e is Entry => e != null);
+    const streamEntries = entries.filter((e) => !pinnedIds.includes(e.id));
+    return { pinnedEntries, streamEntries };
+  }, [entries, pinnedIds]);
+
+  useEffect(() => {
+    const len = streamEntries.length;
+    const prev = prevStreamLenRef.current;
+    if (prev > 0 && len === 0) {
+      setEmptyOnboardingDismissed(false);
+      emptyOnboardingExitStartedRef.current = false;
+    }
+    prevStreamLenRef.current = len;
+  }, [streamEntries.length]);
+
+  const onEmptyOnboardingExitComplete = useCallback(() => {
+    setEmptyOnboardingDismissed(true);
+    setEmptyOnboardingExiting(false);
+    setEmptyOnboardingTypingAccent(false);
+  }, []);
+
+  const tryBeginEmptyOnboardingExit = useCallback(() => {
+    if (emptyOnboardingExitStartedRef.current) return;
+    if (streamEntries.length > 0) return;
+    emptyOnboardingExitStartedRef.current = true;
+    setEmptyOnboardingExiting(true);
+    setEmptyOnboardingTypingAccent(true);
+  }, [streamEntries.length]);
+
+  const onCaptureDraftChange = useCallback(
+    (value: string) => {
+      if (streamEntries.length === 0 && value.trim().length === 0) {
+        setEmptyOnboardingDismissed(false);
+        setEmptyOnboardingExiting(false);
+        setEmptyOnboardingTypingAccent(false);
+        emptyOnboardingExitStartedRef.current = false;
+        return;
+      }
+      if (value.length > 0) tryBeginEmptyOnboardingExit();
+    },
+    [tryBeginEmptyOnboardingExit, streamEntries.length]
+  );
 
   useEffect(() => {
     if (search.trim()) {
@@ -500,6 +558,9 @@ export default function App() {
     if (getDevSimulateNewUser()) return;
     const id = await createEntry(text);
     track({ event: "entry_created", text_length: text.length });
+    if (streamEntries.length === 0) tryBeginEmptyOnboardingExit();
+    setHasEverSavedThought();
+    setHasEverSavedState(true);
     if (entries.length === 0) {
       track({ event: "first_entry_created", text_length: text.length });
     }
@@ -936,7 +997,11 @@ export default function App() {
             </div>
           )}
           <div className="entry-input-row">
-            <EntryInput ref={entryInputRef} onSubmit={handleSubmit} />
+            <EntryInput
+              ref={entryInputRef}
+              onSubmit={handleSubmit}
+              onDraftChange={onCaptureDraftChange}
+            />
             <Button
               type="button"
               variant="ghost"
@@ -961,56 +1026,66 @@ export default function App() {
         />
       ) : (
         <>
-          {!search.trim() && (() => {
-            const pinnedEntries = pinnedIds
-              .map((id) => entries.find((e) => e.id === id))
-              .filter((e): e is Entry => e != null);
-            const streamEntries = entries.filter((e) => !pinnedIds.includes(e.id));
-            return (
-              <>
-                {pinnedEntries.length > 0 && (
-                  <EntryStream
-                    entries={pinnedEntries}
-                    showHighlights={false}
-                    justAddedEntryId={null}
-                    ephemeralEntryIds={ephemeralEntryIds}
-                    editingEntryId={editingEntryId}
-                    settlingEntryIds={settlingEntryIds}
-                    onEntryUpdate={handleEntryUpdate}
-                    onStartLateEdit={handleStartLateEdit}
-                    onEndEdit={handleEndEdit}
-                    onEntryClick={handleOpenEntry}
-                    sectionTitle="Pinned"
-                    isPinnedSection
-                    onPinToggle={handleUnpin}
-                    onEntryDelete={handleEntryDelete}
-                    deletingIds={deletingIds}
-                    onDeleteAnimationEnd={handleDeleteAnimationEnd}
-                    onEntryHover={(entry) => setHoveredEntryId(entry ? entry.id : null)}
-                  />
-                )}
-                {streamEntries.length > 0 || pinnedEntries.length === 0 ? (
-                  <EntryStream
-                    entries={streamEntries}
-                    showHighlights={!!search.trim()}
-                    justAddedEntryId={justAddedEntryId}
-                    ephemeralEntryIds={ephemeralEntryIds}
-                    editingEntryId={editingEntryId}
-                    settlingEntryIds={settlingEntryIds}
-                    onEntryUpdate={handleEntryUpdate}
-                    onStartLateEdit={handleStartLateEdit}
-                    onEndEdit={handleEndEdit}
-                    onEntryClick={handleOpenEntry}
-                    onPinToggle={handlePin}
-                    onEntryDelete={handleEntryDelete}
-                    deletingIds={deletingIds}
-                    onDeleteAnimationEnd={handleDeleteAnimationEnd}
-                    onEntryHover={(entry) => setHoveredEntryId(entry ? entry.id : null)}
-                  />
-                ) : null}
-              </>
-            );
-          })()}
+          {!search.trim() && (
+            <>
+              {pinnedEntries.length > 0 && (
+                <EntryStream
+                  entries={pinnedEntries}
+                  showHighlights={false}
+                  justAddedEntryId={null}
+                  ephemeralEntryIds={ephemeralEntryIds}
+                  editingEntryId={editingEntryId}
+                  settlingEntryIds={settlingEntryIds}
+                  onEntryUpdate={handleEntryUpdate}
+                  onStartLateEdit={handleStartLateEdit}
+                  onEndEdit={handleEndEdit}
+                  onEntryClick={handleOpenEntry}
+                  sectionTitle="Pinned"
+                  isPinnedSection
+                  onPinToggle={handleUnpin}
+                  onEntryDelete={handleEntryDelete}
+                  deletingIds={deletingIds}
+                  onDeleteAnimationEnd={handleDeleteAnimationEnd}
+                  onEntryHover={(entry) => setHoveredEntryId(entry ? entry.id : null)}
+                  deferEmptyPanelMotion={!introDismissed}
+                  revealEmptyOnboarding={introDismissed}
+                />
+              )}
+              {streamEntries.length > 0 || pinnedEntries.length === 0 ? (
+                <EntryStream
+                  entries={streamEntries}
+                  showHighlights={false}
+                  justAddedEntryId={justAddedEntryId}
+                  ephemeralEntryIds={ephemeralEntryIds}
+                  editingEntryId={editingEntryId}
+                  settlingEntryIds={settlingEntryIds}
+                  onEntryUpdate={handleEntryUpdate}
+                  onStartLateEdit={handleStartLateEdit}
+                  onEndEdit={handleEndEdit}
+                  onEntryClick={handleOpenEntry}
+                  onPinToggle={handlePin}
+                  onEntryDelete={handleEntryDelete}
+                  deletingIds={deletingIds}
+                  onDeleteAnimationEnd={handleDeleteAnimationEnd}
+                  onEntryHover={(entry) => setHoveredEntryId(entry ? entry.id : null)}
+                  deferEmptyPanelMotion={!introDismissed}
+                  revealEmptyOnboarding={introDismissed}
+                  emptyOnboarding={
+                    pinnedEntries.length === 0 && streamEntries.length === 0
+                      ? emptyOnboardingDismissed
+                        ? null
+                        : {
+                            variant: hasEverSaved ? "soft" : "full",
+                            exiting: emptyOnboardingExiting,
+                            typingAccent: emptyOnboardingTypingAccent,
+                            onExitComplete: onEmptyOnboardingExitComplete,
+                          }
+                      : undefined
+                  }
+                />
+              ) : null}
+            </>
+          )}
           {search.trim() && (
             <EntryStream
               entries={entries}
@@ -1024,6 +1099,8 @@ export default function App() {
               deletingIds={deletingIds}
               onDeleteAnimationEnd={handleDeleteAnimationEnd}
               onEntryHover={(entry) => setHoveredEntryId(entry ? entry.id : null)}
+              deferEmptyPanelMotion={!introDismissed}
+              revealEmptyOnboarding={introDismissed}
             />
           )}
         </>
