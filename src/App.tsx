@@ -55,6 +55,7 @@ import {
   hasEverSavedThought,
   setHasEverSavedThought,
 } from "@/lib/streamOnboarding";
+import { shouldShowSearchTrigger } from "@/lib/searchTriggerVisibility";
 import { UpdateNudge } from "@/components/UpdateNudge";
 
 /** Voice capture is disabled in the main flow. Set to true to re-enable as an experimental feature. */
@@ -210,8 +211,13 @@ export default function App() {
   }, [entries, pinnedIds]);
 
   const showSearchTrigger = useMemo(
-    () => (!search.trim() ? entries.length > 0 : hasEntriesInDb),
-    [search, entries, hasEntriesInDb]
+    () =>
+      shouldShowSearchTrigger({
+        searchQueryActive: search.trim() !== "",
+        entriesLength: entries.length,
+        hasEntriesInDb,
+      }),
+    [search, entries.length, hasEntriesInDb]
   );
 
   useEffect(() => {
