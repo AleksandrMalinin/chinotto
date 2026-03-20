@@ -111,7 +111,7 @@ export function IntroScreen({ onDismissRequest }: Props) {
           className={`intro-screen-proceed-hint ${proceedHintVisible ? "intro-screen-proceed-hint-visible" : ""}`}
           aria-hidden="true"
         >
-          Press any key
+          <span className="intro-screen-proceed-hint-text">Press any key</span>
         </p>
       </div>
       <p className="intro-screen-hint">Local-first · Offline by default</p>

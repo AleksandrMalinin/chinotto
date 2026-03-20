@@ -358,6 +358,7 @@ body.chinotto-card-open {
 
 .intro-screen-proceed-hint {
   margin: 1.75rem 0 0;
+  min-height: calc(1.4em + 0.1em);
   max-width: 22em;
   font-size: 12px;
   font-weight: 400;
@@ -366,19 +367,36 @@ body.chinotto-card-open {
   text-align: center;
   color: rgba(255, 255, 255, 0.42);
   opacity: 0;
-  transition: opacity 0.65s ease-out;
+  transition: opacity 0.75s ease-out;
 }
 
 .intro-screen-proceed-hint-visible {
   opacity: 1;
-  animation: intro-hint-breath 2.8s ease-in-out infinite;
-  animation-delay: 0.65s; /* Wait for the fade-in to finish. */
+}
+
+.intro-screen-proceed-hint-text {
+  display: inline-block;
+  animation: intro-hint-soft-glow 2.6s ease-in-out 0.8s infinite both;
 }
 
 .intro-screen-exiting .intro-screen-proceed-hint {
   opacity: 0;
-  animation: none;
   transition: opacity 0.2s ease-out;
+}
+
+.intro-screen-exiting .intro-screen-proceed-hint-text {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-screen-proceed-hint {
+    transition: opacity 0.35s ease-out;
+  }
+
+  .intro-screen-proceed-hint-text {
+    animation: none;
+    opacity: 1;
+  }
 }
 
 @keyframes intro-text-in {
@@ -386,13 +404,18 @@ body.chinotto-card-open {
   to { opacity: 1; }
 }
 
-@keyframes intro-hint-breath {
+@keyframes intro-hint-soft-glow {
   0%,
   100% {
-    opacity: 0.55;
+    opacity: 0.5;
+    text-shadow: 0 0 0 transparent;
   }
+
   50% {
     opacity: 1;
+    text-shadow:
+      0 0 20px rgba(200, 210, 255, 0.22),
+      0 0 36px rgba(160, 170, 255, 0.12);
   }
 }
 
