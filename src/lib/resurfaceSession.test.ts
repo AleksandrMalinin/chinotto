@@ -74,6 +74,27 @@ describe("resurface session", () => {
     assert.strictEqual(mayAttemptResurface(baseGuards), true);
   });
 
+  it("resurfacing blocked until intro dismissed", () => {
+    assert.strictEqual(
+      mayAttemptResurface({ ...baseGuards, introDismissed: false }),
+      false
+    );
+  });
+
+  it("resurfacing blocked while stream is loading", () => {
+    assert.strictEqual(
+      mayAttemptResurface({ ...baseGuards, loading: true }),
+      false
+    );
+  });
+
+  it("resurfacing blocked when an entry detail is open", () => {
+    assert.strictEqual(
+      mayAttemptResurface({ ...baseGuards, selectedEntry: { id: "x" } }),
+      false
+    );
+  });
+
   it("same entry does not resurface twice: cooldown excludes recent ids", () => {
     const storage = mockStorage();
     const now = new Date();
