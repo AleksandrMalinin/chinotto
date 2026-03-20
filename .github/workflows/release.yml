@@ -89,6 +89,37 @@ jobs:
           chmod 600 "$KEY_PATH"
           echo "APPLE_API_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
 
+      - name: Compose GitHub release body
+        id: release_notes
+        run: |
+          set -euo pipefail
+          REF="${{ github.ref_name }}"
+          if [[ "$REF" == v* ]]; then
+            TAG="$REF"
+          else
+            TAG="v$(node -p "require('./package.json').version")"
+          fi
+          COMMON="$(printf '%s\n' \
+            "Apple Silicon (aarch64)." \
+            "" \
+            "Feedback welcome:" \
+            "https://github.com/AleksandrMalinin/chinotto/issues")"
+          if BODY="$(python3 scripts/extract-release-notes.py "$TAG" docs/release-notes.md 2>/dev/null)"; then
+            {
+              echo "body<<EOF"
+              printf '%s\n\n' "$BODY"
+              printf '%s\n' "$COMMON"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::No '## ${TAG}' section in docs/release-notes.md; using common text only."
+            {
+              echo "body<<EOF"
+              printf '%s\n' "$COMMON"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build and upload release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -101,7 +132,7 @@ jobs:
           tauriScript: npm run tauri
           tagName: v__VERSION__
           releaseName: Chinotto v__VERSION__
-          releaseBody: "Apple Silicon (aarch64). Signed/notarized in CI when Apple secrets are set; see docs/updater.md."
+          releaseBody: ${{ steps.release_notes.outputs.body }}
           releaseDraft: false
           prerelease: false
           args: --target aarch64-apple-darwin
