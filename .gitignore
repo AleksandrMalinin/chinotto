@@ -23,6 +23,8 @@ Thumbs.db
 # Apple API key and release env (never commit)
 *.p8
 scripts/apple-release-env.sh
+src-tauri/updater.key
+src-tauri/updater.key.pub
 
 # Local-only (not in repo)
 docs/pre-release-checklist.md

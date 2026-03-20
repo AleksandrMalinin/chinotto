@@ -187,7 +187,7 @@ export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Pr
           </section>
 
           <footer className="chinotto-card-footer">
-            <p className="chinotto-card-footer-line">v0.2.0 β · © 2026 Bogart Labs</p>
+            <p className="chinotto-card-footer-line">v0.2.1 β · © 2026 Bogart Labs</p>
           </footer>
         </article>
       </div>

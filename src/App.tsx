@@ -41,6 +41,8 @@ import {
   getDevSimulateNewUser,
   setDevSimulateNewUser,
 } from "@/lib/devSimulateNewUser";
+import { useAppUpdater } from "@/lib/appUpdater";
+import { UpdateNudge } from "@/components/UpdateNudge";
 
 /** Voice capture is disabled in the main flow. Set to true to re-enable as an experimental feature. */
 const EXPERIMENTAL_VOICE_CAPTURE = false;
@@ -76,6 +78,7 @@ function devMockResurfaced(): { entry: Entry; reason: string } {
 }
 
 export default function App() {
+  const appUpdater = useAppUpdater();
   const [introDismissed, setIntroDismissed] = useState(false);
   const [introTransitioning, setIntroTransitioning] = useState(false);
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -218,7 +221,7 @@ export default function App() {
     (async () => {
       const sep = () => PredefinedMenuItem.new({ item: "Separator" });
       const about = await PredefinedMenuItem.new({
-        item: { About: { name: "Chinotto", version: "0.2.0" } },
+        item: { About: { name: "Chinotto", version: "0.2.1" } },
       });
       const hide = await PredefinedMenuItem.new({ item: "Hide" });
       const hideOthers = await PredefinedMenuItem.new({ item: "HideOthers" });
@@ -1028,6 +1031,12 @@ export default function App() {
           }}
         />
       )}
+      <UpdateNudge
+        phase={appUpdater.phase}
+        onDownload={appUpdater.download}
+        onRestart={appUpdater.installAndRestart}
+        onRetry={appUpdater.retryAfterError}
+      />
     </>
   );
 }

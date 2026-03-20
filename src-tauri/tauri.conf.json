@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Chinotto",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "identifier": "app.chinotto",
   "build": {
     "frontendDist": "../dist",
@@ -28,6 +28,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/32x32.png",
@@ -41,6 +42,14 @@
       "exceptionDomain": null,
       "infoPlist": "Info.plist",
       "entitlements": "Chinotto.entitlements"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVCNTczRTU1RDM0OTMyREEKUldUYU1rblRWVDVYV3dkOHZrcXlIRHVPNTdxQ3ZreGNNanJKalJWS2dNU0pSOTU5WGIycktsVm0K",
+      "endpoints": [
+        "https://github.com/AleksandrMalinin/chinotto/releases/latest/download/latest.json"
+      ]
     }
   }
 }

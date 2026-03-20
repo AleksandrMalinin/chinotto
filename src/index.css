@@ -156,6 +156,57 @@ body.chinotto-card-open {
   border-radius: 4px;
 }
 
+.app-update-nudge {
+  position: fixed;
+  left: 1.2rem;
+  bottom: 1rem;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  max-width: min(16rem, calc(100vw - 2.4rem));
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  background: rgba(12, 12, 18, 0.72);
+  border: 1px solid rgba(120, 130, 200, 0.12);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  opacity: 0.72;
+  pointer-events: auto;
+}
+
+.app-update-nudge-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.app-update-nudge-action {
+  flex-shrink: 0;
+  padding: 0.15rem 0.45rem;
+  margin: 0;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 11px;
+  color: rgba(180, 190, 255, 0.55);
+  cursor: pointer;
+  transition: color 150ms ease-out, background 150ms ease-out;
+}
+
+.app-update-nudge-action:hover {
+  color: rgba(200, 210, 255, 0.75);
+  background: rgba(100, 110, 200, 0.08);
+}
+
+.app-update-nudge-action:focus-visible {
+  outline: 1px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
 /* Intro screen – own dark background + blobs */
 .intro-screen {
   position: fixed;
