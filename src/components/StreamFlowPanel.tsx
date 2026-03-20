@@ -2,14 +2,35 @@ import { useId } from "react";
 
 type Props = {
   className?: string;
+  /** No infinite blob/path loops; drawn trails rest in final state (progressive empty onboarding). */
+  calm?: boolean;
+  /** One-shot emphasis on the SVG trails while the user types (optional). */
+  typingAccent?: boolean;
+  /**
+   * When true, blob/path CSS animations do not run yet (e.g. main UI is still behind intro).
+   * Clearing this on intro dismiss restarts draw + drift from the beginning.
+   */
+  deferMotion?: boolean;
 };
 
 /**
  * Glass panel with inner neon blobs + gradient strokes (empty-stream onboarding).
  */
-export function StreamFlowPanel({ className = "" }: Props) {
+export function StreamFlowPanel({
+  className = "",
+  calm = false,
+  typingAccent = false,
+  deferMotion = false,
+}: Props) {
   const gradId = `stream-flow-grad-${useId().replace(/:/g, "")}`;
-  const rootClass = ["stream-flow-panel", "stream-flow-panel--onboarding", className]
+  const rootClass = [
+    "stream-flow-panel",
+    "stream-flow-panel--onboarding",
+    calm && "stream-flow-panel--calm",
+    typingAccent && "stream-flow-panel--typing-accent",
+    deferMotion && "stream-flow-panel--motion-deferred",
+    className,
+  ]
     .filter(Boolean)
     .join(" ");
 
