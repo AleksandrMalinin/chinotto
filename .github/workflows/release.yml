@@ -15,6 +15,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Resolve release tag
+        id: rel
+        run: |
+          REF="${{ github.ref_name }}"
+          if [[ "$REF" == v* ]]; then
+            echo "tag=$REF" >> "$GITHUB_OUTPUT"
+          else
+            VER=$(python3 -c "import json; print(json.load(open('package.json'))['version'])")
+            echo "tag=v${VER}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Require TAURI_SIGNING_PRIVATE_KEY
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -93,18 +104,13 @@ jobs:
         id: release_notes
         run: |
           set -euo pipefail
-          REF="${{ github.ref_name }}"
-          if [[ "$REF" == v* ]]; then
-            TAG="$REF"
-          else
-            TAG="v$(node -p "require('./package.json').version")"
-          fi
+          TAG="${{ steps.rel.outputs.tag }}"
           COMMON="$(printf '%s\n' \
             "Apple Silicon (aarch64)." \
             "" \
             "Feedback welcome:" \
             "https://github.com/AleksandrMalinin/chinotto/issues")"
-          if BODY="$(python3 scripts/extract-release-notes.py "$TAG" docs/release-notes.md 2>/dev/null)"; then
+          if BODY="$(python3 scripts/extract-release-notes.py "$TAG" docs/github-release-notes.md 2>/dev/null)"; then
             {
               echo "body<<EOF"
               printf '%s\n\n' "$BODY"
@@ -112,7 +118,7 @@ jobs:
               echo "EOF"
             } >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::No '## ${TAG}' section in docs/release-notes.md; using common text only."
+            echo "::warning::No '## ${TAG}' section in docs/github-release-notes.md; using common text only."
             {
               echo "body<<EOF"
               printf '%s\n' "$COMMON"
@@ -136,3 +142,19 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: --target aarch64-apple-darwin
+
+      # Stable filename so website / docs can use .../releases/latest/download/Chinotto_macOS_aarch64.dmg
+      - name: Upload stable DMG name for direct download
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.rel.outputs.tag }}"
+          mapfile -t _dmgs < <(find src-tauri/target -name 'Chinotto_*_aarch64.dmg' -type f)
+          if [ "${#_dmgs[@]}" -eq 0 ]; then
+            echo "::error::No Chinotto_*_aarch64.dmg under src-tauri/target"
+            exit 1
+          fi
+          DMG=$(printf '%s\n' "${_dmgs[@]}" | xargs ls -t | head -1)
+          cp "$DMG" Chinotto_macOS_aarch64.dmg
+          gh release upload "$TAG" Chinotto_macOS_aarch64.dmg --clobber

@@ -72,6 +72,14 @@ If `APPLE_CONNECT_P8` / `APPLE_API_KEY` / `APPLE_API_ISSUER` are omitted, CI sti
 
 On push of tag `v*`, the workflow builds `--target aarch64-apple-darwin`, uploads bundles, signatures, and **`latest.json`** (via `tauri-action`, `uploadUpdaterJson` default).
 
+## Website download (direct DMG)
+
+GitHub’s `…/releases/latest` page does not start a download by itself. The workflow also uploads a **fixed asset name** (copy of the versioned DMG) so you can link straight to the file:
+
+`https://github.com/AleksandrMalinin/chinotto/releases/latest/download/Chinotto_macOS_aarch64.dmg`
+
+That URL tracks **latest** and triggers a browser download. If you fork the repo, replace the owner/name segment. The first release built **after** this upload step exists will create the asset; older releases won’t have it until you re-run the workflow for that tag or ship a new version.
+
 ## Users on older builds
 
 **v0.2.0 and earlier** do not include the updater. Users must install **v0.2.1+** once from GitHub Releases (or another channel). After that, newer versions can be applied from the in-app nudge when a release is published.

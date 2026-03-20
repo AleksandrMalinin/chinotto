@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Print the body under '## <tag>' in a markdown file (for GitHub Releases)."""
+"""Print the body under '## <tag>' in a markdown file (GitHub Release body in CI).
+
+Typical path: docs/github-release-notes.md (technical notes; user copy lives on the website).
+"""
 from __future__ import annotations
 
 import re
