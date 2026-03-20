@@ -40,7 +40,11 @@ import {
   save as saveDialog,
 } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { getIdsInCooldown, markAsShown } from "@/lib/resurfaceSession";
+import {
+  getIdsInCooldown,
+  markAsShown,
+  mayAttemptResurface,
+} from "@/lib/resurfaceSession";
 import { getAnalyticsPromptShown, track } from "@/lib/analytics";
 import {
   getDevSimulateNewUser,
@@ -132,7 +136,7 @@ export default function App() {
   const devDeleteAllThoughtsRef = useRef<(() => Promise<void>) | null>(null);
   const headerLogoRef = useRef<HTMLButtonElement>(null);
   const shownThisSessionRef = useRef(false);
-  const attemptedAfterSaveRef = useRef(false);
+  const triedResurfaceOnOpenRef = useRef(false);
   const justAddedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ephemeralTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const prevStreamLenRef = useRef(0);
@@ -520,7 +524,34 @@ export default function App() {
       });
   }, []);
 
-  /* Resurface overlay is not shown on launch; it may run after the user saves an entry (see handleSubmit). */
+  useEffect(() => {
+    if (
+      !mayAttemptResurface({
+        introDismissed,
+        selectedEntry,
+        loading,
+        searchTrimmed: search.trim() === "",
+        isSearchOpen,
+        editingEntryId,
+        triedResurface: triedResurfaceOnOpenRef.current,
+      })
+    ) {
+      return;
+    }
+    const id = window.setTimeout(() => {
+      triedResurfaceOnOpenRef.current = true;
+      tryResurface();
+    }, 600);
+    return () => clearTimeout(id);
+  }, [
+    introDismissed,
+    selectedEntry,
+    loading,
+    search,
+    isSearchOpen,
+    editingEntryId,
+    tryResurface,
+  ]);
 
   useEffect(() => {
     if (isSearchOpen) {
@@ -611,10 +642,6 @@ export default function App() {
     }, 400);
     refresh(search);
     generateEmbedding(id);
-    if (!shownThisSessionRef.current && !attemptedAfterSaveRef.current) {
-      attemptedAfterSaveRef.current = true;
-      setTimeout(() => tryResurface(), 500);
-    }
   }
 
   function handleSearchClose() {
