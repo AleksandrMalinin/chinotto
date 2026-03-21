@@ -61,6 +61,7 @@ import {
   shouldShowSearchTrigger,
 } from "@/lib/entryCatalogPresence";
 import { UpdateNudge } from "@/components/UpdateNudge";
+import { APP_VERSION } from "@/lib/appVersion";
 
 /** Voice capture is disabled in the main flow. Set to true to re-enable as an experimental feature. */
 const EXPERIMENTAL_VOICE_CAPTURE = false;
@@ -327,7 +328,7 @@ export default function App() {
     (async () => {
       const sep = () => PredefinedMenuItem.new({ item: "Separator" });
       const about = await PredefinedMenuItem.new({
-        item: { About: { name: "Chinotto", version: "0.2.1" } },
+        item: { About: { name: "Chinotto", version: APP_VERSION } },
       });
       const hide = await PredefinedMenuItem.new({ item: "Hide" });
       const hideOthers = await PredefinedMenuItem.new({ item: "HideOthers" });

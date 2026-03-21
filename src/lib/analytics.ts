@@ -5,6 +5,7 @@
  */
 
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
+import { APP_VERSION } from "@/lib/appVersion";
 
 const STORAGE_KEY = "chinotto-analytics-enabled";
 export const ANALYTICS_PROMPT_SHOWN_KEY = "chinotto-analytics-prompt-shown";
@@ -103,7 +104,10 @@ export function setEndpoint(url: string | null): void {
 }
 
 function eventToData(payload: QueuedEvent): Record<string, string | number> {
-  const data: Record<string, string | number> = { ts: payload.ts };
+  const data: Record<string, string | number> = {
+    ts: payload.ts,
+    app_version: APP_VERSION,
+  };
   if ("text_length" in payload) data.text_length = payload.text_length;
   if ("result_count" in payload && payload.result_count !== undefined)
     data.result_count = payload.result_count;

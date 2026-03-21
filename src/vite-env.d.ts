@@ -1,5 +1,9 @@
 /// <reference types="vite/client" />
 
+interface ImportMetaEnv {
+  readonly VITE_APP_VERSION: string;
+}
+
 /* Web Speech API (not in default DOM lib) */
 interface SpeechRecognitionResultList {
   length: number;

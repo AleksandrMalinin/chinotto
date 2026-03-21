@@ -27,7 +27,7 @@ Canonical list: **`AnalyticsEvent`** in `src/lib/analytics.ts`.
 | `resurface_opened`    | `age_days` (number)  | User opens entry from resurface overlay |
 | `thought_trail_opened` | (none)              | User views an entry that has a thought trail |
 
-No other properties. No free-form strings that could contain content.
+**On every event**, Umami `data` also includes `ts` (ISO timestamp) and `app_version` (semver string from `package.json` at build time) so you can segment by release. No other properties beyond the table above and those two. No free-form strings that could contain user content.
 
 ---
 
@@ -62,4 +62,4 @@ All calls must be fire-and-forget; never block the UI or depend on analytics for
 - **Opt-in:** `isOptIn()` / `setOptIn(enabled)` read/write `localStorage`. Default is off.
 - **Disable completely:** Do not call `setUmami`, or call `setUmami(null, null)`. Then no events are sent regardless of opt-in.
 
-The client sends each event to Umami's `POST /api/send` with `type: "event"` and a payload containing `website`, `hostname` ("chinotto.app", must match the Domain configured in Umami), `url` ("/desktop"), `name` (event name), and `data` (event-specific props + `ts`). One HTTP request per event when the batch flushes; requests are fire-and-forget. Umami requires a `User-Agent` header. **Umami Cloud returns `{"beep":"boop"}` and does not register events when it flags the request as a bot** (e.g. custom app User-Agent); the client sends a browser-like User-Agent so events are accepted.
+The client sends each event to Umami's `POST /api/send` with `type: "event"` and a payload containing `website`, `hostname` ("chinotto.app", must match the Domain configured in Umami), `url` ("/desktop"), `name` (event name), and `data` (event-specific props plus `ts` and `app_version`). One HTTP request per event when the batch flushes; requests are fire-and-forget. Umami requires a `User-Agent` header. **Umami Cloud returns `{"beep":"boop"}` and does not register events when it flags the request as a bot** (e.g. custom app User-Agent); the client sends a browser-like User-Agent so events are accepted.
