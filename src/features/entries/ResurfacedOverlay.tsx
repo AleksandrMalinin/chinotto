@@ -3,7 +3,7 @@ import type { Entry } from "../../types/entry";
 
 type Props = {
   entry: Entry;
-  /** Memory-style reason from backend, e.g. "You wrote this yesterday" */
+  /** Memory-style reason from backend, e.g. "From yesterday" */
   reason?: string;
   onOpen: (entry: Entry) => void;
   onDismiss: () => void;

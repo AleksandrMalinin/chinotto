@@ -46,17 +46,17 @@ fn format_ago(
     } else if d >= 1 {
         format!("{} day{} ago", d, if d == 1 { "" } else { "s" })
     } else {
-        "today".to_string()
+        "earlier today".to_string()
     }
 }
 
 /// Memory-style reason for temporal recall (24h / 7d / 30d anchors).
 fn temporal_reason_anchor(anchor: &str) -> &'static str {
     match anchor {
-        "24h" => "You wrote this yesterday",
-        "7d" => "You wrote this last week",
-        "30d" => "You wrote this a month ago",
-        _ => "You wrote this before",
+        "24h" => "From yesterday",
+        "7d" => "From last week",
+        "30d" => "From about a month ago",
+        _ => "From a while ago",
     }
 }
 
@@ -266,7 +266,7 @@ pub(crate) fn get_resurfaced_entry_impl<R: rand::RngCore>(
         recall::Anchor::Anchor30d => temporal_reason_anchor("30d").to_string(),
         recall::Anchor::Fallback => {
             let created = parse_created_at(&picked.created_at).unwrap_or(now);
-            format!("You wrote this {}.", format_ago(created, now))
+            format!("From {}.", format_ago(created, now))
         }
     };
     let topics = extract_keywords(&picked.text, keywords::default_topic_limit());

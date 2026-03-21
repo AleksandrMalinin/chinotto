@@ -95,7 +95,7 @@ function devMockResurfaced(): { entry: Entry; reason: string } {
       text: "This is a sample thought from the past. Click the card to open it, or press Enter / Esc to continue to the main screen.",
       created_at: d.toISOString(),
     },
-    reason: "You wrote this 3 days ago.",
+    reason: "From 3 days ago.",
   };
 }
 
