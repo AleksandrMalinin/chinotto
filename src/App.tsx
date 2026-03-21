@@ -3,6 +3,7 @@ import { IntroScreen } from "@/components/IntroScreen";
 import { LogoTransition } from "@/components/LogoTransition";
 import { ChinottoLogo } from "@/components/ChinottoLogo";
 import { ChinottoCard } from "@/components/ChinottoCard";
+import { StreamShowcaseModal } from "@/components/StreamShowcaseModal";
 import { AnalyticsOptInModal } from "@/components/AnalyticsOptInModal";
 import { EntryInput, type EntryInputRef } from "./features/entries/EntryInput";
 import { EntryStream } from "./features/entries/EntryStream";
@@ -110,6 +111,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isChinottoCardOpen, setIsChinottoCardOpen] = useState(false);
+  const [isStreamShowcaseOpen, setIsStreamShowcaseOpen] = useState(false);
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
   const [, setIntroSettled] = useState(false);
   const [iconVariantId, setIconVariantId] = useState(() => getStoredIconVariantId());
@@ -224,6 +226,10 @@ export default function App() {
       }),
     [search, entries.length, hasEntriesInDb]
   );
+
+  useEffect(() => {
+    if (!hasEntriesInDb) setIsStreamShowcaseOpen(false);
+  }, [hasEntriesInDb]);
 
   useEffect(() => {
     const len = streamEntries.length;
@@ -958,6 +964,8 @@ export default function App() {
   const emptyOnboardingIntroReady =
     introDismissed || (introTransitioning && emptyOnboardingIntroDelayReady);
 
+  const canOpenStreamShowcase = introDismissed && hasEntriesInDb;
+
   return (
     <>
       <div className={mainAppClass}>
@@ -983,9 +991,23 @@ export default function App() {
               >
                 <ChinottoLogo size={32} className="chinotto-logo" />
               </button>
-              <span className="app-header-name">
-                Chinotto <span className="app-header-beta" aria-hidden="true">β</span>
-              </span>
+              {canOpenStreamShowcase ? (
+                <button
+                  type="button"
+                  className="app-header-name app-header-name-btn"
+                  onClick={() => {
+                    track({ event: "stream_showcase_opened" });
+                    setIsStreamShowcaseOpen(true);
+                  }}
+                  aria-label="Preview welcome screen. Your timeline stays on the main screen."
+                >
+                  Chinotto <span className="app-header-beta" aria-hidden="true">β</span>
+                </button>
+              ) : (
+                <span className="app-header-name">
+                  Chinotto <span className="app-header-beta" aria-hidden="true">β</span>
+                </span>
+              )}
             </div>
             {import.meta.env.DEV && introDismissed && getDevSimulateNewUser() && (
               <span
@@ -1223,6 +1245,9 @@ export default function App() {
           iconVariantId={iconVariantId}
           onIconVariantChange={setIconVariantId}
         />
+      )}
+      {isStreamShowcaseOpen && (
+        <StreamShowcaseModal onClose={() => setIsStreamShowcaseOpen(false)} />
       )}
       {resurfaced && (
         <ResurfacedOverlay

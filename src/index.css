@@ -34,6 +34,15 @@
   --landing-border: rgba(255, 255, 255, 0.35);
   --landing-border-subtle: rgba(18, 18, 26, 0.9);
   --landing-card-border: rgba(120, 130, 200, 0.15);
+
+  /* Intro, empty-stream title, header hover — shared clip target for nested β */
+  --chinotto-headline-text-gradient: linear-gradient(
+    102deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(198, 206, 255, 0.92) 38%,
+    rgba(255, 255, 255, 0.9) 72%,
+    rgba(255, 220, 200, 0.82) 100%
+  );
 }
 
 * {
@@ -327,16 +336,11 @@ body.chinotto-card-open {
 /* Headline gradient matches empty onboarding `.stream-empty-title` (sizes stay intro-specific). */
 .stream-empty-title,
 .intro-screen-line {
-  background: linear-gradient(
-    102deg,
-    rgba(255, 255, 255, 0.96) 0%,
-    rgba(198, 206, 255, 0.92) 38%,
-    rgba(255, 255, 255, 0.9) 72%,
-    rgba(255, 220, 200, 0.82) 100%
-  );
+  background: var(--chinotto-headline-text-gradient);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  -webkit-text-fill-color: transparent;
 }
 
 .intro-screen-line {
@@ -483,6 +487,10 @@ body.chinotto-card-open {
   font-size: 1rem;
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+
+/* Pale label when preview is unavailable; exclude button so gradient + transparent text win. */
+.app-header-name:not(.app-header-name-btn) {
   color: var(--fg-dim);
 }
 
@@ -797,6 +805,144 @@ body.welcome .app-bg {
 @keyframes chinotto-card-overlay-out {
   from { opacity: 1; }
   to { opacity: 0; }
+}
+
+/* Optional welcome replay (header title); above settings overlay; main timeline unchanged underneath */
+.stream-showcase-overlay {
+  --chinotto-glow-violet: rgba(100, 110, 180, 0.22);
+  --chinotto-glow-blue: rgba(70, 100, 180, 0.14);
+  position: fixed;
+  inset: 0;
+  z-index: 56;
+  background: rgba(6, 6, 12, 0.62);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  animation: chinotto-card-overlay-in 0.4s ease-out both;
+}
+
+.stream-showcase-overlay[data-closing] {
+  animation: chinotto-card-overlay-out 0.3s ease-in forwards;
+}
+
+.stream-showcase-overlay[data-closing] .stream-showcase-sheet {
+  animation: chinotto-card-out 0.28s ease-in forwards;
+}
+
+.stream-showcase-scroll {
+  height: 100vh;
+  max-height: 100vh;
+  overflow-y: auto;
+  width: 100%;
+  padding: 1.25rem;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stream-showcase-sheet {
+  width: 100%;
+  max-width: min(900px, 94vw);
+  margin: 0 auto;
+  flex-shrink: 0;
+  padding: 1.5rem clamp(1rem, 4vw, 1.75rem) 2rem;
+  text-align: left;
+  background: var(--landing-border-subtle);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 1rem;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.03) inset,
+    0 0 32px -8px var(--chinotto-glow-violet),
+    0 0 56px -20px var(--chinotto-glow-blue),
+    0 20px 40px -16px rgba(0, 0, 0, 0.4);
+  animation: chinotto-card-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both;
+}
+
+.stream-showcase-kicker {
+  margin: 0 0 1rem;
+}
+
+.stream-showcase-body {
+  width: 100%;
+  display: grid;
+  gap: clamp(1.5rem, 4vw, 2.5rem);
+  align-items: center;
+  justify-items: center;
+}
+
+.stream-showcase-visual {
+  min-width: 0;
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .stream-showcase-body {
+    grid-template-columns: minmax(200px, 40%) minmax(0, 1fr);
+    gap: 2rem clamp(2rem, 6vw, 4rem);
+    justify-items: stretch;
+  }
+
+  .stream-showcase-visual .stream-flow-panel--onboarding {
+    margin-left: 0;
+    margin-right: auto;
+  }
+}
+
+.stream-showcase-copy .stream-empty-title {
+  font-size: clamp(1.35rem, 2.8vw, 1.85rem);
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.85rem;
+  text-wrap: balance;
+}
+
+.stream-showcase-hint {
+  max-width: 28rem;
+}
+
+.app-header-name-btn {
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--fg-dim);
+  background: transparent;
+  background-image: none;
+  -webkit-background-clip: unset;
+  background-clip: unset;
+  -webkit-text-fill-color: currentColor;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 6px;
+}
+
+.app-header-name-btn:hover,
+.app-header-name-btn:focus-visible {
+  background: var(--chinotto-headline-text-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Nested β needs its own clipped gradient; transparent fill on parent hides it otherwise. */
+.app-header-name-btn:hover .app-header-beta,
+.app-header-name-btn:focus-visible .app-header-beta {
+  background: var(--chinotto-headline-text-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  opacity: 0.52;
+}
+
+.app-header-name-btn:focus-visible {
+  outline: 1px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 /* Scroll container: scroll when content overflows; card top-aligned so user can scroll to top */
