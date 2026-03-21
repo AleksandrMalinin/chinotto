@@ -20,7 +20,7 @@ export const SearchInput = forwardRef<HTMLInputElement, Props>(
       onEnter,
       onArrowUp,
       onArrowDown,
-      placeholder = "Search entries…",
+      placeholder = "Search your thoughts…",
     },
     ref
   ) {
