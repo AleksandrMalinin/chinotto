@@ -2,6 +2,7 @@ import { useMemo, memo, useState, useEffect, useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Pin, X } from "lucide-react";
 import { StreamFlowPanel } from "@/components/StreamFlowPanel";
+import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
 import type { Entry } from "../../types/entry";
 import { EntryTextWithLinks } from "./EntryTextWithLinks";
 
@@ -159,6 +160,11 @@ function EmptyStreamOnboarding({
     ? emptyOnboardingContainerInstant
     : emptyOnboardingContainer;
 
+  const focusFieldKbd = useMemo(() => {
+    if (typeof navigator === "undefined") return "⌘N";
+    return /Mac|iPhone|iPad/i.test(navigator.userAgent) ? "⌘N" : "Ctrl+N";
+  }, []);
+
   const exitDuration = reduceMotion ? 0.12 : ONBOARDING_EXIT_S;
   const innerPhase = revealEmptyOnboarding ? "visible" : "hidden";
 
@@ -207,10 +213,13 @@ function EmptyStreamOnboarding({
             You’ll see them again when it matters.
           </motion.p>
           <motion.p className="stream-empty-hint" variants={onboardingItem}>
-            Start typing above
+            <kbd className="stream-empty-kbd">{focusFieldKbd}</kbd> to start typing above
             <br />
             <br />
-            <kbd className="stream-empty-kbd">Enter</kbd> to save
+            <kbd className="stream-empty-kbd" aria-label="Enter" title="Enter">
+              {ENTER_KEY_GLYPH}
+            </kbd>{" "}
+            to save
           </motion.p>
         </motion.div>
       </motion.div>

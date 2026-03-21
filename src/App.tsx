@@ -63,6 +63,7 @@ import {
 } from "@/lib/entryCatalogPresence";
 import { UpdateNudge } from "@/components/UpdateNudge";
 import { APP_VERSION } from "@/lib/appVersion";
+import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
 
 /** Voice capture is disabled in the main flow. Set to true to re-enable as an experimental feature. */
 const EXPERIMENTAL_VOICE_CAPTURE = false;
@@ -92,7 +93,7 @@ function devMockResurfaced(): { entry: Entry; reason: string } {
   return {
     entry: {
       id: "dev-mock-resurfaced",
-      text: "This is a sample thought from the past. Click the card to open it, or press Enter / Esc to continue to the main screen.",
+      text: `This is a sample thought from the past. Click the card to open it, or press ${ENTER_KEY_GLYPH} / Esc to continue to the main screen.`,
       created_at: d.toISOString(),
     },
     reason: "From 3 days ago.",

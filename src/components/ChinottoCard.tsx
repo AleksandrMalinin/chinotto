@@ -7,9 +7,17 @@ import {
 } from "@/lib/iconVariants";
 import { setDesktopIcon } from "@/lib/setDesktopIcon";
 import { isOptIn, setOptIn } from "@/lib/analytics";
+import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
 
-const SHORTCUTS = [
-  { keys: "Enter", action: "Save thought" },
+type ShortcutRow = {
+  keys: string;
+  action: string;
+  /** When `keys` is a symbol, name the key for accessibility and tooltips */
+  keyHint?: string;
+};
+
+const SHORTCUTS: ShortcutRow[] = [
+  { keys: ENTER_KEY_GLYPH, action: "Save thought", keyHint: "Enter" },
   { keys: "⌘ ⇧ K", action: "Quick capture" },
   { keys: "⌘ E", action: "Edit thought" },
   { keys: "⌘ P", action: "Pin thought" },
@@ -17,7 +25,7 @@ const SHORTCUTS = [
   { keys: "⌘ N", action: "Focus input" },
   { keys: "⌘ ⌫", action: "Delete thought" },
   { keys: "Esc", action: "Close overlays" },
-] as const;
+];
 
 const ICON_PREVIEW_SIZE = 36;
 
@@ -177,9 +185,15 @@ export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Pr
           <section className="chinotto-card-section" aria-labelledby="chinotto-card-shortcuts-title">
             <h2 id="chinotto-card-shortcuts-title" className="chinotto-card-section-title">SHORTCUTS</h2>
             <ul className="chinotto-card-shortcuts-list">
-              {SHORTCUTS.map(({ keys, action }) => (
-                <li key={keys} className="chinotto-card-shortcut">
-                  <kbd className="chinotto-card-kbd">{keys}</kbd>
+              {SHORTCUTS.map(({ keys, action, keyHint }) => (
+                <li key={`${keys}-${action}`} className="chinotto-card-shortcut">
+                  <kbd
+                    className="chinotto-card-kbd"
+                    aria-label={keyHint}
+                    title={keyHint}
+                  >
+                    {keys}
+                  </kbd>
                   <span className="chinotto-card-shortcut-action">{action}</span>
                 </li>
               ))}

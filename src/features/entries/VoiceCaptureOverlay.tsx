@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { Input } from "@/components/ui/input";
+import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
 
 const SILENCE_MS = 2000;
 const MAX_RECORDING_MS = 10000;
@@ -315,8 +316,8 @@ export function VoiceCaptureOverlay({
               type="text"
               placeholder={
                 mode === "shortcut"
-                  ? "Or type here and press Enter"
-                  : "Type your thought and press Enter"
+                  ? `Or type here, ${ENTER_KEY_GLYPH} to save`
+                  : `Type your thought, ${ENTER_KEY_GLYPH} to save`
               }
               className="voice-capture-fallback-input"
               aria-label="Type thought"
