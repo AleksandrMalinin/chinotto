@@ -1,91 +1,35 @@
-# App icon
+# App icon (Apple platforms)
 
-The app icon is built from `src-tauri/icons/icon.svg`. The canonical design (dark, minimal, one "C" for Chinotto) —same as ChinottoLogo (circle + four dots). Keep `src-tauri/icons/icon.svg` in sync with it.
+Chinotto’s **bundle** icon (Launchpad, Finder, `.app`) comes from `src-tauri/icons/` (see `tauri.conf.json` → `bundle.icon`). The **canonical vector** is `src-tauri/icons/icon.svg` (~82% visual fill via a centered scale group—same safe-area idea as Apple’s production templates).
 
-**Archived (not in use):** An older icon (dark rounded square with light purple chevron) is saved as `docs/assets/icon-archived.png` for reference only. Do not use it as the app icon.
+## Authoritative sources
 
-**Desktop app (window/dock icon):** The **window title bar and dock** use the raster files in `src-tauri/icons/` (32x32.png, 128x128.png, icon.icns, icon.ico). After changing `icon.svg`, regenerate them:
+1. **[App icons — Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/app-icons)** — behavior and visual expectations.
+2. **[Apple Design Resources](https://developer.apple.com/design/resources/)** — macOS **Production Templates** for grid and safe area when doing larger redesigns.
 
-```bash
-npm run tauri icon src-tauri/icons/icon.svg
-```
+## macOS asset layout
 
-Then **fully quit** the app (stop `tauri dev` or quit the built app) and start it again. On macOS, if the dock still shows the old icon, clear the icon cache and restart the Dock (see section below).
+| Path | Role |
+|------|------|
+| `src-tauri/icons/icon_1024.png` | **Master raster** (1024×1024), rendered from `icon.svg`. All smaller PNGs are **downscaled** from this file only (no upscaling). |
+| `src-tauri/icons/macos/AppIcon.appiconset/` | Xcode-style catalog: `Contents.json` plus 16→1024 px slots (including `@2x` layers). **64×64** is `icon_32x32@2x.png`. |
+| `src-tauri/icons/icon.icns` | Built with **`iconutil`** from a **copy** of the app icon set renamed to a directory ending in **`.iconset`** (see script below). `iconutil` does not accept the `.appiconset` extension. |
 
-**If you still see the chevron (built app only):** The icon is embedded in the `.app` at build time. Remove the old Chinotto from Applications, then do a clean build and copy the new app:
+## Regenerate macOS icons (after editing `icon.svg`)
 
-```bash
-# Quit Chinotto first, then:
-rm -rf src-tauri/target/release/bundle
-npm run tauri build
-cp -R src-tauri/target/release/bundle/macos/Chinotto.app /Applications/
-```
-
-Then clear the icon cache and restart Dock (see section below), and open Chinotto from Applications.
-
-**Browser tab icon (only when opening the app in a browser):** The doc uses `public/favicon.svg` and `public/favicon.ico`. If a browser tab still shows an old icon:
-
-1. **Cursor Simple Browser:** Close the Simple Browser tab completely, then reopen the app URL (e.g. `http://localhost:5173`). Simple Browser caches favicons aggressively; closing the tab and reopening often picks up the new one. If it doesn't: right‑click the tab → "Clear Site Data" (or equivalent), then reload.
-2. **Chrome/Safari:** Open `http://localhost:5173` in a normal browser. Hard refresh (Cmd+Shift+R). If still old: DevTools → Application (Chrome) or Storage (Safari) → clear storage for localhost, then reload.
-3. **Confirm files:** In a new tab go to `http://localhost:5173/favicon.svg` — you should see the circle-four-dots SVG. If that's correct, the tab icon is just cache; keep closing/reopening or clearing site data until it updates.
-
-## Canonical icon (SVG)
-
-Same as `src/components/ChinottoLogo.tsx` (circle + four dots), with dark background and explicit colors for the bundle:
-
-```svg
-<svg width="256" height="256" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="64" height="64" rx="14" fill="#0a0a0e"/>
-  <circle cx="32" cy="32" r="22" stroke="#8a94c8" stroke-width="2" fill="none"/>
-  <circle cx="32" cy="23" r="5" fill="#8a94c8"/>
-  <circle cx="24" cy="34" r="4" fill="#8a94c8"/>
-  <circle cx="40" cy="34" r="4" fill="#8a94c8"/>
-  <circle cx="32" cy="41" r="3" fill="#8a94c8"/>
-</svg>
-```
-Inner mark is scaled down (r=22, dots adjusted) so it sits with more padding from the square edges.
-
-To regenerate all sizes:
+On macOS, from the repo root:
 
 ```bash
-npm run tauri icon src-tauri/icons/icon.svg
+chmod +x scripts/generate-macos-app-icons.sh   # once
+./scripts/generate-macos-app-icons.sh
 ```
 
-## Dock / panel bar not updating on macOS
+This runs `qlmanage` (1024×1024 PNG from SVG), `sips` for every size in `AppIcon.appiconset`, copies the set to a temp `*.iconset` for `iconutil`, writes `icon.icns`, and refreshes Tauri’s flat PNGs (`32x32.png`, `128x128.png`, `128x128@2x.png`, `icon.png`, etc.).
 
-macOS caches app icons. After changing the icon:
+For **Windows / iOS / Android** variants from the same SVG, use [Tauri — icons](https://v2.tauri.app/develop/icons/) (`npx tauri icon …`). Re-run **`generate-macos-app-icons.sh` afterward** so `icon.icns` and the `AppIcon.appiconset` rasters stay aligned with `icon_1024.png` (Tauri’s CLI does not maintain the full macOS `iconutil` set in this repo layout).
 
-1. **Rebuild the app** so the bundle contains the new icon:
-   ```bash
-   npm run tauri build
-   ```
+## Dock icon at runtime
 
-2. **Quit Chinotto** completely (Cmd+Q or right‑click dock icon → Quit).
+`src/lib/iconToPng.ts` renders a **1024×1024** PNG for the user-selected variant (`setDesktopIcon`), with the same **~82%** inset as `icon.svg`.
 
-3. **Clear the icon cache and restart Dock:**
-   ```bash
-   rm -rf /Library/Caches/com.apple.iconservices.store 2>/dev/null
-   killall Dock
-   ```
-   (The first line may need `sudo`; the second does not.)
-
-4. **Open the app again** from the built bundle (e.g. `src-tauri/target/release/bundle/macos/Chinotto.app`) or run `npm run tauri dev` again.
-
-If you run from **dev** (`tauri dev`), the dock may still show an old icon until you do a full **build** and open the built `.app` once; the dev binary can show a different icon than the release bundle.
-
-### Still wrong? (desktop app)
-
-1. **Regenerate icons** (if you haven't):
-   ```bash
-   npm run tauri icon src-tauri/icons/icon.svg
-   ```
-
-2. **Dev mode:** Force the dev binary to pick up the new icons by doing a clean Rust build, then run dev again:
-   ```bash
-   cd src-tauri && cargo clean && cd ..
-   npm run tauri dev
-   ```
-
-3. **macOS dock/title bar:** Clear the icon cache and restart the Dock (see "Dock / panel bar not updating on macOS" above). Then quit the app fully and start it again.
-
-4. **Built app only:** Remove the old app from `/Applications`, do a clean build, copy the new `.app`, then clear icon cache and restart Dock.
+`set_macos_dock_icon` in `src-tauri/src/lib.rs` loads that bitmap into `NSImage` and sets **`setSize` to 512×512 pt** so 1024 px maps to a standard @2x app icon in the Dock.

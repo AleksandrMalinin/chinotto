@@ -657,7 +657,7 @@ fn set_macos_dock_icon(png_bytes: &[u8]) -> Result<(), String> {
     use objc2::rc::Allocated;
     use objc2::{msg_send, ClassType, MainThreadMarker};
     use objc2_app_kit::{NSApplication, NSImage};
-    use objc2_foundation::NSData;
+    use objc2_foundation::{NSData, NSSize};
 
     unsafe {
         let mtm = MainThreadMarker::new().ok_or("Not on main thread")?;
@@ -665,6 +665,10 @@ fn set_macos_dock_icon(png_bytes: &[u8]) -> Result<(), String> {
         let data = NSData::with_bytes(png_bytes);
         let alloc: Allocated<NSImage> = msg_send![NSImage::class(), alloc];
         let image = NSImage::initWithData(alloc, &data).ok_or("NSImage initWithData failed")?;
+        // PNG is 1024×1024 px. Without setSize, AppKit maps ~1 px = 1 pt (Dock tile too large).
+        // 512×512 pt is the logical size for a 1024 px @2x app icon (matches bundle safe-area artwork).
+        const DOCK_ICON_LOGICAL_PTS: f64 = 512.0;
+        image.setSize(NSSize::new(DOCK_ICON_LOGICAL_PTS, DOCK_ICON_LOGICAL_PTS));
         app.setApplicationIconImage(Some(&image));
     }
     Ok(())
