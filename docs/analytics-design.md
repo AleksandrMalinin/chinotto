@@ -22,6 +22,7 @@ Canonical list: **`AnalyticsEvent`** in `src/lib/analytics.ts`.
 | `entry_pinned`        | (none)               | User pins an entry |
 | `search_used`         | `result_count` (optional) | User selects an entry from search results |
 | `settings_opened`     | (none)               | User opens Settings (Chinotto Card) |
+| `stream_showcase_opened` | (none)            | User opens welcome screen preview (header title; DB has entries) |
 | `entry_opened`        | (none)               | User opens an entry (detail view) |
 | `resurface_shown`     | `age_days` (number)  | Resurface overlay is shown |
 | `resurface_opened`    | `age_days` (number)  | User opens entry from resurface overlay |

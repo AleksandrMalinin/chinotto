@@ -22,6 +22,7 @@ export type AnalyticsEvent =
   | { event: "entry_pinned" }
   | { event: "search_used"; result_count?: number }
   | { event: "settings_opened" }
+  | { event: "stream_showcase_opened" }
   | { event: "entry_opened" }
   | { event: "resurface_shown"; age_days: number }
   | { event: "resurface_opened"; age_days: number }
