@@ -628,9 +628,19 @@ body.welcome .app-bg {
 
 .entry-input-row {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   gap: 0.75rem;
   margin-bottom: 32px;
+}
+
+/* Reserves ⌘K width so the field doesn’t reflow; flex-start (not baseline) keeps the capture line
+   at the same vertical position when the button unmounts (empty stream). */
+.entry-input-row-aside {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 3.5rem;
 }
 
 .entry-input-row .entry-input-area {

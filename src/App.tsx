@@ -1084,18 +1084,20 @@ export default function App() {
               onSubmit={handleSubmit}
               onDraftChange={onCaptureDraftChange}
             />
-            {showSearchTrigger ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="search-trigger-inline text-[var(--muted)] hover:text-[var(--fg-dim)]"
-                onClick={() => setIsSearchOpen(true)}
-                aria-label="Search (⌘K)"
-              >
-                ⌘K
-              </Button>
-            ) : null}
+            <div className="entry-input-row-aside">
+              {showSearchTrigger ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="search-trigger-inline text-[var(--muted)] hover:text-[var(--fg-dim)]"
+                  onClick={() => setIsSearchOpen(true)}
+                  aria-label="Search (⌘K)"
+                >
+                  ⌘K
+                </Button>
+              ) : null}
+            </div>
           </div>
       {loading ? (
         <p className="stream-loading">Loading…</p>
