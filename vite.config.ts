@@ -26,10 +26,6 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
-    exclude: [
-      "src/lib/resurfaceSession.test.ts",
-      "src/lib/urlInText.test.ts",
-      "src/lib/searchTriggerVisibility.test.ts",
-    ],
+    exclude: ["src/lib/resurfaceSession.test.ts", "src/lib/urlInText.test.ts"],
   },
 });

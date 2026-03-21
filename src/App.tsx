@@ -55,7 +55,11 @@ import {
   hasEverSavedThought,
   setHasEverSavedThought,
 } from "@/lib/streamOnboarding";
-import { shouldShowSearchTrigger } from "@/lib/searchTriggerVisibility";
+import {
+  hasEntriesAfterFullListLoad,
+  resolveHasEntriesInDbAfterDeletion,
+  shouldShowSearchTrigger,
+} from "@/lib/entryCatalogPresence";
 import { UpdateNudge } from "@/components/UpdateNudge";
 
 /** Voice capture is disabled in the main flow. Set to true to re-enable as an experimental feature. */
@@ -183,7 +187,7 @@ export default function App() {
       const list = await loadEntries(query);
       setEntries(list);
       if (!query.trim()) {
-        setHasEntriesInDb(list.length > 0);
+        setHasEntriesInDb(hasEntriesAfterFullListLoad(list.length));
         const ids = await getPinnedEntryIds();
         setPinnedIds(ids);
       }
@@ -717,17 +721,13 @@ export default function App() {
     setEntries((prev) => {
       const next = prev.filter((e) => e.id !== entryId);
       queueMicrotask(() => {
-        if (next.length === 0) {
-          if (getDevSimulateNewUser()) {
-            setHasEntriesInDb(false);
-          } else {
-            listEntries()
-              .then((full) => setHasEntriesInDb(full.length > 0))
-              .catch(() => {});
-          }
-        } else {
-          setHasEntriesInDb(true);
-        }
+        void resolveHasEntriesInDbAfterDeletion({
+          remainingInCurrentView: next.length,
+          isDevSimulateNewUser: getDevSimulateNewUser(),
+          listEntries,
+        })
+          .then(setHasEntriesInDb)
+          .catch(() => {});
       });
       return next;
     });

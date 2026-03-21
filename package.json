@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "test": "npm run test:rs && npm run test:ts",
     "test:rs": "cd src-tauri && cargo test",
-    "test:ts": "node --import tsx --test src/lib/resurfaceSession.test.ts src/lib/urlInText.test.ts src/lib/searchTriggerVisibility.test.ts && vitest run",
+    "test:ts": "node --import tsx --test src/lib/resurfaceSession.test.ts src/lib/urlInText.test.ts && vitest run",
     "build:macos": "npm run build && CI=false tauri build && ./scripts/sign-macos.sh",
     "tauri": "CI=false tauri",
     "preview": "vite preview"
