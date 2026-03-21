@@ -18,7 +18,7 @@ Updates **must** be signed. The **public** key is embedded in `tauri.conf.json` 
    ```
    (`src-tauri/updater.key` is gitignored.)
 
-2. Put the **public** key string (contents of `updater.key.pub`, one line) into `tauri.conf.json` → `plugins.updater.pubkey`.
+2. Put the **public** key string (contents of `updater.key.pub`, one line) into `tauri.conf.json` → `plugins.updater.pubkey`. It must match the private key in CI (`TAURI_SIGNING_PRIVATE_KEY`) **exactly**—if you never rotate the secret but change `pubkey` to a different line, signing still uses the old private key and in-app updates fail.
 
 3. For **local** release builds, export the private key (see [Tauri signing](https://v2.tauri.app/plugin/updater/#signing-updates)):
    - `TAURI_SIGNING_PRIVATE_KEY` — file path or key contents  
