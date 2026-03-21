@@ -901,6 +901,54 @@ body.welcome .app-bg {
   max-width: 28rem;
 }
 
+.stream-showcase-links-row {
+  margin: 1.15rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.45rem;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1.6;
+}
+
+.stream-showcase-links-sep {
+  color: rgba(255, 255, 255, 0.2);
+  user-select: none;
+}
+
+.stream-showcase-soft-link {
+  font: inherit;
+  font-size: inherit;
+  letter-spacing: inherit;
+  padding: 0.1rem 0.05rem;
+  margin: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.4);
+  text-shadow:
+    0 0 10px rgba(130, 145, 215, 0.22),
+    0 0 22px rgba(90, 110, 190, 0.12);
+  transition:
+    color 0.2s ease-out,
+    text-shadow 0.2s ease-out;
+}
+
+.stream-showcase-soft-link:hover {
+  color: rgba(255, 255, 255, 0.62);
+  text-shadow:
+    0 0 12px rgba(155, 170, 235, 0.35),
+    0 0 26px rgba(110, 130, 210, 0.18);
+}
+
+.stream-showcase-soft-link:focus-visible {
+  outline: 1px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
 .app-header-name-btn {
   font: inherit;
   font-size: 1rem;

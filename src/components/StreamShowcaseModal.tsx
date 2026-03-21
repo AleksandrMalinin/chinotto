@@ -1,10 +1,19 @@
 import { useEffect, useCallback, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { StreamFlowPanel } from "@/components/StreamFlowPanel";
+
+const SITE_ORIGIN = "https://getchinotto.app";
+const MANIFESTO_URL = `${SITE_ORIGIN}/manifesto`;
+const CHANGELOG_URL = `${SITE_ORIGIN}/changelog`;
 
 type Props = {
   onClose: () => void;
 };
+
+function openExternal(url: string) {
+  openUrl(url).catch(() => {});
+}
 
 const emptyOnboardingEase = [0.22, 1, 0.36, 1] as const;
 
@@ -115,6 +124,25 @@ export function StreamShowcaseModal({ onClose }: Props) {
                 Your thoughts leave a trail.
                 <br />
                 You’ll see them again when it matters.
+              </motion.p>
+              <motion.p className="stream-showcase-links-row" variants={item}>
+                <button
+                  type="button"
+                  className="stream-showcase-soft-link"
+                  onClick={() => openExternal(MANIFESTO_URL)}
+                >
+                  Manifesto
+                </button>
+                <span className="stream-showcase-links-sep" aria-hidden="true">
+                  ·
+                </span>
+                <button
+                  type="button"
+                  className="stream-showcase-soft-link"
+                  onClick={() => openExternal(CHANGELOG_URL)}
+                >
+                  What’s new
+                </button>
               </motion.p>
             </motion.div>
           </motion.div>
