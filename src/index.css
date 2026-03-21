@@ -2400,24 +2400,28 @@ body.welcome .app-bg {
   margin-top: 1.5rem;
 }
 
-.entry-detail-back {
+/* Specificity over ghost button utilities (they use --muted). */
+.entry-detail .entry-detail-back {
   padding: 0;
   font-size: 13px;
-  font-weight: 400;
+  font-weight: 500;
   letter-spacing: 0.02em;
-  color: var(--meta-fg);
-  background: none;
+  color: var(--fg-dim);
+  background: transparent;
   border: none;
   cursor: pointer;
   margin-bottom: 0.875rem;
-  transition: color var(--transition);
+  transition:
+    color var(--transition),
+    background var(--transition);
 }
 
-.entry-detail-back:hover {
-  color: var(--fg-dim);
+.entry-detail .entry-detail-back:hover {
+  color: var(--fg);
+  background: var(--accent-subtle);
 }
 
-.entry-detail-back:focus-visible {
+.entry-detail .entry-detail-back:focus-visible {
   outline: 1px solid var(--border-focus);
   outline-offset: 2px;
   border-radius: 4px;
@@ -2453,10 +2457,11 @@ body.welcome .app-bg {
 
 .entry-detail-trail-title {
   margin: 0 0 0.5rem;
-  font-size: 13px;
-  font-weight: 400;
-  letter-spacing: 0.02em;
-  color: var(--meta-fg);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
 }
 
 .entry-detail-trail-chain {
@@ -2542,20 +2547,30 @@ body.welcome .app-bg {
 }
 
 .entry-detail-related-title {
-  margin: 0 0 0.65rem;
-  font-size: 13px;
-  font-weight: 400;
-  letter-spacing: 0.02em;
-  color: var(--meta-fg);
+  margin: 0 0 0.45rem;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: none;
+  color: var(--fg-dim);
 }
 
-.entry-detail-related-loading,
+.entry-detail-related-loading {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 1.45;
+  color: var(--fg-dim);
+}
+
 .entry-detail-related-empty {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 400;
-  letter-spacing: 0.02em;
-  color: var(--meta-fg);
+  letter-spacing: 0.01em;
+  line-height: 1.45;
+  color: var(--muted);
 }
 
 .entry-detail-related-list {

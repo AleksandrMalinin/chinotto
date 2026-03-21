@@ -82,11 +82,11 @@ export function EntryDetail({ entry, onBack, onSelectEntry }: Props) {
         type="button"
         variant="ghost"
         size="sm"
-        className="entry-detail-back text-[var(--muted)] hover:text-[var(--fg-dim)] mb-7 -p-2"
+        className="entry-detail-back mb-7 h-auto min-h-0 px-0 py-1"
         onClick={onBack}
         aria-label="Back to stream"
       >
-        Back
+        ←
       </Button>
       <time className="entry-detail-time" dateTime={entry.created_at}>
         {formatTimestamp(entry.created_at)}
@@ -133,7 +133,7 @@ export function EntryDetail({ entry, onBack, onSelectEntry }: Props) {
         {relatedLoading ? (
           <p className="entry-detail-related-loading">Loading…</p>
         ) : related.length === 0 ? (
-          <p className="entry-detail-related-empty">None yet.</p>
+          <p className="entry-detail-related-empty">No connections yet</p>
         ) : (
           <ul className="entry-detail-related-list">
             {related.map((e) => (
