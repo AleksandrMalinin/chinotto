@@ -82,7 +82,7 @@ That URL tracks **latest** and triggers a browser download. If you fork the repo
 
 ## Users on older builds
 
-**v0.2.0 and earlier** do not include the updater. Users must install **v0.2.1+** once from GitHub Releases (or another channel). After that, newer versions can be applied from the in-app nudge when a release is published.
+Releases **before v0.2.1** do not include the updater. Users must install **v0.2.1 or later** once from GitHub Releases (or another channel). After that, newer versions (including **1.0.0+**) can be applied from the in-app nudge when a release is published.
 
 ## Windows / Intel macOS later
 

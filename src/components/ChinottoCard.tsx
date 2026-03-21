@@ -8,6 +8,7 @@ import {
 import { setDesktopIcon } from "@/lib/setDesktopIcon";
 import { isOptIn, setOptIn } from "@/lib/analytics";
 import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
+import { APP_VERSION } from "@/lib/appVersion";
 
 type ShortcutRow = {
   keys: string;
@@ -201,7 +202,7 @@ export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Pr
           </section>
 
           <footer className="chinotto-card-footer">
-            <p className="chinotto-card-footer-line">v0.2.1 β · © 2026 Bogart Labs</p>
+            <p className="chinotto-card-footer-line">v{APP_VERSION} · © 2026 Bogart Labs</p>
           </footer>
         </article>
       </div>

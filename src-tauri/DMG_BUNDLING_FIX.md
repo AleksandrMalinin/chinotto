@@ -34,18 +34,18 @@ Tauri **regenerates** `bundle_dmg.sh` on every build, so the fix is lost each ti
 2. From **src-tauri/** run: `./fix-dmg-bundler.sh` to patch the script.
 3. Create the DMG by running the patched script: `./target/release/bundle/dmg/bundle_dmg.sh`.
 
-The DMG will be at `src-tauri/target/release/bundle/dmg/Chinotto_0.2.1_aarch64.dmg`. You can then sign and notarize it as usual.
+The DMG will be at `src-tauri/target/release/bundle/dmg/Chinotto_1.0.0_aarch64.dmg`. You can then sign and notarize it as usual.
 
 If `bundle_dmg.sh` fails with **`hdiutil: convert failed - File exists`**, the output DMG from a previous run is still there. Remove it and run the script again:
 
 ```bash
-rm -f target/release/bundle/dmg/Chinotto_0.2.1_aarch64.dmg
+rm -f target/release/bundle/dmg/Chinotto_1.0.0_aarch64.dmg
 ./target/release/bundle/dmg/bundle_dmg.sh
 ```
 
 ## Notarization rejected: "Archive contains critical validation errors"
 
-If Apple notarization fails and the log shows **invalid signature** / **no secure timestamp** / **hardened runtime** on paths like `Chinotto_0.2.1_aarch64.dmg/rw.XXXXX.Chinotto_0.2.1_aarch64.dmg/Chinotto.app`, the DMG was built from a dirty state: temp `rw.*.dmg` files were included in the volume, and the binary inside them is not the one Tauri signed.
+If Apple notarization fails and the log shows **invalid signature** / **no secure timestamp** / **hardened runtime** on paths like `Chinotto_1.0.0_aarch64.dmg/rw.XXXXX.Chinotto_1.0.0_aarch64.dmg/Chinotto.app`, the DMG was built from a dirty state: temp `rw.*.dmg` files were included in the volume, and the binary inside them is not the one Tauri signed.
 
 **Fix: clean everything, then create the DMG again.**
 
@@ -53,8 +53,8 @@ From **src-tauri/**:
 
 ```bash
 # 1. Remove all DMG artifacts (final + temp rw.*.dmg)
-rm -f target/release/bundle/dmg/Chinotto_0.2.1_aarch64.dmg
-rm -f target/release/bundle/dmg/rw.*.Chinotto_0.2.1_aarch64.dmg
+rm -f target/release/bundle/dmg/Chinotto_1.0.0_aarch64.dmg
+rm -f target/release/bundle/dmg/rw.*.Chinotto_1.0.0_aarch64.dmg
 
 # 2. Ensure the app bundle folder has only Chinotto.app (no stray rw.*.dmg)
 rm -f target/release/bundle/macos/rw.*.dmg
