@@ -336,6 +336,15 @@ const EntryRow = memo(function EntryRow({
     }
   };
 
+  const handleEditBlur = (e: React.FocusEvent<HTMLTextAreaElement>) => {
+    if (!onEndEdit) return;
+    const row = e.currentTarget.closest("article.entry-row");
+    const rel = e.relatedTarget;
+    if (row && rel instanceof Node && row.contains(rel)) return;
+    setEditValue(entry.text);
+    onEndEdit(entry.id);
+  };
+
   const handleDoubleClick = (e: React.MouseEvent) => {
     if (isEditable) return;
     e.preventDefault();
@@ -358,6 +367,7 @@ const EntryRow = memo(function EntryRow({
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={handleEditKeyDown}
+            onBlur={handleEditBlur}
             onClick={(e) => e.stopPropagation()}
             aria-label="Edit entry"
             rows={1}
