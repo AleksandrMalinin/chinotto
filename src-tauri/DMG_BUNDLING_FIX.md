@@ -24,22 +24,20 @@ The fix modifies `bundle_dmg.sh` to detect when it's called without arguments an
 
 ## Current Status
 
-The `target/release/bundle/dmg/bundle_dmg.sh` script has been manually patched and should work for subsequent builds **as long as the target directory isn't cleaned**.
+Tauri **regenerates** `bundle_dmg.sh` on every `tauri build`, so any manual edit is overwritten. Use **`fix-dmg-bundler.sh`** after each failed DMG step (it reads `tauri.conf.json` for product name, version, and maps this machine’s CPU to the DMG filename, e.g. `Chinotto_1.0.0_aarch64.dmg`).
 
 ## If the Build Fails Again
 
-Tauri **regenerates** `bundle_dmg.sh` on every build, so the fix is lost each time. Do **not** run `tauri build` again after fixing (that would regenerate an unpatched script). Instead:
+1. Run `tauri build` (or your usual command) and let it fail at the DMG step — this generates `bundle_dmg.sh`.
+2. From **`src-tauri/`** run: **`./fix-dmg-bundler.sh`** to patch the script.
+3. Create the DMG: **`./target/release/bundle/dmg/bundle_dmg.sh`**.
 
-1. Run `npm run build && CI=false npx tauri build` and let it fail at the DMG step (this generates the script).
-2. From **src-tauri/** run: `./fix-dmg-bundler.sh` to patch the script.
-3. Create the DMG by running the patched script: `./target/release/bundle/dmg/bundle_dmg.sh`.
+The DMG lands next to the script under `target/release/bundle/dmg/` (name matches `tauri.conf.json` + arch). Sign and notarize as usual.
 
-The DMG will be at `src-tauri/target/release/bundle/dmg/Chinotto_1.0.0_aarch64.dmg`. You can then sign and notarize it as usual.
-
-If `bundle_dmg.sh` fails with **`hdiutil: convert failed - File exists`**, the output DMG from a previous run is still there. Remove it and run the script again:
+If `bundle_dmg.sh` fails with **`hdiutil: convert failed - File exists`**, remove the previous DMG and rerun:
 
 ```bash
-rm -f target/release/bundle/dmg/Chinotto_1.0.0_aarch64.dmg
+rm -f target/release/bundle/dmg/Chinotto_*_*.dmg
 ./target/release/bundle/dmg/bundle_dmg.sh
 ```
 
@@ -53,8 +51,8 @@ From **src-tauri/**:
 
 ```bash
 # 1. Remove all DMG artifacts (final + temp rw.*.dmg)
-rm -f target/release/bundle/dmg/Chinotto_1.0.0_aarch64.dmg
-rm -f target/release/bundle/dmg/rw.*.Chinotto_1.0.0_aarch64.dmg
+rm -f target/release/bundle/dmg/Chinotto_*_*.dmg
+rm -f target/release/bundle/dmg/rw.*.dmg
 
 # 2. Ensure the app bundle folder has only Chinotto.app (no stray rw.*.dmg)
 rm -f target/release/bundle/macos/rw.*.dmg
