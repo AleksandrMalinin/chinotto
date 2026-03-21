@@ -41,7 +41,10 @@
       "minimumSystemVersion": "10.13",
       "exceptionDomain": null,
       "infoPlist": "Info.plist",
-      "entitlements": "Chinotto.entitlements"
+      "entitlements": "Chinotto.entitlements",
+      "dmg": {
+        "background": "dmg-background.png"
+      }
     }
   },
   "plugins": {
