@@ -2,6 +2,8 @@ mod db;
 mod embeddings;
 mod keywords;
 mod recall;
+
+#[cfg(test)]
 mod thought_trail;
 
 #[cfg(target_os = "macos")]

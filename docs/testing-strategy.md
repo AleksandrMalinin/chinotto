@@ -31,8 +31,9 @@ src-tauri/
   src/
     lib.rs           # #[cfg(test)] mod tests { ... }  (format_ago, importance_*, temporal_reason_anchor)
     keywords.rs      # #[cfg(test)] mod tests { ... }  (extract_keywords, keyword_overlap, thought_trail_similarity)
+    thought_trail.rs # #[cfg(test)] only (declared in lib.rs); reference ranker tests; production is get_thought_trail
     db/
-      mod.rs         # optional: #[cfg(test)] mod tests for time window query
+      mod.rs         # #[cfg(test)] mod tests (search / FTS)
   tests/             # optional: integration tests with in-memory DB (resurface, thought_trail)
     recall_integration.rs   # if you add integration tests later
 

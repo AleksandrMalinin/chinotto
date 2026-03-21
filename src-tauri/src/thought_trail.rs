@@ -1,5 +1,6 @@
-//! Pure thought trail ranking: keyword overlap + time proximity.
-//! No DB, no embeddings; deterministic and testable.
+//! Unit tests for a reference thought-trail ranker (keyword overlap + time proximity).
+//! Compiled only with `cargo test`. Production behavior is `get_thought_trail` in `lib.rs`
+//! (importance boost, before/after ordering).
 
 use crate::keywords::{
     keyword_overlap, thought_trail_min_overlap, thought_trail_similarity, token_set,
