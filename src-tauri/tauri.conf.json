@@ -49,7 +49,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVCNTczRTU1RDM0OTMyREEKUldUYU1rblRWVDVYV3dkOHZrcXlIRHVPNTdxQ3ZreGNNanJKalJWS2dNU0pSOTU5WGIycktsVm0K",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQwMTFGMjkwN0FBMTgwNTgKUldSWWdLRjZrUElSUUJpaDNuNUh1c1k0UG5QOGtUQjlmZEl6RkpEdFZlaklxOE1TZ2V4Mmc3ZlkK",
       "endpoints": [
         "https://github.com/AleksandrMalinin/chinotto/releases/latest/download/latest.json"
       ]
