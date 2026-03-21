@@ -1,6 +1,8 @@
 # App icon (Apple platforms)
 
-Chinotto’s **bundle** icon (Launchpad, Finder, `.app`) comes from `src-tauri/icons/` (see `tauri.conf.json` → `bundle.icon`). The **canonical vector** is `src-tauri/icons/icon.svg` (~82% visual fill via a centered scale group—same safe-area idea as Apple’s production templates).
+Chinotto’s **bundle** icon (Dock, Launchpad, Finder, `.app`) comes from `src-tauri/icons/` (see `tauri.conf.json` → `bundle.icon`). The **canonical vector** is `src-tauri/icons/icon.svg`: an **opaque** full-canvas `#0a0a0e` square under the usual ~82% scaled group (rounded card + motif). That removes **transparent** margins that Finder composites with a **white** matte on disk images; the inset graphic is unchanged, and the system still clips to the **squircle** in the Dock.
+
+The **DMG** window uses `dmg-background.png` (`tauri.conf.json` → `bundle.macOS.dmg.background`). Use a **light** surface so captions stay readable. Regenerate with `python3 scripts/generate-dmg-background.py`. After **any** `icon.svg` edit, run `./scripts/generate-macos-app-icons.sh` so `icon_1024.png`, `icon.icns`, and app set rasters stay in sync.
 
 ## Authoritative sources
 
