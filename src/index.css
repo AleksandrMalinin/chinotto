@@ -778,8 +778,8 @@ body.welcome .app-bg {
 .chinotto-card-overlay {
   --chinotto-glass: rgba(12, 12, 20, 0.82);
   --chinotto-border: rgba(120, 130, 200, 0.12);
-  --chinotto-glow-violet: rgba(100, 110, 180, 0.22);
-  --chinotto-glow-blue: rgba(70, 100, 180, 0.14);
+  --chinotto-glow-violet: rgba(100, 110, 180, 0.14);
+  --chinotto-glow-blue: rgba(70, 100, 180, 0.085);
   position: fixed;
   inset: 0;
   z-index: 55;
@@ -809,8 +809,8 @@ body.welcome .app-bg {
 
 /* Optional welcome replay (header title); above settings overlay; main timeline unchanged underneath */
 .stream-showcase-overlay {
-  --chinotto-glow-violet: rgba(100, 110, 180, 0.22);
-  --chinotto-glow-blue: rgba(70, 100, 180, 0.14);
+  --chinotto-glow-violet: rgba(100, 110, 180, 0.14);
+  --chinotto-glow-blue: rgba(70, 100, 180, 0.085);
   position: fixed;
   inset: 0;
   z-index: 56;
@@ -853,9 +853,9 @@ body.welcome .app-bg {
   border-radius: 1rem;
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.03) inset,
-    0 0 32px -8px var(--chinotto-glow-violet),
-    0 0 56px -20px var(--chinotto-glow-blue),
-    0 20px 40px -16px rgba(0, 0, 0, 0.4);
+    0 0 26px -7px var(--chinotto-glow-violet),
+    0 0 44px -16px var(--chinotto-glow-blue),
+    0 19px 38px -16px rgba(0, 0, 0, 0.4);
   animation: chinotto-card-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both;
 }
 
@@ -1019,9 +1019,9 @@ body.welcome .app-bg {
   border-radius: 1rem;
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.03) inset,
-    0 0 32px -8px var(--chinotto-glow-violet),
-    0 0 56px -20px var(--chinotto-glow-blue),
-    0 20px 40px -16px rgba(0, 0, 0, 0.4);
+    0 0 26px -7px var(--chinotto-glow-violet),
+    0 0 44px -16px var(--chinotto-glow-blue),
+    0 19px 38px -16px rgba(0, 0, 0, 0.4);
   animation: chinotto-card-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both;
 }
 
@@ -1291,18 +1291,18 @@ body.welcome .app-bg {
     transform: scale(0.96) translateY(-12px);
     box-shadow:
       0 0 0 1px rgba(255, 255, 255, 0.03) inset,
-      0 0 24px -12px rgba(100, 110, 180, 0.1),
-      0 0 40px -20px rgba(70, 100, 180, 0.06),
-      0 24px 48px -16px rgba(0, 0, 0, 0.3);
+      0 0 16px -10px rgba(100, 110, 180, 0.075),
+      0 0 28px -16px rgba(70, 100, 180, 0.045),
+      0 20px 40px -16px rgba(0, 0, 0, 0.32);
   }
   to {
     opacity: 1;
     transform: scale(1) translateY(0);
     box-shadow:
       0 0 0 1px rgba(255, 255, 255, 0.03) inset,
-      0 0 48px -8px var(--chinotto-glow-violet),
-      0 0 80px -24px var(--chinotto-glow-blue),
-      0 24px 48px -16px rgba(0, 0, 0, 0.45);
+      0 0 26px -7px var(--chinotto-glow-violet),
+      0 0 44px -16px var(--chinotto-glow-blue),
+      0 19px 38px -16px rgba(0, 0, 0, 0.4);
   }
 }
 
