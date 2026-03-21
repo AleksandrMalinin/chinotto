@@ -150,11 +150,23 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${{ steps.rel.outputs.tag }}"
-          mapfile -t _dmgs < <(find src-tauri/target -name 'Chinotto_*_aarch64.dmg' -type f)
+          # macOS default Bash is 3.2 — no mapfile/readarray (Bash 4+).
+          _dmgs=()
+          while IFS= read -r f; do
+            [[ -n "$f" ]] && _dmgs+=("$f")
+          done < <(find src-tauri/target -name 'Chinotto_*_aarch64.dmg' -type f)
           if [ "${#_dmgs[@]}" -eq 0 ]; then
             echo "::error::No Chinotto_*_aarch64.dmg under src-tauri/target"
             exit 1
           fi
-          DMG=$(printf '%s\n' "${_dmgs[@]}" | xargs ls -t | head -1)
+          DMG="${_dmgs[0]}"
+          latest=0
+          for f in "${_dmgs[@]}"; do
+            m=$(stat -f %m "$f")
+            if [ "$m" -gt "$latest" ]; then
+              latest=$m
+              DMG=$f
+            fi
+          done
           cp "$DMG" Chinotto_macOS_aarch64.dmg
           gh release upload "$TAG" Chinotto_macOS_aarch64.dmg --clobber
