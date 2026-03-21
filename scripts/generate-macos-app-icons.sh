@@ -17,6 +17,8 @@ fi
 
 qlmanage -t -s 1024 -o "$ICONS" "$SVG" >/dev/null
 mv -f "$ICONS/icon.svg.png" "$MASTER"
+# Remove alpha / premultiplied fringe (Finder white matte on DMG); no-op if Pillow missing
+python3 "$ROOT/scripts/flatten_icon_png.py" "$MASTER"
 
 mkdir -p "$APPSET"
 sips -z 16 16 "$MASTER" --out "$APPSET/icon_16x16.png"
