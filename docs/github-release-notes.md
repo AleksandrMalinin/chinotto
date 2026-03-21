@@ -15,8 +15,9 @@ Add **`## vX.Y.Z`** before you push tag **`vX.Y.Z`**.
 * **Late edit:** `EntryStream` textarea `onBlur` ends late edit when focus leaves the row (discard like Esc) — fixes odd ⌘E / focus after double-click then click-away
 * **Analytics:** `app_version` included on event payloads (`src/lib/analytics.ts`)
 * **Tauri / Rust:** Unused `Db` query helpers removed from `src-tauri/src/db/mod.rs`; `thought_trail` compiled only under `#[cfg(test)]` in `lib.rs`; tests unchanged for recall / thought-trail ranking
-* **Icon / bundle:** App icon safe-area padding + macOS asset catalog pipeline (`docs/app-icon.md`, `src-tauri/icons/macos/`)
-* **Tooling / docs:** `.gitignore` `/target/` for repo-root Cargo output; `docs/github-release-notes.md` + `scripts/extract-release-notes.py` release-body flow; `docs/updater.md` and `DMG_BUNDLING_FIX.md` updates
+* **Icon / bundle:** Opaque full-canvas icon + optional Pillow flatten (`scripts/flatten_icon_png.py`, `scripts/generate-macos-app-icons.sh`); macOS `AppIcon.appiconset` / `icon.icns` (`docs/app-icon.md`); light `dmg-background.png` + `scripts/generate-dmg-background.py`; `bundle.macOS.dmg.background` in `tauri.conf.json`
+* **Thought detail & copy:** Related-thoughts block hierarchy and empty state (**No connections yet**); back control; primary UI uses **thoughts** in aria/search/stream (`EntryDetail`, `EntryStream`, `SearchInput`, `searchOverlayFeedback.ts`); “Related thoughts” vs thought-trail docs alignment
+* **Tooling / docs:** `.gitignore` `/target/` for repo-root Cargo output; `docs/github-release-notes.md` + `scripts/extract-release-notes.py` release-body flow; `docs/updater.md`; `fix-dmg-bundler` / `DMG_BUNDLING_FIX.md` (DMG script default name from `tauri.conf.json`); `docs/release-checklist.md`
 * **Tests:** `streamOnboarding`, `EntryStream` empty onboarding branches, extended `mayAttemptResurface` cases
 
 ## v0.2.1
