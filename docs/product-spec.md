@@ -24,7 +24,7 @@ Chinotto is a minimal desktop thinking tool for instantly capturing thoughts and
 - No markdown editor
 - No tasks, kanban, or templates
 - No AI chat
-- Embeddings used only for thought trail / related entries; no standalone “similar entries” UI
+- Embeddings used only for thought trail / related thoughts; no standalone “similar entries” UI
 - One canonical entity only: **Entry**
 
 ## Proposal guardrails

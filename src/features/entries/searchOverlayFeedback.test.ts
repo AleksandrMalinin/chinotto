@@ -9,7 +9,7 @@ function entry(id: string): Entry {
 
 describe("getSearchFeedback", () => {
   it("empty list", () => {
-    expect(getSearchFeedback([])).toBe("No entries found");
+    expect(getSearchFeedback([])).toBe("No thoughts found");
   });
 
   it("single result", () => {

@@ -54,7 +54,7 @@ export type EntryStreamProps = {
   isPinnedSection?: boolean;
   /** Toggle pin: in stream = pin, in pinned section = unpin */
   onPinToggle?: (entry: Entry) => void;
-  /** Delete entry; shows × and ⌘⌫ on hover */
+  /** Delete thought; shows × and ⌘⌫ on hover */
   onEntryDelete?: (entry: Entry) => void;
   /** Set of entry ids currently playing delete animation */
   deletingIds?: Set<string>;
@@ -378,7 +378,7 @@ const EntryRow = memo(function EntryRow({
             onKeyDown={handleEditKeyDown}
             onBlur={handleEditBlur}
             onClick={(e) => e.stopPropagation()}
-            aria-label="Edit entry"
+            aria-label="Edit thought"
             rows={1}
           />
         ) : useHighlight ? (
@@ -398,7 +398,7 @@ const EntryRow = memo(function EntryRow({
               e.stopPropagation();
               onEntryDelete(entry);
             }}
-            aria-label="Delete entry"
+            aria-label="Delete thought"
             title="Delete"
           >
             <X size={14} strokeWidth={2} />
@@ -637,7 +637,7 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
   }
 
   return (
-    <div className="entry-stream" role="feed" aria-label={sectionTitle ?? "Entries"}>
+    <div className="entry-stream" role="feed" aria-label={sectionTitle ?? "Thoughts"}>
       {sections.map(({ section, entries: sectionEntries }) => (
         <StreamSection
           key={section}

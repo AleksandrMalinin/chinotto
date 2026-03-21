@@ -130,8 +130,8 @@ export default defineConfig({
 4. **Importance score**  
    - Rust: Test `importance_score` and `importance_boost` (e.g. via `pub(crate)` or `#[cfg(test)]` visibility, or indirectly via integration tests with known entries).
 
-5. **Related entries (embedding similarity)**  
+5. **Related thoughts (embedding similarity)**  
    - Rust: `top_related_ids` is unit-tested: threshold filters before sort/limit, all-below-threshold returns empty, limit respected.  
-   - Manual (when verifying “Related entries” in the UI): **Clearly related** (e.g. two notes about “Tauri” or “project X”) should both appear. **Clearly unrelated** (e.g. note about Tauri vs note about a movie title) should not appear. **Loosely related** may or may not appear depending on similarity. **Very short notes** (one or two words) can score lower; if 0.5 feels too strict for your corpus, consider lowering to 0.45. **Notes with links / product names / mixed language** – no special handling; embedding similarity applies as-is. If there are no entries above threshold, the block shows “None yet.” and the list is empty. **Normal search** (Cmd+K, FTS) is unchanged and independent.
+   - Manual (when verifying “Related thoughts” in the UI): **Clearly related** (e.g. two notes about “Tauri” or “project X”) should both appear. **Clearly unrelated** (e.g. note about Tauri vs note about a movie title) should not appear. **Loosely related** may or may not appear depending on similarity. **Very short notes** (one or two words) can score lower; if 0.5 feels too strict for your corpus, consider lowering to 0.45. **Notes with links / product names / mixed language** – no special handling; embedding similarity applies as-is. If there are no entries above threshold, the block shows “None yet.” and the list is empty. **Normal search** (Cmd+K, FTS) is unchanged and independent.
 
 Keep the testing stack minimal, the test count low, and the focus on **algorithms and deterministic recall** so the system stays maintainable and fast.

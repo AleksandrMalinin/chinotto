@@ -56,7 +56,7 @@ export const SearchInput = forwardRef<HTMLInputElement, Props>(
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKeyDown}
-        aria-label="Search entries"
+        aria-label="Search thoughts"
         className="text-[13px] py-1.5 border-b border-[var(--border)] rounded-none"
       />
     );

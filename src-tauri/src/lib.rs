@@ -140,7 +140,7 @@ fn generate_embedding(db: tauri::State<Db>, entry_id: String) -> Result<(), Stri
     Ok(())
 }
 
-/// Minimum cosine similarity for an entry to appear in "Related entries".
+/// Minimum cosine similarity for an entry to appear in "Related thoughts".
 /// Without this, the top-N by score included weak matches (e.g. entry about Tauri → movie title).
 /// Embedding similarity has no cutoff, so unrelated text can still score 0.2–0.4; we require ~0.5+.
 const MIN_RELATED_SIMILARITY: f32 = 0.5;

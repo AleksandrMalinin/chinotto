@@ -45,7 +45,7 @@ export const EntryInput = forwardRef<EntryInputRef, Props>(function EntryInput(
         onKeyDown={handleKeyDown}
         onChange={(e) => onDraftChange?.(e.target.value)}
         rows={2}
-        aria-label="New entry"
+        aria-label="New thought"
       />
     </div>
   );

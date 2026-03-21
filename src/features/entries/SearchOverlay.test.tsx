@@ -276,7 +276,7 @@ describe("keyboard navigation in search results list", () => {
 
   it("ArrowDown moves selection to the next result", () => {
     render(<SearchOverlayWithKeyboard entries={threeEntries} />);
-    const input = screen.getByRole("searchbox", { name: "Search entries" });
+    const input = screen.getByRole("searchbox", { name: "Search thoughts" });
     expect(getSelectedOptionText()).toBe("Entry A");
     fireEvent.keyDown(input, { key: "ArrowDown" });
     expect(getSelectedOptionText()).toBe("Entry B");
@@ -286,7 +286,7 @@ describe("keyboard navigation in search results list", () => {
 
   it("ArrowUp moves selection to the previous result", () => {
     render(<SearchOverlayWithKeyboard entries={threeEntries} initialSelectedIndex={2} />);
-    const input = screen.getByRole("searchbox", { name: "Search entries" });
+    const input = screen.getByRole("searchbox", { name: "Search thoughts" });
     expect(getSelectedOptionText()).toBe("Entry C");
     fireEvent.keyDown(input, { key: "ArrowUp" });
     expect(getSelectedOptionText()).toBe("Entry B");
@@ -296,7 +296,7 @@ describe("keyboard navigation in search results list", () => {
 
   it("selection never goes outside the result list bounds", () => {
     render(<SearchOverlayWithKeyboard entries={threeEntries} />);
-    const input = screen.getByRole("searchbox", { name: "Search entries" });
+    const input = screen.getByRole("searchbox", { name: "Search thoughts" });
     expect(getSelectedOptionText()).toBe("Entry A");
     fireEvent.keyDown(input, { key: "ArrowUp" });
     expect(getSelectedOptionText()).toBe("Entry A");
@@ -325,7 +325,7 @@ describe("Enter key behavior in search overlay", () => {
         onClose={onClose}
       />
     );
-    const input = screen.getByRole("searchbox", { name: "Search entries" });
+    const input = screen.getByRole("searchbox", { name: "Search thoughts" });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onOpenEntry).toHaveBeenCalledTimes(1);
     expect(onOpenEntry).toHaveBeenCalledWith(twoEntries[1]);
@@ -343,7 +343,7 @@ describe("Enter key behavior in search overlay", () => {
         onClose={onClose}
       />
     );
-    const input = screen.getByRole("searchbox", { name: "Search entries" });
+    const input = screen.getByRole("searchbox", { name: "Search thoughts" });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onOpenEntry).toHaveBeenCalledWith(twoEntries[0]);
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -360,7 +360,7 @@ describe("Enter key behavior in search overlay", () => {
         onClose={onClose}
       />
     );
-    const input = screen.getByRole("searchbox", { name: "Search entries" });
+    const input = screen.getByRole("searchbox", { name: "Search thoughts" });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onOpenEntry).not.toHaveBeenCalled();
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -369,7 +369,7 @@ describe("Enter key behavior in search overlay", () => {
 
 describe("getSearchFeedback", () => {
   it("when there are no matches, returns empty-state message", () => {
-    expect(getSearchFeedback([])).toBe("No entries found");
+    expect(getSearchFeedback([])).toBe("No thoughts found");
   });
 
   it("when there is one result, returns '1 result'", () => {

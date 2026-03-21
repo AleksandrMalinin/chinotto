@@ -103,7 +103,7 @@ export function EntryDetail({ entry, onBack, onSelectEntry }: Props) {
                   className="entry-detail-trail-item"
                   onClick={() => onSelectEntry(e)}
                   disabled={e.id === entry.id}
-                  aria-label={e.id === entry.id ? "Current entry" : `Open: ${truncate(e.text, 60)}`}
+                  aria-label={e.id === entry.id ? "Current thought" : `Open: ${truncate(e.text, 60)}`}
                 >
                   <span className="entry-detail-trail-meta">
                     {relativeToCurrent(entry.created_at, e.created_at, e.id === entry.id)}
@@ -128,8 +128,8 @@ export function EntryDetail({ entry, onBack, onSelectEntry }: Props) {
           </div>
         </section>
       ) : null}
-      <section className="entry-detail-related" aria-label="Related entries">
-        <h2 className="entry-detail-related-title">Related entries</h2>
+      <section className="entry-detail-related" aria-label="Related thoughts">
+        <h2 className="entry-detail-related-title">Related thoughts</h2>
         {relatedLoading ? (
           <p className="entry-detail-related-loading">Loading…</p>
         ) : related.length === 0 ? (
