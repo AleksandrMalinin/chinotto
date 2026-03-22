@@ -12,6 +12,9 @@ src-tauri/target/
 src-tauri/gen/
 src-tauri/.fastembed_cache/
 
+# Firebase CLI (local cache; not project config)
+.firebase/
+
 # Env
 .env
 .env.local
