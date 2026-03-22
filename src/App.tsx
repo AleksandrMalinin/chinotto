@@ -17,6 +17,7 @@ import { getSearchFeedback } from "./features/entries/searchOverlayFeedback";
 import { Button } from "@/components/ui/button";
 import {
   createEntry,
+  getEntry,
   restoreEntry,
   updateEntry,
   listEntries,
@@ -66,7 +67,11 @@ import { UpdateNudge } from "@/components/UpdateNudge";
 import { APP_VERSION } from "@/lib/appVersion";
 import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
 import { isFirebaseSyncConfigured } from "@/lib/firebaseConfig";
-import { startDesktopFirestoreIngest } from "@/lib/desktopFirestoreSync";
+import {
+  notifyEntryDeletedForSync,
+  pushEntryUpsertToFirestore,
+  startDesktopFirestoreIngest,
+} from "@/lib/desktopFirestoreSync";
 
 /** Voice capture is disabled in the main flow. Set to true to re-enable as an experimental feature. */
 const EXPERIMENTAL_VOICE_CAPTURE = false;
@@ -652,6 +657,9 @@ export default function App() {
   async function handleSubmit(text: string) {
     if (getDevSimulateNewUser()) return;
     const id = await createEntry(text);
+    void getEntry(id).then((row) => {
+      if (row) void pushEntryUpsertToFirestore(row);
+    });
     track({ event: "entry_created", text_length: text.length });
     if (streamEntries.length === 0) tryBeginEmptyOnboardingExit();
     setHasEverSavedThought();
@@ -731,14 +739,18 @@ export default function App() {
         wasPinned: pinnedIds.includes(entry.id),
       });
       if (selectedEntry?.id === entry.id) setSelectedEntry(null);
-      deleteEntry(entry.id).catch(() => {
-        setDeletingIds((prev) => {
-          const next = new Set(prev);
-          next.delete(entry.id);
-          return next;
+      deleteEntry(entry.id)
+        .then(() => {
+          void notifyEntryDeletedForSync(entry.id).catch(() => {});
+        })
+        .catch(() => {
+          setDeletingIds((prev) => {
+            const next = new Set(prev);
+            next.delete(entry.id);
+            return next;
+          });
+          setLastDeletedEntry(null);
         });
-        setLastDeletedEntry(null);
-      });
     },
     [selectedEntry?.id, pinnedIds]
   );
@@ -829,7 +841,14 @@ export default function App() {
         const { entry, wasPinned } = lastDeletedEntry;
         restoreEntry(entry.id, entry.text, entry.created_at)
           .then((restoredId) => {
-            if (wasPinned) return pinEntry(restoredId);
+            const afterPin = wasPinned ? pinEntry(restoredId) : Promise.resolve();
+            return afterPin.then(() =>
+              pushEntryUpsertToFirestore({
+                id: restoredId,
+                text: entry.text,
+                created_at: entry.created_at,
+              })
+            );
           })
           .then(() => {
             setLastDeletedEntry(null);

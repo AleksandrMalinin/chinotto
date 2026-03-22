@@ -55,7 +55,8 @@ export function SyncModal({ onClose }: Props) {
           Phone sync
         </h2>
         <p className="analytics-optin-body">
-          Same Apple ID as on your phone. New entries from the mobile app show up here.
+          Same Apple ID as on your phone. While signed in, new thoughts sync between this Mac and the
+          app.
           {import.meta.env.DEV ? (
             <>
               {" "}
