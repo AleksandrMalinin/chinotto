@@ -103,6 +103,10 @@ impl Db {
             "INSERT INTO entries (id, text, created_at) VALUES (?1, ?2, ?3)",
             [id, text, created_at],
         )?;
+        conn.execute(
+            "DELETE FROM firestore_ingest_suppressed_ids WHERE id = ?1",
+            [id],
+        )?;
         Ok(())
     }
 
@@ -120,6 +124,14 @@ impl Db {
                 continue;
             }
             if chrono::DateTime::parse_from_rfc3339(created_at).is_err() {
+                continue;
+            }
+            let suppressed: i32 = conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM firestore_ingest_suppressed_ids WHERE id = ?1)",
+                [id.as_str()],
+                |r| r.get(0),
+            )?;
+            if suppressed != 0 {
                 continue;
             }
             let n = conn.execute(
@@ -296,6 +308,11 @@ impl Db {
     pub fn delete_entry(&self, entry_id: &str) -> Result<(), rusqlite::Error> {
         let conn = self.0.lock().unwrap();
         conn.execute("DELETE FROM entries WHERE id = ?1", [entry_id])?;
+        let at = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT OR REPLACE INTO firestore_ingest_suppressed_ids (id, suppressed_at) VALUES (?1, ?2)",
+            [entry_id, at.as_str()],
+        )?;
         Ok(())
     }
 
@@ -305,6 +322,7 @@ impl Db {
         conn.execute("DELETE FROM pinned_entries", [])?;
         conn.execute("DELETE FROM entry_embeddings", [])?;
         conn.execute("DELETE FROM entries", [])?;
+        conn.execute("DELETE FROM firestore_ingest_suppressed_ids", [])?;
         Ok(())
     }
 
@@ -475,6 +493,41 @@ mod tests {
         assert_eq!(n, 1);
         let row = db.get_entry_by_id("x").unwrap().unwrap();
         assert_eq!(row.text, "from cloud");
+    }
+
+    #[test]
+    fn firestore_ingest_skips_desktop_deleted_id() {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        db.create_entry("meow", "cat", "2025-01-01T12:00:00Z").unwrap();
+        db.delete_entry("meow").unwrap();
+        assert!(db.get_entry_by_id("meow").unwrap().is_none());
+        let n = db
+            .ingest_firestore_entries(&[(
+                "meow".to_string(),
+                "still in cloud".to_string(),
+                "2025-02-01T12:00:00Z".to_string(),
+            )])
+            .unwrap();
+        assert_eq!(n, 0);
+        assert!(db.get_entry_by_id("meow").unwrap().is_none());
+    }
+
+    #[test]
+    fn create_entry_clears_firestore_ingest_suppression() {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        db.create_entry("r", "one", "2025-01-01T12:00:00Z").unwrap();
+        db.delete_entry("r").unwrap();
+        db.create_entry("r", "two", "2025-01-02T12:00:00Z").unwrap();
+        let n = db
+            .ingest_firestore_entries(&[(
+                "r".to_string(),
+                "from cloud".to_string(),
+                "2025-03-01T12:00:00Z".to_string(),
+            )])
+            .unwrap();
+        assert_eq!(n, 0);
+        let row = db.get_entry_by_id("r").unwrap().unwrap();
+        assert_eq!(row.text, "two");
     }
 
     #[test]

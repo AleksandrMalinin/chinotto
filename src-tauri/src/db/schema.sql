@@ -41,3 +41,9 @@ CREATE TABLE IF NOT EXISTS pinned_entries (
   entry_id TEXT PRIMARY KEY REFERENCES entries(id) ON DELETE CASCADE,
   pinned_at TEXT NOT NULL
 );
+
+-- Entry ids removed on desktop: Firestore pull must not re-insert them while the remote doc still exists (v1 ingest-only sync).
+CREATE TABLE IF NOT EXISTS firestore_ingest_suppressed_ids (
+  id TEXT PRIMARY KEY,
+  suppressed_at TEXT NOT NULL
+);
