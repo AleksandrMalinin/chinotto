@@ -113,6 +113,37 @@ fn ingest_firestore_entries(
 }
 
 #[tauri::command]
+fn enqueue_sync_tombstone(db: tauri::State<Db>, entry_id: String) -> Result<(), String> {
+    db.enqueue_sync_tombstone(&entry_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn list_sync_tombstone_outbox(db: tauri::State<Db>) -> Result<Vec<String>, String> {
+    db.list_sync_tombstone_outbox().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn remove_sync_tombstone_outbox(db: tauri::State<Db>, entry_id: String) -> Result<(), String> {
+    db.remove_sync_tombstone_outbox(&entry_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn clear_firestore_ingest_suppression(db: tauri::State<Db>, entry_id: String) -> Result<(), String> {
+    db.clear_firestore_ingest_suppression(&entry_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_local_entries_for_sync(
+    db: tauri::State<Db>,
+    entry_ids: Vec<String>,
+) -> Result<u32, String> {
+    db.delete_local_entries_for_sync(&entry_ids)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn create_entry(db: tauri::State<Db>, text: String) -> Result<String, String> {
     let trimmed = text.trim();
     if trimmed.is_empty() {
@@ -242,6 +273,30 @@ fn list_entries(db: tauri::State<Db>) -> Result<Vec<EntryPayload>, String> {
             }
         })
         .collect())
+}
+
+#[tauri::command]
+fn get_entry(db: tauri::State<Db>, entry_id: String) -> Result<Option<EntryPayload>, String> {
+    let row = db
+        .get_entry_by_id(&entry_id)
+        .map_err(|e| e.to_string())?;
+    Ok(match row {
+        None => None,
+        Some(r) => {
+            let limit = keywords::default_topic_limit();
+            let topics = extract_keywords(&r.text, limit);
+            Some(EntryPayload {
+                id: r.id,
+                text: r.text,
+                created_at: r.created_at,
+                topics: if topics.is_empty() {
+                    None
+                } else {
+                    Some(topics)
+                },
+            })
+        }
+    })
 }
 
 /// Temporal recall: try 24h, 7d, 30d anchors (±3h window); fallback to random past entry.
@@ -791,10 +846,16 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             oauth_dev_bridge::start_oauth_dev_bridge_listener,
             ingest_firestore_entries,
+            enqueue_sync_tombstone,
+            list_sync_tombstone_outbox,
+            remove_sync_tombstone_outbox,
+            clear_firestore_ingest_suppression,
+            delete_local_entries_for_sync,
             create_entry,
             restore_entry,
             update_entry,
             list_entries,
+            get_entry,
             search_entries,
             run_native_speech_recognition,
             generate_embedding,
