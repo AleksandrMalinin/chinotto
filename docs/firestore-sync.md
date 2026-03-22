@@ -19,7 +19,7 @@ Copy from the mobile `.env.example` and rename the prefix to `VITE_`.
 
 ## Behavior
 
-- **Settings → Sync:** “Continue with Apple” / “Disconnect Apple” when env is set. A **small secondary window** runs **`signInWithRedirect`** (not a popup), because Tauri’s main webview often blocks popups (`auth/popup-blocked`). That window navigates to Firebase’s hosted handler, then Apple, then back to the app URL; `getRedirectResult` finishes the flow and the main window receives tokens via a Tauri event.
+- **Header → Sync:** when env is set, **Sync** opens a short modal; **Continue with Apple** opens a **small secondary window** (release) or the **default browser** (dev) for Firebase + Apple. The main window receives tokens via a Tauri event. The modal stays calmer than a long Settings section; sign-in still completes outside the main window.
 
 ### Development (`tauri dev`, `import.meta.env.DEV`)
 
@@ -39,7 +39,7 @@ The Firebase JS SDK sends the browser to **`https://{authDomain}/__/auth/handler
 | Console: **400** `createAuthUri` (Identity Toolkit) | Browser API key restrictions in Google Cloud (allow **Identity Toolkit API** for this key, or use a **Web**-appropriate key from Firebase Console → Project settings → Your apps). Also confirm **Authentication → Sign-in method → Apple** is configured and **Authorized domains** include `localhost` (dev) and any production host. |
 | Blank OAuth window, repeated errors | Ensure `VITE_FIREBASE_APP_ID` matches the **Web** app in Firebase (same object as mobile’s web config). `VITE_FIREBASE_AUTH_DOMAIN` can be omitted only if the default `{projectId}.firebaseapp.com` is correct (custom auth domains must be set explicitly). |
 - **Listener:** After a **non-anonymous** user signs in, `onSnapshot` on `users/{uid}/entries` with `orderBy('createdAt','desc')` and `limit(500)`.
-- **SQLite:** `ingest_firestore_entries` Tauri command; skips existing ids; invalid/empty rows skipped.
+- **SQLite:** `ingest_firestore_entries` Tauri command; skips existing ids and ids **deleted on this desktop** (`firestore_ingest_suppressed_ids`) so a doc that still exists in Firestore is not pulled back after a local delete; creating an entry again (including restore with the same id) clears that suppression for the id. `delete_all_entries` clears suppressions so a full local wipe can repopulate from Firestore. Invalid/empty rows are skipped.
 - **Stream order:** `list_entries` uses `ORDER BY created_at DESC, id ASC` (tie-break per SYNC.md).
 
 ## Firebase Console
@@ -50,7 +50,8 @@ Enable **Apple** under Authentication; authorize OAuth domains used by the deskt
 
 - `src/lib/firebaseConfig.ts` — env gate + web `FirebaseOptions`
 - `src/lib/desktopFirestoreSync.ts` — Auth + Firestore listener
-- `src/components/EnableSyncSection.tsx` — opens OAuth webview, listens for token events
-- `src/components/OAuthBridge.tsx` — redirect flow in the secondary window only
+- `src/components/SyncModal.tsx` — header “Sync” entry; Apple sign-in and status
+- `src/lib/useAppleSyncOAuth.ts` — OAuth webview / dev browser + Tauri event listeners
+- `src/components/OAuthBridge.tsx` — redirect flow in the secondary window or browser tab only
 - `src/main.tsx` — renders `OAuthBridge` when `?chinotto_oauth=1` (not under React `StrictMode` in dev)
 - `src-tauri`: `ingest_firestore_entries`, `Db::ingest_firestore_entries`
