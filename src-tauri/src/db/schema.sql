@@ -47,3 +47,9 @@ CREATE TABLE IF NOT EXISTS firestore_ingest_suppressed_ids (
   id TEXT PRIMARY KEY,
   suppressed_at TEXT NOT NULL
 );
+
+-- Pending Firestore tombstone writes (sync v2). One row per entry_id (coalesced).
+CREATE TABLE IF NOT EXISTS sync_tombstone_outbox (
+  entry_id TEXT PRIMARY KEY,
+  enqueued_at TEXT NOT NULL
+);
