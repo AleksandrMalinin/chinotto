@@ -1,57 +1,67 @@
-# Firestore pull sync (desktop)
+# Firestore sync (desktop)
 
-Normative product and data contract: **`chinotto-mobile/docs/SYNC.md`**. Desktop implements **v1 ingest only**: Sign in with Apple (Firebase Auth), subscribe to `users/{uid}/entries`, merge into local SQLite by `id` (`INSERT OR IGNORE`).
+**Contract:** **`chinotto-mobile/docs/SYNC.md`**. **Tombstones, queue, suppression, product scope:** **`docs/sync-deletion-v2.md`**.
+
+Desktop: **bidirectional** sync — **pull** (`onSnapshot` + SQLite ingest), **push** on local create/restore (`setDoc` + merge with `text`, `createdAt` as `Timestamp`, `deletedAt` cleared via `deleteField`), **tombstone flush** (`setDoc` + merge with `deletedAt: serverTimestamp()`).
+
+---
 
 ## Configuration
 
-Set Vite env vars (same Firebase Web app as mobile; mobile uses `EXPO_PUBLIC_*`):
-
 | Variable | Notes |
 |----------|--------|
-| `VITE_FIREBASE_API_KEY` | Required for sync UI + listener |
+| `VITE_FIREBASE_API_KEY` | Required |
 | `VITE_FIREBASE_PROJECT_ID` | Required |
-| `VITE_FIREBASE_AUTH_DOMAIN` | Optional; defaults to `{projectId}.firebaseapp.com` if unset |
+| `VITE_FIREBASE_AUTH_DOMAIN` | Optional; defaults to `{projectId}.firebaseapp.com` |
 | `VITE_FIREBASE_APP_ID` | Recommended |
 | `VITE_FIREBASE_STORAGE_BUCKET` | Optional |
 | `VITE_FIREBASE_MESSAGING_SENDER_ID` | Optional |
 
-Copy from the mobile `.env.example` and rename the prefix to `VITE_`.
+Use the same Firebase Web app as mobile (`EXPO_PUBLIC_*` there → `VITE_*` here).
 
-## Behavior
+---
 
-- **Header → Sync:** when env is set, **Sync** opens a short modal; **Continue with Apple** opens a **small secondary window** (release) or the **default browser** (dev) for Firebase + Apple. The main window receives tokens via a Tauri event. The modal stays calmer than a long Settings section; sign-in still completes outside the main window.
+## OAuth and dev
 
-### Development (`tauri dev`, `import.meta.env.DEV`)
+- **Sync modal:** **Continue with Apple** uses a secondary window (release) or **default browser** (dev); credential returns to the main window via Tauri.
+- **Dev:** Redirect often fails inside the auxiliary WKWebView; the app opens the **default browser** at `/chinotto-oauth?…`. Safari may require a tap on the bridge page before Apple opens. Dev bridge uses **`127.0.0.1`** POST; add **`localhost`** / **`127.0.0.1`** to Firebase **Authorized domains**.
 
-Firebase’s redirect + iframe completion often **fails inside Tauri’s auxiliary WKWebView**. In dev, **Continue with Apple** opens your **default browser** at the same Vite URL (`/chinotto-oauth?…`). **Safari blocks sign-in popups unless you tap a button on that page**; the bridge page asks for a tap before calling Firebase so the Apple window can open. Sign-in runs in Safari/Chrome; the app listens on **`127.0.0.1`** for a one-shot POST and forwards the credential to the main window. Leave **`npm run dev`** running, complete Apple in the browser, then close the tab when you see “Signed in”. The bridge `port` / `secret` are stored in **sessionStorage** because Firebase’s return URL usually **drops** those query params. Add **`localhost`** and **`127.0.0.1`** under Firebase Authentication → **Authorized domains** if either is missing.
+## Firebase Hosting (OAuth)
 
-## Firebase Hosting (required for web redirect)
+The SDK loads **`https://{authDomain}/__/firebase/init.json`**. **404** there means Hosting not deployed — run `firebase deploy --only hosting` once for the project.
 
-The Firebase JS SDK sends the browser to **`https://{authDomain}/__/auth/handler`**. That page loads **`https://{authDomain}/__/firebase/init.json`**. If you see **404 on `init.json`** in the OAuth window’s Web Inspector, **Firebase Hosting has never been deployed** (or not for this project). Without it, redirect sign-in fails (often followed by **400** on `identitytoolkit` `createAuthUri`).
+---
 
-**Fix (one-time per Firebase project):** install [Firebase CLI](https://firebase.google.com/docs/cli), run `firebase login`, `firebase init hosting` (link the same project as mobile), then `firebase deploy --only hosting`. You can use a minimal `public/index.html`; Firebase serves the reserved `__/firebase/*` paths after the first hosting deploy.
+## Desktop listener behavior (summary)
+
+When signed in (non-anonymous):
+
+1. **Ingest:** `orderBy('createdAt','desc')`, `limit(500)` → `ingest_firestore_entries` for active-shaped docs; partition uses `deletedAt` for deletes in-window.
+2. **Tombstones:** Second `onSnapshot` on `deletedAt != null` + **`orderBy('deletedAt','desc')`** + `limit(1000)` — **all returned doc ids** are applied as local deletes (query is source of truth).
+3. **`getDocs`** on the same tombstone query: on sign-in, **every ingest snapshot** (forced), and **~12s** while signed in — backs up real-time listeners in WKWebView.
+4. **`lastTombstoneQueryDocIds`:** ids from the latest tombstone read; **ingest skips** inserting those ids so stale snapshots do not resurrect tombstoned rows.
+5. **Local delete:** `delete_entry` + suppression → **`notifyEntryDeletedForSync`** → outbox + flush.
+6. **`delete_all_entries`:** clears entries, suppressions, tombstone outbox.
+
+**Index:** Composite index for `deletedAt != null` + `orderBy('deletedAt','desc')` — use the URL from console errors if the app logs **`[chinotto sync] tombstone snapshot error`** or **`tombstone getDocs failed`**.
+
+---
 
 ## Troubleshooting
 
 | Symptom | Likely cause |
-|--------|----------------|
-| Console: **404** `__/firebase/init.json` on `{project}.firebaseapp.com` | Deploy Firebase Hosting (see above). |
-| Console: **400** `createAuthUri` (Identity Toolkit) | Browser API key restrictions in Google Cloud (allow **Identity Toolkit API** for this key, or use a **Web**-appropriate key from Firebase Console → Project settings → Your apps). Also confirm **Authentication → Sign-in method → Apple** is configured and **Authorized domains** include `localhost` (dev) and any production host. |
-| Blank OAuth window, repeated errors | Ensure `VITE_FIREBASE_APP_ID` matches the **Web** app in Firebase (same object as mobile’s web config). `VITE_FIREBASE_AUTH_DOMAIN` can be omitted only if the default `{projectId}.firebaseapp.com` is correct (custom auth domains must be set explicitly). |
-- **Listener:** After a **non-anonymous** user signs in, `onSnapshot` on `users/{uid}/entries` with `orderBy('createdAt','desc')` and `limit(500)`.
-- **SQLite:** `ingest_firestore_entries` Tauri command; skips existing ids and ids **deleted on this desktop** (`firestore_ingest_suppressed_ids`) so a doc that still exists in Firestore is not pulled back after a local delete; creating an entry again (including restore with the same id) clears that suppression for the id. `delete_all_entries` clears suppressions so a full local wipe can repopulate from Firestore. Invalid/empty rows are skipped.
-- **Stream order:** `list_entries` uses `ORDER BY created_at DESC, id ASC` (tie-break per SYNC.md).
+|---------|----------------|
+| **404** `init.json` on `{project}.firebaseapp.com` | Deploy Firebase Hosting. |
+| **400** `createAuthUri` | API key / Identity Toolkit; Apple provider; authorized domains. |
+| Blank OAuth / config errors | `VITE_FIREBASE_APP_ID` matches Web app; `authDomain` correct. |
+| **`[chinotto sync] tombstone snapshot error` / `tombstone getDocs failed`** | Missing Firestore **composite index** (link in error). |
+| **`[chinotto sync] tombstone apply failed`** | Often **IPC shape**: command expects top-level **`entryIds`**, not nested `args`. See **`docs/sync-deletion-v2.md`** Desktop → IPC. |
+| **`[ChinottoSync] tombstone flush failed`** + **`database is locked`** | **Mobile** SQLite contention — see **`docs/sync-deletion-v2.md`** Mobile → SQLite lock. |
 
 ## Firebase Console
 
-Enable **Apple** under Authentication; authorize OAuth domains used by the desktop app (e.g. localhost for dev, production host if any).
+Enable **Apple** under Authentication; authorize domains used by the app.
 
 ## Implementation files
 
-- `src/lib/firebaseConfig.ts` — env gate + web `FirebaseOptions`
-- `src/lib/desktopFirestoreSync.ts` — Auth + Firestore listener
-- `src/components/SyncModal.tsx` — header “Sync” entry; Apple sign-in and status
-- `src/lib/useAppleSyncOAuth.ts` — OAuth webview / dev browser + Tauri event listeners
-- `src/components/OAuthBridge.tsx` — redirect flow in the secondary window or browser tab only
-- `src/main.tsx` — renders `OAuthBridge` when `?chinotto_oauth=1` (not under React `StrictMode` in dev)
-- `src-tauri`: `ingest_firestore_entries`, `Db::ingest_firestore_entries`
+`firebaseConfig.ts`, `firestoreTombstone.ts`, `desktopFirestoreSync.ts`, `entryApi.ts`, `SyncModal.tsx`, `useAppleSyncOAuth.ts`, `OAuthBridge.tsx`, `main.tsx`; Tauri: `get_entry`, ingest, tombstone outbox, `delete_local_entries_for_sync`, `clear_firestore_ingest_suppression`; schema `sync_tombstone_outbox`, `firestore_ingest_suppressed_ids`.
