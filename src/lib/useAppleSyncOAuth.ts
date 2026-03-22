@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "firebase/auth";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { Button } from "@/components/ui/button";
 import { isFirebaseSyncConfigured } from "@/lib/firebaseConfig";
 import {
   signInWithAppleCredential,
@@ -29,30 +28,45 @@ const OAUTH_TIMEOUT_MS = 4 * 60 * 1000;
 type OauthSuccessPayload = { nonce: string; credential: BridgedOAuthCredentialJson };
 type OauthErrorPayload = { nonce: string; message: string };
 
-export function EnableSyncSection() {
+type UseAppleSyncOAuthOptions = {
+  /** When false, auth subscription is inactive (saves work when modal is closed). */
+  active: boolean;
+};
+
+/**
+ * Apple / Firebase device sync: auth state and opening the OAuth webview or dev browser tab.
+ */
+export function useAppleSyncOAuth({ active }: UseAppleSyncOAuthOptions) {
   const [user, setUser] = useState<User | null>(null);
   const [busy, setBusy] = useState(false);
+  /** True only while Disconnect runs; avoids reusing the “finish sign-in elsewhere” copy. */
+  const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inflightCleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    if (!isFirebaseSyncConfigured()) {
+    if (!active || !isFirebaseSyncConfigured()) {
       return undefined;
     }
     return subscribeSyncAuth(setUser);
+  }, [active]);
+
+  useEffect(() => {
+    return () => {
+      inflightCleanupRef.current?.();
+      inflightCleanupRef.current = null;
+    };
   }, []);
 
-  if (!isFirebaseSyncConfigured()) {
-    return null;
-  }
-
-  const stable = user != null && !user.isAnonymous;
-
-  async function onContinueApple() {
+  const onContinueApple = useCallback(async () => {
     setError(null);
     if (!isTauriShell()) {
-      setError("Sign in with Apple works in the Chinotto desktop app (Tauri), not in a plain browser tab.");
+      setError("Use the Chinotto desktop app to sign in.");
       return;
     }
+
+    inflightCleanupRef.current?.();
+    inflightCleanupRef.current = null;
 
     const nonce = crypto.randomUUID();
     try {
@@ -78,7 +92,10 @@ export function EnableSyncSection() {
         }
       }
       unlisteners.length = 0;
+      inflightCleanupRef.current = null;
     }
+
+    inflightCleanupRef.current = cleanup;
 
     const unSuccess = await listen<OauthSuccessPayload>("chinotto-sync-oauth-success", async (event) => {
       if (event.payload.nonce !== nonce) {
@@ -158,9 +175,7 @@ export function EnableSyncSection() {
           logOAuthDiagnostic("popup_redirect", "oauth_webview_failed_to_open", {
             message: payload,
           });
-          setError(
-            "Could not open the sign-in window. Quit Chinotto fully and try again."
-          );
+          setError("Could not open the sign-in window. Quit Chinotto fully and try again.");
           setBusy(false);
         });
         unlisteners.push(unOnceErr);
@@ -171,63 +186,35 @@ export function EnableSyncSection() {
       setError("Could not start sign-in. Quit Chinotto fully and try again.");
       setBusy(false);
     }
-  }
+  }, []);
 
-  async function onSignOut() {
+  const onSignOut = useCallback(async () => {
     setError(null);
+    setSigningOut(true);
     setBusy(true);
     try {
       await signOutFirebaseSync();
+      /* onAuthStateChanged can lag; update UI immediately so the modal leaves “Disconnect” state. */
+      setUser(null);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
     } finally {
       setBusy(false);
+      setSigningOut(false);
     }
-  }
+  }, []);
 
-  return (
-    <section className="chinotto-card-section" aria-labelledby="chinotto-card-sync-title">
-      <h2 id="chinotto-card-sync-title" className="chinotto-card-section-title">
-        Enable sync
-      </h2>
-      <p className="chinotto-card-section-desc">
-        Use Apple to connect your devices. Chinotto does not create its own account. Entries from your
-        phone appear here when you use the same Apple ID and Firebase project.
-        {import.meta.env.DEV
-          ? " In dev, your default browser opens for Apple sign-in (the in-app webview cannot finish Firebase reliably); return to Chinotto after you see “Signed in”."
-          : " A small window opens for Apple; the main app stays put."}
-      </p>
-      {stable ? (
-        <>
-          <p className="chinotto-card-section-desc" style={{ marginTop: "0.5rem" }}>
-            Sync is on. New entries from mobile will show up in your stream.
-          </p>
-          <button
-            type="button"
-            className="chinotto-card-privacy-link"
-            style={{ marginTop: "0.75rem" }}
-            disabled={busy}
-            onClick={() => void onSignOut()}
-          >
-            Disconnect Apple
-          </button>
-        </>
-      ) : (
-        <Button
-          type="button"
-          className="analytics-optin-btn-primary mt-3 w-full"
-          disabled={busy}
-          onClick={() => void onContinueApple()}
-        >
-          Continue with Apple
-        </Button>
-      )}
-      {error ? (
-        <p className="chinotto-card-section-desc" style={{ marginTop: "0.5rem", color: "var(--landing-muted)" }}>
-          {error}
-        </p>
-      ) : null}
-    </section>
-  );
+  const stable = user != null && !user.isAnonymous;
+
+  return {
+    user,
+    stable,
+    busy,
+    signingOut,
+    error,
+    setError,
+    onContinueApple,
+    onSignOut,
+  };
 }

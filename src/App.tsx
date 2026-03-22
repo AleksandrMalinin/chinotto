@@ -3,6 +3,7 @@ import { IntroScreen } from "@/components/IntroScreen";
 import { LogoTransition } from "@/components/LogoTransition";
 import { ChinottoLogo } from "@/components/ChinottoLogo";
 import { ChinottoCard } from "@/components/ChinottoCard";
+import { SyncModal } from "@/components/SyncModal";
 import { StreamShowcaseModal } from "@/components/StreamShowcaseModal";
 import { AnalyticsOptInModal } from "@/components/AnalyticsOptInModal";
 import { EntryInput, type EntryInputRef } from "./features/entries/EntryInput";
@@ -114,6 +115,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isChinottoCardOpen, setIsChinottoCardOpen] = useState(false);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isStreamShowcaseOpen, setIsStreamShowcaseOpen] = useState(false);
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
   const [, setIntroSettled] = useState(false);
@@ -603,6 +605,9 @@ export default function App() {
     function onKeyDown(e: KeyboardEvent) {
       if (isTypingInInput()) return;
       if (e.key === "Escape") {
+        if (isSyncModalOpen) {
+          return;
+        }
         if (selectedEntry) {
           setSelectedEntry(null);
           e.preventDefault();
@@ -639,7 +644,7 @@ export default function App() {
     }
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [selectedEntry, voiceCaptureOpen, isSearchOpen]);
+  }, [selectedEntry, voiceCaptureOpen, isSearchOpen, isSyncModalOpen]);
 
   const EPHEMERAL_WINDOW_MS = 15_000;
   const SETTLING_DURATION_MS = 200;
@@ -1023,40 +1028,55 @@ export default function App() {
                 </span>
               )}
             </div>
-            {import.meta.env.DEV && introDismissed && getDevSimulateNewUser() && (
-              <span
-                className="dev-simulate-banner text-xs text-[var(--muted)]"
-                aria-live="polite"
-              >
-                Simulating new user — data intact
-              </span>
-            )}
-            {import.meta.env.DEV && introDismissed && (
-              <>
-                <Button
+            <div className="app-header-end">
+              {isFirebaseSyncConfigured() && introDismissed ? (
+                <button
                   type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="dev-preview-resurface text-[var(--muted)] hover:text-[var(--fg-dim)] text-xs"
-                  onClick={handleDevPreviewResurface}
-                  aria-label="Preview resurfaced overlay (dev)"
+                  className="app-header-sync"
+                  onClick={() => {
+                    track({ event: "sync_modal_opened" });
+                    setIsSyncModalOpen(true);
+                  }}
+                  aria-label="Phone sync with mobile app"
                 >
-                  Preview resurface
-                </Button>
-                {entries.length > 0 ? (
+                  Sync
+                </button>
+              ) : null}
+              {import.meta.env.DEV && introDismissed && getDevSimulateNewUser() && (
+                <span
+                  className="dev-simulate-banner text-xs text-[var(--muted)]"
+                  aria-live="polite"
+                >
+                  Simulating new user — data intact
+                </span>
+              )}
+              {import.meta.env.DEV && introDismissed && (
+                <>
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="dev-delete-all-thoughts text-[var(--muted)] hover:text-[var(--fg-dim)] text-xs"
-                    onClick={() => void handleDevDeleteAllThoughts()}
-                    aria-label="Delete all thoughts from database (dev)"
+                    className="dev-preview-resurface text-[var(--muted)] hover:text-[var(--fg-dim)] text-xs"
+                    onClick={handleDevPreviewResurface}
+                    aria-label="Preview resurfaced overlay (dev)"
                   >
-                    Delete all thoughts
+                    Preview resurface
                   </Button>
-                ) : null}
-              </>
-            )}
+                  {entries.length > 0 ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="dev-delete-all-thoughts text-[var(--muted)] hover:text-[var(--fg-dim)] text-xs"
+                      onClick={() => void handleDevDeleteAllThoughts()}
+                      aria-label="Delete all thoughts from database (dev)"
+                    >
+                      Delete all thoughts
+                    </Button>
+                  ) : null}
+                </>
+              )}
+            </div>
           </header>
           {isSearchOpen && (
             <div
@@ -1252,6 +1272,9 @@ export default function App() {
       )}
       {showAnalyticsModal && (
         <AnalyticsOptInModal onClose={() => setShowAnalyticsModal(false)} />
+      )}
+      {isSyncModalOpen && isFirebaseSyncConfigured() && (
+        <SyncModal onClose={() => setIsSyncModalOpen(false)} />
       )}
       {isChinottoCardOpen && (
         <ChinottoCard

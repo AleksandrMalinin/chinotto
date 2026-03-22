@@ -1480,6 +1480,71 @@ body.welcome .app-bg {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.sync-modal-dev-hint {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+.sync-modal-busy {
+  margin: 0 0 0.75rem !important;
+  font-size: 12px !important;
+  color: var(--landing-foreground) !important;
+}
+
+.sync-modal-error {
+  margin: 0.75rem 0 0 !important;
+  font-size: 12px !important;
+  color: var(--landing-muted) !important;
+}
+
+.sync-modal-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin-top: 1rem;
+}
+
+.sync-modal-footer-links .analytics-optin-learn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.app-header-end {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.5rem;
+}
+
+.app-header-sync {
+  padding: 0.25rem 0.5rem;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--fg-dim);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color var(--transition), border-color var(--transition), background var(--transition);
+}
+
+.app-header-sync:hover,
+.app-header-sync:focus-visible {
+  color: var(--fg);
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.app-header-sync:focus-visible {
+  outline: 1px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
 /* Voice capture overlay – minimal centered prompt */
 .voice-capture-overlay {
   position: fixed;
