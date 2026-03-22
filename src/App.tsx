@@ -64,6 +64,8 @@ import {
 import { UpdateNudge } from "@/components/UpdateNudge";
 import { APP_VERSION } from "@/lib/appVersion";
 import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
+import { isFirebaseSyncConfigured } from "@/lib/firebaseConfig";
+import { startDesktopFirestoreIngest } from "@/lib/desktopFirestoreSync";
 
 /** Voice capture is disabled in the main flow. Set to true to re-enable as an experimental feature. */
 const EXPERIMENTAL_VOICE_CAPTURE = false;
@@ -144,6 +146,8 @@ export default function App() {
   const [searchSelectedIndex, setSearchSelectedIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const entryInputRef = useRef<EntryInputRef>(null);
+  const searchRef = useRef(search);
+  searchRef.current = search;
   const devDeleteAllThoughtsRef = useRef<(() => Promise<void>) | null>(null);
   const headerLogoRef = useRef<HTMLButtonElement>(null);
   const shownThisSessionRef = useRef(false);
@@ -209,6 +213,15 @@ export default function App() {
     const t = setTimeout(() => refresh(search), 120);
     return () => clearTimeout(t);
   }, [search, refresh]);
+
+  useEffect(() => {
+    if (!isFirebaseSyncConfigured()) {
+      return undefined;
+    }
+    return startDesktopFirestoreIngest(() => {
+      void refresh(searchRef.current);
+    });
+  }, [refresh]);
 
   const { pinnedEntries, streamEntries } = useMemo(() => {
     const pinnedEntries = pinnedIds

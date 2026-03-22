@@ -77,3 +77,10 @@ export async function deleteEntry(entryId: string): Promise<void> {
 export async function deleteAllEntries(): Promise<void> {
   return invoke("delete_all_entries", {});
 }
+
+/** Firestore pull ingest (SYNC.md). Returns count of newly inserted rows. */
+export async function ingestFirestoreEntries(
+  entries: { id: string; text: string; createdAt: string }[]
+): Promise<number> {
+  return invoke<number>("ingest_firestore_entries", { entries });
+}

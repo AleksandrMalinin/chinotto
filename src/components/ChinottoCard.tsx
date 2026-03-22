@@ -9,6 +9,7 @@ import { setDesktopIcon } from "@/lib/setDesktopIcon";
 import { isOptIn, setOptIn } from "@/lib/analytics";
 import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
 import { APP_VERSION } from "@/lib/appVersion";
+import { EnableSyncSection } from "@/components/EnableSyncSection";
 
 type ShortcutRow = {
   keys: string;
@@ -149,6 +150,8 @@ export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Pr
               })}
             </div>
           </section>
+
+          <EnableSyncSection />
 
           <section className="chinotto-card-section" aria-labelledby="chinotto-card-privacy-title">
             <h2 id="chinotto-card-privacy-title" className="chinotto-card-section-title">PRIVACY</h2>
