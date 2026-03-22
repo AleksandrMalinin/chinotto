@@ -106,6 +106,33 @@ impl Db {
         Ok(())
     }
 
+    /// Firestore ingest (SYNC.md): insert only when `id` is new; idempotent on retries.
+    /// Skips empty text or unparseable `created_at` (RFC3339).
+    pub fn ingest_firestore_entries(
+        &self,
+        entries: &[(String, String, String)],
+    ) -> Result<u32, rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let mut inserted: u32 = 0;
+        for (id, text, created_at) in entries {
+            let trimmed = text.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            if chrono::DateTime::parse_from_rfc3339(created_at).is_err() {
+                continue;
+            }
+            let n = conn.execute(
+                "INSERT OR IGNORE INTO entries (id, text, created_at) VALUES (?1, ?2, ?3)",
+                [id.as_str(), trimmed, created_at.as_str()],
+            )?;
+            if n > 0 {
+                inserted += 1;
+            }
+        }
+        Ok(inserted)
+    }
+
     pub fn update_entry_text(&self, id: &str, text: &str) -> Result<(), rusqlite::Error> {
         let conn = self.0.lock().unwrap();
         conn.execute(
@@ -127,7 +154,7 @@ impl Db {
     pub fn list_entries(&self) -> Result<Vec<EntryRow>, rusqlite::Error> {
         let conn = self.0.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, text, created_at, COALESCE(edit_count, 0), COALESCE(open_count, 0) FROM entries ORDER BY created_at DESC",
+            "SELECT id, text, created_at, COALESCE(edit_count, 0), COALESCE(open_count, 0) FROM entries ORDER BY created_at DESC, id ASC",
         )?;
         let rows = stmt.query_map([], |r| {
             Ok(EntryRow {
@@ -416,6 +443,38 @@ mod tests {
         let db = db_with_entries(&[("1", "1:1 with Sarah re: roadmap alignment")]);
         let ids = search_ids(&db, "xyznonexistent");
         assert!(ids.is_empty(), "query with no matches should return empty");
+    }
+
+    #[test]
+    fn firestore_ingest_skips_duplicate_id() {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        db.create_entry("a", "local", "2025-01-01T12:00:00Z")
+            .unwrap();
+        let n = db
+            .ingest_firestore_entries(&[(
+                "a".to_string(),
+                "remote".to_string(),
+                "2025-02-01T12:00:00Z".to_string(),
+            )])
+            .unwrap();
+        assert_eq!(n, 0);
+        let row = db.get_entry_by_id("a").unwrap().unwrap();
+        assert_eq!(row.text, "local");
+    }
+
+    #[test]
+    fn firestore_ingest_inserts_new_id() {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        let n = db
+            .ingest_firestore_entries(&[(
+                "x".to_string(),
+                "from cloud".to_string(),
+                "2025-03-10T08:30:00.000Z".to_string(),
+            )])
+            .unwrap();
+        assert_eq!(n, 1);
+        let row = db.get_entry_by_id("x").unwrap().unwrap();
+        assert_eq!(row.text, "from cloud");
     }
 
     #[test]

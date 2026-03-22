@@ -1,6 +1,7 @@
 mod db;
 mod embeddings;
 mod keywords;
+mod oauth_dev_bridge;
 mod recall;
 
 #[cfg(test)]
@@ -87,6 +88,28 @@ const IMPORTANCE_BOOST_WEIGHT: f64 = 0.08;
 
 fn importance_boost(importance: f64) -> f64 {
     1.0 + IMPORTANCE_BOOST_WEIGHT * importance
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FirestoreEntryIn {
+    id: String,
+    text: String,
+    created_at: String,
+}
+
+/// Ingest remote entries (Firestore pull). Idempotent per SYNC.md: existing `id` skipped.
+#[tauri::command]
+fn ingest_firestore_entries(
+    db: tauri::State<Db>,
+    entries: Vec<FirestoreEntryIn>,
+) -> Result<u32, String> {
+    let batch: Vec<(String, String, String)> = entries
+        .into_iter()
+        .map(|e| (e.id, e.text, e.created_at))
+        .collect();
+    db.ingest_firestore_entries(&batch)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -766,6 +789,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            oauth_dev_bridge::start_oauth_dev_bridge_listener,
+            ingest_firestore_entries,
             create_entry,
             restore_entry,
             update_entry,
