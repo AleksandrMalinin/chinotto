@@ -19,7 +19,7 @@ This file defines how agents must behave when working in the Chinotto repository
 - A productivity suite, task manager, or project tool.
 - A notes app with folders, pages, or documents.
 - A markdown editor, kanban, or template system.
-- A sync/collab/cloud product (MVP has no auth, no sync, no cloud).
+- A sync/collab/cloud product as the default (optional Firebase pull sync may be configured; core capture/search stay local-first).
 - An AI-first product. AI may be used where it helps; the app must remain useful and understandable without it. No gimmicky or vague AI features that obscure core behavior.
 
 Do not propose or implement features that contradict the above. When in doubt, prefer the minimal interpretation.
@@ -62,7 +62,7 @@ Do not propose or implement features that contradict the above. When in doubt, p
 - **Scope creep.** No “and we could also…” unless the user asked for it. No adding docs, tests, or refactors “for completeness” unless that was the task.
 - **Vague or gimmicky AI.** No placeholders like “AI-powered search” or “smart suggestions” without a concrete design and acceptance that the app stays useful without them. No wording that sounds like marketing.
 - **Over-engineering.** No premature abstractions, no “framework” patterns, no layers that don’t yet have a concrete use. No generic “service” or “manager” classes unless they consolidate real duplication.
-- **Ignoring constraints.** No sync, auth, cloud, pages, folders, documents, tasks, kanban, or templates in MVP. No new runtimes or targets (e.g. mobile, web) unless explicitly requested.
+- **Ignoring constraints.** No mandatory cloud, no Chinotto accounts, no collaboration. Optional Firestore ingest when env is set (`docs/firestore-sync.md`). No pages, folders, documents, tasks, kanban, or templates in MVP. No new runtimes or targets (e.g. mobile shell) unless explicitly requested.
 - **Breaking the contract.** Do not change Tauri command names, Entry shape, or frontend–backend invocation pattern without explicit requirement. Do not suggest commits that violate `docs/commit-convention.md`.
 - **Motivational or filler language.** In code comments, commits, and docs: no “awesome,” “nice,” “simple but powerful,” or similar. Be factual.
 

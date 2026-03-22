@@ -12,9 +12,9 @@ Capture it instantly — without projects, folders, or workspaces.
 
 Structure can come later — when you revisit.
 
-Local-first. Desktop only. No cloud, no accounts, no sync.
+Local-first. Desktop only. Optional **device sync** with the mobile app via Firebase (Sign in with Apple) when you configure env vars — see `docs/firestore-sync.md`.
 
-Your entries stay on your device and are never sent elsewhere.  
+Your entries stay local; analytics never include thought text.  
 Export them anytime.
 
 ## Run locally
