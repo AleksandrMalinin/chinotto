@@ -3,6 +3,7 @@ import "@fontsource/open-sauce-one/500.css";
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { TrayCapturePanel } from "./features/entries/TrayCapturePanel";
 import { IconVariantShowcase } from "./components/IconVariantShowcase";
 import { setUmami } from "./lib/analytics";
 import "./index.css";
@@ -35,8 +36,21 @@ function Root() {
   return <App />;
 }
 
+function isTrayCaptureSurface(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.location.hash === "#tray-capture";
+}
+
 createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <Root />
-  </StrictMode>
+  isTrayCaptureSurface() ? (
+    <StrictMode>
+      <div className="tray-capture-root">
+        <TrayCapturePanel />
+      </div>
+    </StrictMode>
+  ) : (
+    <StrictMode>
+      <Root />
+    </StrictMode>
+  )
 );
