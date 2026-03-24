@@ -509,6 +509,15 @@ export default function App() {
   }, [selectedEntry, isSearchOpen, isChinottoCardOpen]);
 
   useEffect(() => {
+    const unlistenTraySave = listen("chinotto-tray-entry-saved", () => {
+      void refresh(search);
+    });
+    return () => {
+      unlistenTraySave.then((u) => u());
+    };
+  }, [search, refresh]);
+
+  useEffect(() => {
     if (import.meta.env.DEV) {
       function onKeyDown(e: KeyboardEvent) {
         if (isTypingInInput()) return;

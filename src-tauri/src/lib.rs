@@ -9,6 +9,9 @@ mod thought_trail;
 #[cfg(target_os = "macos")]
 mod speech;
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod tray_capture;
+
 use base64::Engine;
 use chrono::TimeZone;
 use db::Db;
@@ -763,6 +766,8 @@ pub fn run() {
                 app.manage(SpeechCommandTx(Arc::new(cmd_tx)));
                 std::thread::spawn(move || speech::run_speech_loop(cmd_rx));
             }
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            tray_capture::setup(app)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
