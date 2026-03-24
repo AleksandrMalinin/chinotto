@@ -12,5 +12,8 @@ Why this change is needed now.
 - [ ] Verified manually
 - [ ] Added/updated tests (if needed)
 
+## Demo (optional)
+- Screenshot / GIF / short video:
+
 ## Notes
 Anything reviewers should know (tradeoffs, follow-ups, risks).
