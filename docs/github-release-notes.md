@@ -4,6 +4,12 @@ These sections feed the **GitHub Release** description in CI (see `.github/workf
 
 Add **`## vX.Y.Z`** before you push tag **`vX.Y.Z`**.
 
+## v1.1.0
+
+* **Menu bar tray:** added native tray integration in `src-tauri/src/tray_capture.rs` with left-click quick capture toggle and template icon handling on macOS
+* **Quick capture popup:** shipped dedicated `capture-popover` UI (`src/features/entries/TrayCapturePanel.tsx`, `src/main.tsx`, `src/index.css`) as a compact single-row input with secondary open-app action
+* **Platform wiring:** enabled tray/macOS private API features, added transparent popover window config in `src-tauri/tauri.conf.json`, and updated `core:window` permissions in `src-tauri/capabilities/default.json`
+
 ## v1.0.0
 
 * **Empty stream / onboarding:** `StreamFlowPanel` + progressive empty-stream onboarding in `EntryStream.tsx`; `hasEverSavedThought` / `streamOnboarding.ts`; capture `onDraftChange` wiring; intro gradient headline, proceed hint, press-any-key copy; design-system + recall guardrail doc updates
