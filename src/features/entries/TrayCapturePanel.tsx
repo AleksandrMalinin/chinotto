@@ -12,6 +12,9 @@ import { setHasEverSavedThought } from "@/lib/streamOnboarding";
 /** Fully transparent host; rounded chrome is only the HTML card (no native popover material). */
 const TRAY_CAPTURE_CHROME_RGBA: [number, number, number, number] = [0, 0, 0, 0];
 
+/** After tray `show`/`set_focus`, macOS can deliver a spurious blur before focus settles; hide only after this delay and a fresh `isFocused()` check. */
+const BLUR_HIDE_MS = 280;
+
 /**
  * Single-field capture for the menu bar popover window only.
  * Enter saves and closes; Esc closes without saving; focus loss hides the window.
@@ -70,8 +73,11 @@ export function TrayCapturePanel() {
       }
       hideTimerRef.current = setTimeout(() => {
         hideTimerRef.current = null;
-        void appWindow.hide();
-      }, 120);
+        void (async () => {
+          const stillFocused = await appWindow.isFocused().catch(() => true);
+          if (!stillFocused) void appWindow.hide();
+        })();
+      }, BLUR_HIDE_MS);
     }).then((fn) => {
       unlisten = fn;
     });
