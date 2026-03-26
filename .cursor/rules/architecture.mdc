@@ -13,7 +13,7 @@ alwaysApply: true
 - `docs/` – Product and architecture
 
 **Contract (do not change without explicit requirement):**
-- Frontend calls Tauri via `invoke()`: `create_entry`, `list_entries`, `search_entries`
+- Frontend calls Tauri via `invoke()`: `create_entry`, `list_entries`, `search_entries` (full command surface in `docs/architecture.md`)
 - Entry: `id`, `text`, `created_at` (string ISO 8601 UTC)
 - Data: local SQLite only; no network for core flows
 

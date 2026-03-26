@@ -52,6 +52,7 @@ What the app does today. Single source of truth for “do we have this?” and �
 | **Capture** | Open app → input focused → type → **Enter** creates a new entry. One stream, no folders. |
 | **Stream** | Entries in reverse chronological order (newest first). Click an entry to open detail. |
 | **Search** | **Cmd+K** (Mac) / **Ctrl+K** (Win/Linux) opens search. Full-text search (FTS5) across all entries. Escape or clear query to return to stream. |
+| **Jump to date** | Calendar icon (and **Cmd+Shift+J** / **Ctrl+Shift+J**) opens a compact month popover. Pick a day that has entries → stream scrolls there; quiet date label and **Back to now** return to the top. Same full stream—no date filter or archive mode. |
 
 ### Empty stream onboarding
 
@@ -113,6 +114,7 @@ When the **main stream has no entries** (unpinned stream only; not the “no sea
 | Enter | Save thought (from capture input) |
 | ⌘ P | Pin thought (hovered/focused entry) |
 | ⌘ K | Search |
+| ⌘ ⇧ J | Jump to date (toggle popover) |
 | ⌘ ⌫ (Backspace) | Delete thought (hovered entry) |
 | ⌘ E | Edit hovered/focused entry |
 | Esc | Close overlays / back to stream |
