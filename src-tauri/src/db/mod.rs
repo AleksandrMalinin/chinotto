@@ -84,11 +84,31 @@ fn ensure_importance_columns(conn: &Connection) -> Result<(), rusqlite::Error> {
     Ok(())
 }
 
+fn ensure_updated_at_column(conn: &Connection) -> Result<(), rusqlite::Error> {
+    let has_column = conn.query_row(
+        "SELECT 1 FROM pragma_table_info('entries') WHERE name = 'updated_at'",
+        [],
+        |r| r.get::<_, i32>(0),
+    );
+    if !matches!(has_column, Ok(1)) {
+        conn.execute(
+            "ALTER TABLE entries ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''",
+            [],
+        )?;
+        conn.execute(
+            "UPDATE entries SET updated_at = created_at WHERE updated_at = ''",
+            [],
+        )?;
+    }
+    Ok(())
+}
+
 impl Db {
     pub fn open(path: PathBuf) -> Result<Self, rusqlite::Error> {
         let conn = Connection::open(path)?;
         schema::run_migrations(&conn)?;
         ensure_importance_columns(&conn)?;
+        ensure_updated_at_column(&conn)?;
         Ok(Self(Mutex::new(conn)))
     }
 
@@ -100,7 +120,7 @@ impl Db {
     ) -> Result<(), rusqlite::Error> {
         let conn = self.0.lock().unwrap();
         conn.execute(
-            "INSERT INTO entries (id, text, created_at) VALUES (?1, ?2, ?3)",
+            "INSERT INTO entries (id, text, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)",
             [id, text, created_at],
         )?;
         Ok(())
@@ -108,9 +128,10 @@ impl Db {
 
     pub fn update_entry_text(&self, id: &str, text: &str) -> Result<(), rusqlite::Error> {
         let conn = self.0.lock().unwrap();
+        let updated_at = chrono::Utc::now().to_rfc3339();
         conn.execute(
-            "UPDATE entries SET text = ?1, edit_count = COALESCE(edit_count, 0) + 1 WHERE id = ?2",
-            [text, id],
+            "UPDATE entries SET text = ?1, updated_at = ?2, edit_count = COALESCE(edit_count, 0) + 1 WHERE id = ?3",
+            rusqlite::params![text, updated_at, id],
         )?;
         Ok(())
     }

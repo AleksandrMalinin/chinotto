@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS entries (
   id TEXT PRIMARY KEY,
   text TEXT NOT NULL,
   created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
   edit_count INTEGER DEFAULT 0,
   open_count INTEGER DEFAULT 0
 );
