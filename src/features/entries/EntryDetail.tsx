@@ -1,7 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { Entry } from "../../types/entry";
 import { Button } from "@/components/ui/button";
-import { EntryTextWithLinks } from "./EntryTextWithLinks";
 import { track } from "@/lib/analytics";
 import { findSimilarEntries, getThoughtTrail } from "./entryApi";
 
@@ -9,6 +8,7 @@ type Props = {
   entry: Entry;
   onBack: () => void;
   onSelectEntry: (entry: Entry) => void;
+  onEntryTextChange: (entryId: string, text: string) => void;
 };
 
 function formatTimestamp(iso: string): string {
@@ -37,11 +37,24 @@ function relativeToCurrent(
   return `${days} day${days === 1 ? "" : "s"} later`;
 }
 
-export function EntryDetail({ entry, onBack, onSelectEntry }: Props) {
+export function EntryDetail({ entry, onBack, onSelectEntry, onEntryTextChange }: Props) {
   const [related, setRelated] = useState<Entry[]>([]);
   const [relatedLoading, setRelatedLoading] = useState(true);
   const [trail, setTrail] = useState<Entry[]>([]);
   const [trailLoading, setTrailLoading] = useState(true);
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  const hasInsertedContinuationBreakRef = useRef(false);
+
+  useEffect(() => {
+    hasInsertedContinuationBreakRef.current = false;
+  }, [entry.id]);
+
+  useEffect(() => {
+    const el = textRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.max(el.scrollHeight, 24)}px`;
+  }, [entry.text]);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +70,18 @@ export function EntryDetail({ entry, onBack, onSelectEntry }: Props) {
       cancelled = true;
     };
   }, [entry.id]);
+
+  const moveCaretToEnd = () => {
+    const el = textRef.current;
+    if (!el) return;
+    const end = el.value.length;
+    el.setSelectionRange(end, end);
+  };
+
+  const beginExitToStream = () => {
+    textRef.current?.blur();
+    onBack();
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -83,7 +108,7 @@ export function EntryDetail({ entry, onBack, onSelectEntry }: Props) {
         variant="ghost"
         size="sm"
         className="entry-detail-back mb-7 h-auto min-h-0 px-0 py-1"
-        onClick={onBack}
+        onClick={beginExitToStream}
         aria-label="Back to stream"
       >
         ←
@@ -91,7 +116,66 @@ export function EntryDetail({ entry, onBack, onSelectEntry }: Props) {
       <time className="entry-detail-time" dateTime={entry.created_at}>
         {formatTimestamp(entry.created_at)}
       </time>
-      <EntryTextWithLinks text={entry.text} variant="detail" />
+      <textarea
+        ref={textRef}
+        className="entry-detail-editable"
+        aria-label="Thought text"
+        value={entry.text}
+        rows={1}
+        onFocus={moveCaretToEnd}
+        onClick={(e) => {
+          if (e.currentTarget !== document.activeElement) {
+            moveCaretToEnd();
+          }
+        }}
+        onInput={(e) => {
+          const el = e.currentTarget;
+          el.style.height = "auto";
+          el.style.height = `${Math.max(el.scrollHeight, 24)}px`;
+        }}
+        onBeforeInput={(e) => {
+          if (hasInsertedContinuationBreakRef.current) return;
+          const native = e.nativeEvent as InputEvent;
+          if (native.inputType !== "insertText" || !native.data) return;
+          const el = e.currentTarget;
+          const caretAtEnd =
+            el.selectionStart === el.value.length &&
+            el.selectionEnd === el.value.length;
+          if (!caretAtEnd || el.value.length === 0 || el.value.endsWith("\n")) return;
+          e.preventDefault();
+          hasInsertedContinuationBreakRef.current = true;
+          const end = el.value.length;
+          el.setRangeText(`\n${native.data}`, end, end, "end");
+          onEntryTextChange(entry.id, el.value);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            e.currentTarget.blur();
+            return;
+          }
+        }}
+        onPaste={(e) => {
+          const el = e.currentTarget;
+          const pasted = e.clipboardData.getData("text");
+          const caretAtEnd =
+            el.selectionStart === el.value.length &&
+            el.selectionEnd === el.value.length;
+          if (
+            pasted.length > 0 &&
+            caretAtEnd &&
+            el.value.length > 0 &&
+            !el.value.endsWith("\n") &&
+            !hasInsertedContinuationBreakRef.current
+          ) {
+            e.preventDefault();
+            hasInsertedContinuationBreakRef.current = true;
+            onEntryTextChange(entry.id, `${el.value}\n${pasted}`);
+            requestAnimationFrame(moveCaretToEnd);
+          }
+        }}
+        onChange={(e) => onEntryTextChange(entry.id, e.target.value)}
+      />
       {trailLoading ? null : trail.length > 1 ? (
         <section className="entry-detail-trail" aria-label="Thought trail">
           <h2 className="entry-detail-trail-title">Thought trail</h2>

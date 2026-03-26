@@ -1,5 +1,5 @@
 /**
- * Component tests for EntryTextWithLinks: rendering of plain text, links, domain badge,
+ * Component tests for EntryTextWithLinks: rendering of plain text, links, detail domain badge,
  * and link interaction (openUrl called, parent click not triggered).
  */
 /// <reference types="@testing-library/jest-dom/vitest" />
@@ -48,13 +48,11 @@ describe("EntryTextWithLinks", () => {
     expect(screen.getByText("openai.com/docs")).toBeInTheDocument();
   });
 
-  it("shows domain badge only when there is exactly one URL and other text", () => {
+  it("stream variant does not show domain badge", () => {
     const { container } = render(
       <EntryTextWithLinks text="Read this https://linear.app/blog" variant="stream" />
     );
-    const badge = container.querySelector(".entry-domain-badge");
-    expect(badge).toBeInTheDocument();
-    expect(badge).toHaveTextContent("linear.app");
+    expect(container.querySelector(".entry-domain-badge")).not.toBeInTheDocument();
   });
 
   it("does not show domain badge when the entry text is exactly the URL", () => {
@@ -71,13 +69,13 @@ describe("EntryTextWithLinks", () => {
     expect(container.querySelector(".entry-domain-badge")).not.toBeInTheDocument();
   });
 
-  it("stream variant renders with entry-row-text and optional badge", () => {
+  it("stream variant renders with entry-row-text and no badge", () => {
     const { container } = render(
       <EntryTextWithLinks text="See https://example.com" variant="stream" />
     );
     const rowText = container.querySelector(".entry-row-text");
     expect(rowText).toBeInTheDocument();
-    expect(container.querySelector(".entry-domain-badge")).toHaveTextContent("example.com");
+    expect(container.querySelector(".entry-domain-badge")).not.toBeInTheDocument();
   });
 
   it("detail variant renders with entry-detail-text and optional badge", () => {
@@ -148,16 +146,23 @@ describe("EntryTextWithLinks", () => {
         text: "Read this https://detail-link.com/doc",
         created_at: "2025-01-15T12:00:00Z",
       };
+      const onEntryTextChange = vi.fn();
       render(
         <EntryDetail
           entry={entry}
           onBack={() => {}}
           onSelectEntry={() => {}}
+          onEntryTextChange={onEntryTextChange}
         />
       );
-      const link = screen.getByRole("link", { name: /detail-link\.com\/doc/ });
-      fireEvent.click(link);
-      expect(openUrl).toHaveBeenCalledWith("https://detail-link.com/doc");
+      const thoughtInput = screen.getByLabelText("Thought text");
+      fireEvent.change(thoughtInput, {
+        target: { value: "Read this https://detail-link.com/doc\ncontinued" },
+      });
+      expect(onEntryTextChange).toHaveBeenCalledWith(
+        "e1",
+        "Read this https://detail-link.com/doc\ncontinued"
+      );
     });
   });
 
@@ -177,7 +182,7 @@ describe("EntryTextWithLinks", () => {
       expect(container.querySelector(".entry-domain-badge")).not.toBeInTheDocument();
     });
 
-    it("entry containing text plus one URL in stream has clickable link and domain badge below", () => {
+    it("entry containing text plus one URL in stream has clickable link and no domain badge", () => {
       const entry: Entry = {
         id: "e1",
         text: "Read this https://linear.app/blog",
@@ -189,9 +194,7 @@ describe("EntryTextWithLinks", () => {
       const link = screen.getByRole("link", { name: /linear\.app\/blog/ });
       expect(link).toBeInTheDocument();
       expect(link).toHaveAttribute("href", "https://linear.app/blog");
-      const badge = container.querySelector(".entry-domain-badge");
-      expect(badge).toBeInTheDocument();
-      expect(badge).toHaveTextContent("linear.app");
+      expect(container.querySelector(".entry-domain-badge")).not.toBeInTheDocument();
     });
 
     it("entry detail preserves same link and badge rules as stream", () => {
@@ -206,25 +209,28 @@ describe("EntryTextWithLinks", () => {
         created_at: "2025-01-15T12:00:00Z",
       };
 
-      const { container: detailWithContext } = render(
+      render(
         <EntryDetail
           entry={entryWithContext}
           onBack={() => {}}
           onSelectEntry={() => {}}
+          onEntryTextChange={() => {}}
         />
       );
-      expect(screen.getByRole("link", { name: /example\.com\/resource/ })).toBeInTheDocument();
-      expect(detailWithContext.querySelector(".entry-domain-badge")).toHaveTextContent("example.com");
+      expect(screen.getByLabelText("Thought text")).toHaveValue(
+        "Check out https://example.com/resource"
+      );
 
-      const { container: detailOnlyUrl } = render(
+      render(
         <EntryDetail
           entry={entryOnlyUrl}
           onBack={() => {}}
           onSelectEntry={() => {}}
+          onEntryTextChange={() => {}}
         />
       );
-      expect(screen.getByRole("link", { name: /example\.com\/only/ })).toBeInTheDocument();
-      expect(detailOnlyUrl.querySelector(".entry-domain-badge")).not.toBeInTheDocument();
+      const inputs = screen.getAllByLabelText("Thought text");
+      expect(inputs[1]).toHaveValue("https://example.com/only");
     });
 
     it("clicking link in stream opens external URL and does not trigger entry row", () => {

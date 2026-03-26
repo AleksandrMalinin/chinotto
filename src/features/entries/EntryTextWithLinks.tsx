@@ -51,10 +51,5 @@ export function EntryTextWithLinks({ text, variant }: Props) {
     );
   }
 
-  return (
-    <>
-      <p className="entry-row-text">{content}</p>
-      {singleHostname && <span className="entry-domain-badge">{singleHostname}</span>}
-    </>
-  );
+  return <p className="entry-row-text">{content}</p>;
 }

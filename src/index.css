@@ -2035,8 +2035,10 @@ body.welcome .app-bg {
   font-size: 16px;
   font-weight: 400;
   line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: normal;
   color: rgba(255, 255, 255, 0.9);
   transition: color var(--transition);
 }
@@ -2563,6 +2565,28 @@ body.welcome .app-bg {
 
 .entry-detail-text .entry-domain-badge {
   margin-top: 0.35rem;
+}
+
+.entry-detail-editable {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
+  hyphens: none;
+  font-family: inherit;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  resize: none;
+  overflow: hidden;
+  outline: none;
 }
 
 .entry-detail-trail {

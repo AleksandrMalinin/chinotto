@@ -150,6 +150,8 @@ export default function App() {
   const triedResurfaceOnOpenRef = useRef(false);
   const justAddedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ephemeralTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const detailSaveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const detailDraftsRef = useRef<Map<string, string>>(new Map());
   const prevStreamLenRef = useRef(0);
   const emptyOnboardingExitStartedRef = useRef(false);
   const [logoEndRect, setLogoEndRect] = useState<{
@@ -694,6 +696,40 @@ export default function App() {
     setSelectedEntry(entry);
   }, []);
 
+  const handleEntryDetailTextChange = useCallback((entryId: string, text: string) => {
+    setEntries((prev) => prev.map((e) => (e.id === entryId ? { ...e, text } : e)));
+    setSelectedEntry((prev) => (prev && prev.id === entryId ? { ...prev, text } : prev));
+    detailDraftsRef.current.set(entryId, text);
+    const existing = detailSaveTimersRef.current.get(entryId);
+    if (existing) clearTimeout(existing);
+    const t = setTimeout(() => {
+      detailSaveTimersRef.current.delete(entryId);
+      const latest = detailDraftsRef.current.get(entryId);
+      if (latest == null) return;
+      updateEntry(entryId, latest)
+        .then(() => {
+          if (detailDraftsRef.current.get(entryId) === latest) {
+            detailDraftsRef.current.delete(entryId);
+          }
+        })
+        .catch(() => {});
+    }, 300);
+    detailSaveTimersRef.current.set(entryId, t);
+  }, []);
+
+  const handleCloseEntryDetail = useCallback(() => {
+    const closingEntryId = selectedEntry?.id ?? null;
+    setSelectedEntry(null);
+    requestAnimationFrame(() => {
+      if (closingEntryId) {
+        const anchor = document.getElementById(`entry-${closingEntryId}`);
+        const row = anchor?.closest("article.entry-row");
+        row?.scrollIntoView({ block: "nearest" });
+      }
+      entryInputRef.current?.focus();
+    });
+  }, [selectedEntry?.id]);
+
   const refreshPinned = useCallback(() => {
     getPinnedEntryIds().then(setPinnedIds);
   }, []);
@@ -893,6 +929,12 @@ export default function App() {
     return () => {
       ephemeralTimersRef.current.forEach((t) => clearTimeout(t));
       ephemeralTimersRef.current.clear();
+      detailSaveTimersRef.current.forEach((t) => clearTimeout(t));
+      detailSaveTimersRef.current.clear();
+      detailDraftsRef.current.forEach((text, entryId) => {
+        updateEntry(entryId, text).catch(() => {});
+      });
+      detailDraftsRef.current.clear();
     };
   }, []);
 
@@ -1136,11 +1178,9 @@ export default function App() {
       ) : selectedEntry ? (
         <EntryDetail
           entry={selectedEntry}
-          onBack={() => {
-          setSelectedEntry(null);
-          requestAnimationFrame(() => entryInputRef.current?.focus());
-        }}
+          onBack={handleCloseEntryDetail}
           onSelectEntry={handleOpenEntry}
+          onEntryTextChange={handleEntryDetailTextChange}
         />
       ) : (
         <>
