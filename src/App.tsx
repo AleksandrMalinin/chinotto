@@ -67,6 +67,7 @@ import {
   shouldShowSearchTrigger,
 } from "@/lib/entryCatalogPresence";
 import { UpdateNudge } from "@/components/UpdateNudge";
+import { useJumpContextAutoClear } from "@/lib/useJumpContextAutoClear";
 import { APP_VERSION } from "@/lib/appVersion";
 import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
 
@@ -301,6 +302,18 @@ export default function App() {
     }, JUMP_CONTEXT_EXPANDED_MS);
     return () => clearTimeout(t);
   }, [jumpContextYmd, jumpContextExpanded]);
+
+  const clearJumpContext = useCallback(() => {
+    setJumpContextYmd(null);
+    setJumpContextExpanded(false);
+  }, []);
+
+  useJumpContextAutoClear({
+    jumpContextYmd,
+    clearJumpContext,
+    isSearchOpen,
+    selectedEntry,
+  });
 
   useEffect(() => {
     const len = streamEntries.length;
@@ -570,6 +583,7 @@ export default function App() {
       }
       if (jumpPopoverOpen) setJumpPopoverOpen(false);
       if (isChinottoCardOpen) setIsChinottoCardOpen(false);
+      clearJumpContext();
       requestAnimationFrame(() => {
         entryInputRef.current?.focus();
       });
@@ -577,7 +591,13 @@ export default function App() {
     return () => {
       unlistenCapture.then((u) => u());
     };
-  }, [selectedEntry, isSearchOpen, jumpPopoverOpen, isChinottoCardOpen]);
+  }, [
+    selectedEntry,
+    isSearchOpen,
+    jumpPopoverOpen,
+    isChinottoCardOpen,
+    clearJumpContext,
+  ]);
 
   useEffect(() => {
     const unlistenTraySave = listen("chinotto-tray-entry-saved", () => {
@@ -799,14 +819,13 @@ export default function App() {
   }, []);
 
   const handleJumpBackToNow = useCallback(() => {
-    setJumpContextYmd(null);
-    setJumpContextExpanded(false);
+    clearJumpContext();
     requestAnimationFrame(() => {
       const scroller = document.scrollingElement;
       scroller?.scrollTo({ top: 0, behavior: "smooth" });
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
-  }, []);
+  }, [clearJumpContext]);
 
   const handleOpenEntry = useCallback((entry: Entry) => {
     track({ event: "entry_opened" });
