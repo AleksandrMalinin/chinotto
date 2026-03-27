@@ -6,8 +6,6 @@ import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
 import type { Entry } from "../../types/entry";
 import { EntryTextWithLinks } from "./EntryTextWithLinks";
 
-type SectionKey = "Today" | "Yesterday" | "Earlier";
-
 const HIGHLIGHT_START = "\u0001";
 const HIGHLIGHT_END = "\u0002";
 
@@ -78,16 +76,24 @@ export type EntryStreamProps = {
   revealEmptyOnboarding?: boolean;
 };
 
-function getSectionKey(iso: string): SectionKey {
+function getSectionMeta(iso: string): { key: string; label: string } {
   const d = new Date(iso);
   const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const entryDay = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const entryDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const today = todayDate.getTime();
+  const entryDay = entryDate.getTime();
   const oneDay = 86400000;
   const diff = today - entryDay;
-  if (diff === 0) return "Today";
-  if (diff === oneDay) return "Yesterday";
-  return "Earlier";
+  if (diff === 0) return { key: "today", label: "Today" };
+  if (diff === oneDay) return { key: "yesterday", label: "Yesterday" };
+  const key = `${entryDate.getFullYear()}-${String(entryDate.getMonth() + 1).padStart(2, "0")}-${String(entryDate.getDate()).padStart(2, "0")}`;
+  const label = entryDate.toLocaleDateString(undefined, {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  return { key, label };
 }
 
 function formatTime(iso: string): string {
@@ -96,8 +102,6 @@ function formatTime(iso: string): string {
     minute: "2-digit",
   });
 }
-
-const SECTION_ORDER: SectionKey[] = ["Today", "Yesterday", "Earlier"];
 
 const emptyOnboardingEase = [0.22, 1, 0.36, 1] as const;
 
@@ -227,19 +231,21 @@ function EmptyStreamOnboarding({
   );
 }
 
-function groupEntriesBySection(entries: Entry[]): { section: SectionKey; entries: Entry[] }[] {
-  const groups = new Map<SectionKey, Entry[]>();
-  for (const key of SECTION_ORDER) {
-    groups.set(key, []);
-  }
+function groupEntriesBySection(entries: Entry[]): { section: string; entries: Entry[] }[] {
+  const groups = new Map<string, Entry[]>();
+  const order: string[] = [];
   for (const entry of entries) {
-    const key = getSectionKey(entry.created_at);
+    const { key } = getSectionMeta(entry.created_at);
+    if (!groups.has(key)) {
+      groups.set(key, []);
+      order.push(key);
+    }
     groups.get(key)!.push(entry);
   }
-  return SECTION_ORDER.map((section) => ({
-    section,
-    entries: groups.get(section)!,
-  })).filter((g) => g.entries.length > 0);
+  return order.map((key) => ({
+    section: key === "today" ? "Today" : key === "yesterday" ? "Yesterday" : getSectionMeta(groups.get(key)![0].created_at).label,
+    entries: groups.get(key)!,
+  }));
 }
 
 const EntryRow = memo(function EntryRow({
@@ -497,7 +503,7 @@ function StreamSection({
   onDeleteAnimationEnd,
   onEntryHover,
 }: {
-  section: SectionKey | string;
+  section: string;
   entries: Entry[];
   showHighlights: boolean;
   justAddedEntryId: string | null | undefined;

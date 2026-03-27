@@ -224,6 +224,30 @@ fn list_entries(db: tauri::State<Db>) -> Result<Vec<EntryPayload>, String> {
         .collect())
 }
 
+#[tauri::command]
+fn jump_dates_in_month(
+    db: tauri::State<Db>,
+    year: i32,
+    month: u32,
+) -> Result<Vec<String>, String> {
+    if !(1970..=2100).contains(&year) || !(1..=12).contains(&month) {
+        return Err("invalid year or month".to_string());
+    }
+    db.local_entry_dates_in_month(year, month)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn jump_anchor_for_local_date(
+    db: tauri::State<Db>,
+    local_date: String,
+) -> Result<Option<String>, String> {
+    let target = chrono::NaiveDate::parse_from_str(&local_date, "%Y-%m-%d")
+        .map_err(|_| "invalid date (expected YYYY-MM-DD)".to_string())?;
+    db.jump_anchor_entry_id_for_local_date(target)
+        .map_err(|e| e.to_string())
+}
+
 /// Temporal recall: try 24h, 7d, 30d anchors (±3h window); fallback to random past entry.
 /// Delegates to recall::select_entry_for_resurface (pure, testable).
 #[tauri::command]
@@ -775,6 +799,8 @@ pub fn run() {
             restore_entry,
             update_entry,
             list_entries,
+            jump_dates_in_month,
+            jump_anchor_for_local_date,
             search_entries,
             run_native_speech_recognition,
             generate_embedding,

@@ -41,7 +41,7 @@ When a request pushes toward any of these, choose the minimal interpretation or 
 ## Preferred implementation behavior
 
 - **Read before changing.** Check `docs/`, existing code paths, and Tauri command contracts. Verify; don’t assume.
-- **Preserve contracts.** Frontend calls `create_entry`, `list_entries`, `search_entries`. Entry: `id`, `text`, `created_at`. Don’t change these without explicit requirement.
+- **Preserve contracts.** Core entry/search commands: `create_entry`, `list_entries`, `search_entries` (full list in `docs/architecture.md`). Entry: `id`, `text`, `created_at`. Don’t change the trio or Entry shape without explicit requirement.
 - **Smallest change that satisfies the ask.** Implement what’s requested. No “while I’m here” refactors or extra features. Refactor only when the user asks or when it’s the stated task.
 - **Match existing patterns.** Use the same invocation style, component structure, and file layout. New code goes in the right feature or `lib` area; no random new top-level folders or vague “utils.”
 - **Leave the tree buildable and runnable.** No broken imports, no dead commented code, no half-done work. If something is intentionally stubbed, say so briefly.

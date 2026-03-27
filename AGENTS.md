@@ -39,7 +39,7 @@ Do not propose or implement features that contradict the above. When in doubt, p
 ## Behavior expectations for agents
 
 - **Read before changing.** Use the codebase and `docs/` to understand current behavior and constraints. Do not assume; verify paths, APIs, and data shapes.
-- **Preserve existing contracts.** Frontend invokes Tauri commands (`create_entry`, `list_entries`, `search_entries`). Entry has `id`, `text`, `created_at`. Do not change these without explicit requirement and approval.
+- **Preserve existing contracts.** Frontend invokes Tauri commands (`create_entry`, `list_entries`, `search_entries`, and others in `docs/architecture.md`). Entry has `id`, `text`, `created_at`. Do not change the entry/search trio or Entry shape without explicit requirement and approval.
 - **Follow the commit convention.** All suggested commit messages must conform to `docs/commit-convention.md`: type(scope): imperative subject, one logical change, no vague or emotional wording.
 - **Do not invent product scope.** Do not add features (e.g. tags, folders, AI chat, sync) unless the user explicitly asks. If the user’s request conflicts with product constraints, state the conflict and ask.
 - **Prefer the smallest change.** Fix or add what’s asked. Avoid “while I’m here” refactors or scope creep. Refactors are separate from feature work unless the user asks for both.

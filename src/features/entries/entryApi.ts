@@ -49,6 +49,19 @@ export async function searchEntries(query: string): Promise<Entry[]> {
   return invoke<Entry[]>("search_entries", { query });
 }
 
+export async function jumpDatesInMonth(
+  year: number,
+  month: number
+): Promise<string[]> {
+  return invoke<string[]>("jump_dates_in_month", { year, month });
+}
+
+export async function jumpAnchorForLocalDate(
+  localDate: string
+): Promise<string | null> {
+  return invoke<string | null>("jump_anchor_for_local_date", { localDate });
+}
+
 export async function getThoughtTrail(entryId: string): Promise<Entry[]> {
   return invoke<Entry[]>("get_thought_trail", { entryId });
 }
