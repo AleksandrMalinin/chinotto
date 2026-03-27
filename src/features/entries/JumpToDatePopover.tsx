@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { track } from "@/lib/analytics";
 import { jumpDatesInMonth } from "./entryApi";
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"] as const;
@@ -48,6 +49,11 @@ export function JumpToDatePopover({
     () => new Set()
   );
   const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    if (!open) return;
+    track({ event: "jump_to_date_calendar_opened" });
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -180,6 +186,25 @@ export function JumpToDatePopover({
             const hasEntry = datesWithEntries.has(ymd);
             const isToday = ymd === todayYmd;
             const isContext = contextYmd != null && ymd === contextYmd;
+            const todayInStreamTop = isToday && hasEntry;
+            if (todayInStreamTop) {
+              return (
+                <span
+                  key={ymd}
+                  className={[
+                    "jump-date-cell",
+                    "jump-date-cell--today-at-top",
+                    isContext && "jump-date-cell--context",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  aria-current="date"
+                >
+                  <span className="jump-date-day-num">{day}</span>
+                  <span className="jump-date-dot" aria-hidden="true" />
+                </span>
+              );
+            }
             return (
               <button
                 key={ymd}
@@ -188,7 +213,7 @@ export function JumpToDatePopover({
                 className={[
                   "jump-date-cell",
                   hasEntry && "jump-date-cell--has-entry",
-                  isToday && "jump-date-cell--today",
+                  isToday && !hasEntry && "jump-date-cell--today",
                   isContext && "jump-date-cell--context",
                 ]
                   .filter(Boolean)

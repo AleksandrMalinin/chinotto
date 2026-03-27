@@ -51,7 +51,11 @@ import {
   markAsShown,
   mayAttemptResurface,
 } from "@/lib/resurfaceSession";
-import { getAnalyticsPromptShown, track } from "@/lib/analytics";
+import {
+  getAnalyticsPromptShown,
+  jumpDateDaysAgoMetric,
+  track,
+} from "@/lib/analytics";
 import {
   getDevSimulateNewUser,
   setDevSimulateNewUser,
@@ -111,6 +115,10 @@ function toLocalYmd(iso: string): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+function todayLocalYmd(): string {
+  return toLocalYmd(new Date().toISOString());
 }
 
 /** Dev-only: mock resurfaced entry so the overlay can be previewed when backend returns nothing */
@@ -801,22 +809,45 @@ export default function App() {
     });
   }
 
-  const handleJumpDatePick = useCallback(async (ymd: string) => {
-    if (getDevSimulateNewUser()) return;
-    const id = await jumpAnchorForLocalDate(ymd);
-    if (!id) return;
-    setJumpPopoverOpen(false);
-    setJumpContextYmd(ymd);
-    setJumpContextExpanded(true);
-    const runScroll = () => {
-      scrollJumpSectionIntoView(id);
-    };
-    requestAnimationFrame(() => {
-      requestAnimationFrame(runScroll);
-    });
-  }, []);
+  const handleJumpDatePick = useCallback(
+    async (ymd: string) => {
+      if (getDevSimulateNewUser()) return;
+      setJumpPopoverOpen(false);
+
+      if (ymd === todayLocalYmd()) {
+        clearJumpContext();
+        track({
+          event: "jump_to_date_completed",
+          days_ago: 0,
+        });
+        requestAnimationFrame(() => {
+          const scroller = document.scrollingElement;
+          scroller?.scrollTo({ top: 0, behavior: "smooth" });
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        });
+        return;
+      }
+
+      const id = await jumpAnchorForLocalDate(ymd);
+      if (!id) return;
+      track({
+        event: "jump_to_date_completed",
+        days_ago: jumpDateDaysAgoMetric(ymd),
+      });
+      setJumpContextYmd(ymd);
+      setJumpContextExpanded(true);
+      const runScroll = () => {
+        scrollJumpSectionIntoView(id);
+      };
+      requestAnimationFrame(() => {
+        requestAnimationFrame(runScroll);
+      });
+    },
+    [clearJumpContext]
+  );
 
   const handleJumpBackToNow = useCallback(() => {
+    track({ event: "jump_to_date_back_to_now" });
     clearJumpContext();
     requestAnimationFrame(() => {
       const scroller = document.scrollingElement;

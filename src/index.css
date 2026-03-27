@@ -902,8 +902,20 @@ body.welcome .app-bg {
   background: rgba(255, 255, 255, 0.06);
 }
 
-.jump-date-cell--today.jump-date-cell--has-entry {
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+/* Today with thoughts: visible in grid but not clickable (already top of stream). */
+.jump-date-cell--today-at-top {
+  color: rgba(255, 255, 255, 0.62);
+  cursor: default;
+  pointer-events: none;
+}
+
+.jump-date-cell--today-at-top .jump-date-dot {
+  opacity: 0.72;
+}
+
+.jump-date-cell--today-at-top.jump-date-cell--context {
+  background: rgba(120, 130, 200, 0.14);
+  box-shadow: 0 0 0 1px rgba(140, 150, 220, 0.22) inset;
 }
 
 .jump-date-cell--today:not(.jump-date-cell--has-entry) {
