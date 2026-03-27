@@ -67,6 +67,7 @@ import {
   shouldShowSearchTrigger,
 } from "@/lib/entryCatalogPresence";
 import { UpdateNudge } from "@/components/UpdateNudge";
+import { scrollJumpSectionIntoView } from "@/lib/scrollJumpSectionIntoView";
 import { useJumpContextAutoClear } from "@/lib/useJumpContextAutoClear";
 import { APP_VERSION } from "@/lib/appVersion";
 import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
@@ -808,10 +809,7 @@ export default function App() {
     setJumpContextYmd(ymd);
     setJumpContextExpanded(true);
     const runScroll = () => {
-      document.getElementById(`entry-${id}`)?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
+      scrollJumpSectionIntoView(id);
     };
     requestAnimationFrame(() => {
       requestAnimationFrame(runScroll);

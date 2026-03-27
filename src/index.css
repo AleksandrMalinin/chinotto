@@ -2121,6 +2121,8 @@ body.welcome .app-bg {
 
 .stream-section {
   margin-bottom: 1.5rem;
+  /* Jump-to-date / focus: ~STREAM_SECTION_TOP_OFFSET_REM in scrollJumpSectionIntoView.ts */
+  scroll-margin-top: 1.3rem;
 }
 
 .stream-section:last-child {
