@@ -19,6 +19,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  startAfter,
   Timestamp,
   where,
   type CollectionReference,
@@ -49,6 +50,8 @@ export type BridgedOAuthCredentialJson = {
 };
 
 const INGEST_PAGE_SIZE = 500;
+/** Matches mobile backfill cap (~20k docs). */
+const INGEST_BACKFILL_MAX_PAGES = 40;
 /** Tombstones are queried separately so deletes on older entries (outside the recent ingest window) still apply locally. */
 const TOMBSTONE_QUERY_LIMIT = 1000;
 
@@ -87,19 +90,30 @@ function getOrInitFirestore(): Firestore {
 
 export type SyncIngestRow = { id: string; text: string; createdAt: string };
 
-function normalizeCreatedAt(value: unknown): string | null {
+/** Exported for tests. Converts Firestore `createdAt` wire shapes to RFC3339 for Rust `ingest_firestore_entries`. */
+export function normalizeFirestoreCreatedAtForIngest(value: unknown): string | null {
   if (value == null) {
     return null;
   }
   if (typeof value === "string" && value.trim()) {
     return value.trim();
   }
-  if (
-    typeof value === "object" &&
-    "toDate" in value &&
-    typeof (value as { toDate: () => Date }).toDate === "function"
-  ) {
-    return (value as { toDate: () => Date }).toDate().toISOString();
+  if (typeof value === "object" && value !== null) {
+    const o = value as Record<string, unknown>;
+    if (typeof o.toDate === "function") {
+      const d = (o as { toDate: () => Date }).toDate();
+      if (d instanceof Date && !Number.isNaN(d.getTime())) {
+        return d.toISOString();
+      }
+      return null;
+    }
+    if (typeof o.seconds === "number" && Number.isFinite(o.seconds)) {
+      const nano =
+        typeof o.nanoseconds === "number" && Number.isFinite(o.nanoseconds)
+          ? o.nanoseconds
+          : 0;
+      return new Date(o.seconds * 1000 + nano / 1e6).toISOString();
+    }
   }
   return null;
 }
@@ -119,7 +133,7 @@ function partitionFirestoreSnapshotDocs(
     if (!text) {
       continue;
     }
-    const createdAt = normalizeCreatedAt(data.createdAt);
+    const createdAt = normalizeFirestoreCreatedAtForIngest(data.createdAt);
     if (!createdAt) {
       continue;
     }
@@ -153,6 +167,74 @@ function tombstoneQuery(coll: CollectionReference<DocumentData>) {
  * One-shot server read of tombstoned doc ids (same query as the tombstone listener).
  * Backs up onSnapshot when the listener errors, never attaches, or misses updates in Tauri.
  */
+/**
+ * Paginated `getDocs` for active-shaped docs outside the live `limit(500)` window (mobile parity).
+ * Idempotent with `INSERT OR IGNORE`; respects tombstone query ids and per-doc tombstone field.
+ */
+async function runFirestoreIngestBackfill(
+  coll: CollectionReference<DocumentData>,
+  onIngested: () => void,
+  shouldAbort: () => boolean
+): Promise<void> {
+  let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+  let insertedTotal = 0;
+
+  for (let page = 0; page < INGEST_BACKFILL_MAX_PAGES; page++) {
+    if (shouldAbort()) {
+      return;
+    }
+    const q = lastDoc
+      ? query(
+          coll,
+          orderBy("createdAt", "desc"),
+          startAfter(lastDoc),
+          limit(INGEST_PAGE_SIZE)
+        )
+      : query(coll, orderBy("createdAt", "desc"), limit(INGEST_PAGE_SIZE));
+
+    let snap;
+    try {
+      snap = await getDocs(q);
+    } catch (e) {
+      console.error("[chinotto sync] ingest backfill getDocs failed", e);
+      return;
+    }
+    if (shouldAbort()) {
+      return;
+    }
+    if (snap.empty) {
+      break;
+    }
+
+    lastDoc = snap.docs[snap.docs.length - 1]!;
+    const { tombstonedIds, activeRows } = partitionFirestoreSnapshotDocs(snap.docs);
+    await applyRemoteTombstonesById(tombstonedIds);
+    if (shouldAbort()) {
+      return;
+    }
+    const activeRowsSafe = activeRows.filter((r) => !lastTombstoneQueryDocIds.has(r.id));
+    if (activeRowsSafe.length > 0) {
+      try {
+        const inserted = await ingestFirestoreEntries(activeRowsSafe);
+        insertedTotal += inserted;
+      } catch (e) {
+        if (import.meta.env.DEV) {
+          console.error("[chinotto sync] ingest backfill batch failed", e);
+        }
+        return;
+      }
+    }
+
+    if (snap.docs.length < INGEST_PAGE_SIZE) {
+      break;
+    }
+  }
+
+  if (insertedTotal > 0) {
+    onIngested();
+  }
+}
+
 async function pullTombstonesFromServer(
   coll: CollectionReference<DocumentData>,
   onIngested: () => void,
@@ -265,7 +347,7 @@ export async function notifyEntryDeletedForSync(entryId: string): Promise<void> 
 }
 
 /**
- * Subscribe to auth + Firestore `users/{uid}/entries` (SYNC.md §3).
+ * Subscribe to auth + Firestore `users/{uid}/entries` (see `docs/sync.md`; wire contract: mobile `docs/sync.md`).
  * Applies remote tombstones (physical local delete) and ingests active docs.
  */
 export function startDesktopFirestoreIngest(onIngested: () => void): () => void {
@@ -278,8 +360,10 @@ export function startDesktopFirestoreIngest(onIngested: () => void): () => void 
   let unsubIngest: (() => void) | undefined;
   let unsubTombstones: (() => void) | undefined;
   let tombstonePollTimer: ReturnType<typeof setInterval> | undefined;
+  let ingestBackfillAbort = false;
 
   const detachFirestoreListeners = () => {
+    ingestBackfillAbort = true;
     if (tombstonePollTimer != null) {
       clearInterval(tombstonePollTimer);
       tombstonePollTimer = undefined;
@@ -297,68 +381,89 @@ export function startDesktopFirestoreIngest(onIngested: () => void): () => void 
     if (!user || user.isAnonymous) {
       return;
     }
-    void flushSyncTombstoneOutbox();
+    ingestBackfillAbort = false;
+    const uidAtStart = user.uid;
     const db = getOrInitFirestore();
     const coll = collection(db, "users", user.uid, "entries");
-    void pullTombstonesFromServer(coll, onIngested, { force: true });
-    tombstonePollTimer = setInterval(() => {
-      void pullTombstonesFromServer(coll, onIngested, { force: true });
-    }, 12_000);
-    const qIngest = query(coll, orderBy("createdAt", "desc"), limit(INGEST_PAGE_SIZE));
-    unsubIngest = onSnapshot(
-      qIngest,
-      async (snap) => {
-        // Always reconcile tombstones from the server before ingesting "active" rows from this
-        // snapshot. Otherwise `pullTombstonesFromServer` can no-op (2s throttle) while `snap` is
-        // still stale → we skip `lastTombstoneQueryDocIds` and re-insert a row Firestore already
-        // tombstoned (mobile wrote `deletedAt`).
-        await pullTombstonesFromServer(coll, onIngested, { force: true });
-        const { tombstonedIds, activeRows } = partitionFirestoreSnapshotDocs(snap.docs);
-        let changed = false;
-        const removedMain = await applyRemoteTombstonesById(tombstonedIds);
-        if (removedMain > 0) {
-          changed = true;
-        }
-        const activeRowsSafe = activeRows.filter((r) => !lastTombstoneQueryDocIds.has(r.id));
-        if (activeRowsSafe.length > 0) {
-          try {
-            const inserted = await ingestFirestoreEntries(activeRowsSafe);
-            if (inserted > 0) {
-              changed = true;
-            }
-          } catch (e) {
-            if (import.meta.env.DEV) {
-              console.error("[chinotto sync] ingest failed", e);
+
+    void (async () => {
+      await flushSyncTombstoneOutbox();
+      const stillSignedIn = () =>
+        !ingestBackfillAbort &&
+        auth.currentUser != null &&
+        auth.currentUser.uid === uidAtStart &&
+        !auth.currentUser.isAnonymous;
+      if (!stillSignedIn()) {
+        return;
+      }
+      await pullTombstonesFromServer(coll, onIngested, { force: true });
+      if (!stillSignedIn()) {
+        return;
+      }
+      await runFirestoreIngestBackfill(coll, onIngested, () => !stillSignedIn());
+      if (!stillSignedIn()) {
+        return;
+      }
+
+      tombstonePollTimer = setInterval(() => {
+        void pullTombstonesFromServer(coll, onIngested, { force: true });
+      }, 12_000);
+      const qIngest = query(coll, orderBy("createdAt", "desc"), limit(INGEST_PAGE_SIZE));
+      unsubIngest = onSnapshot(
+        qIngest,
+        async (snap) => {
+          // Always reconcile tombstones from the server before ingesting "active" rows from this
+          // snapshot. Otherwise `pullTombstonesFromServer` can no-op (2s throttle) while `snap` is
+          // still stale → we skip `lastTombstoneQueryDocIds` and re-insert a row Firestore already
+          // tombstoned (mobile wrote `deletedAt`).
+          await pullTombstonesFromServer(coll, onIngested, { force: true });
+          const { tombstonedIds, activeRows } = partitionFirestoreSnapshotDocs(snap.docs);
+          let changed = false;
+          const removedMain = await applyRemoteTombstonesById(tombstonedIds);
+          if (removedMain > 0) {
+            changed = true;
+          }
+          const activeRowsSafe = activeRows.filter((r) => !lastTombstoneQueryDocIds.has(r.id));
+          if (activeRowsSafe.length > 0) {
+            try {
+              const inserted = await ingestFirestoreEntries(activeRowsSafe);
+              if (inserted > 0) {
+                changed = true;
+              }
+            } catch (e) {
+              if (import.meta.env.DEV) {
+                console.error("[chinotto sync] ingest failed", e);
+              }
             }
           }
+          if (changed) {
+            onIngested();
+          }
+          await flushSyncTombstoneOutbox();
+        },
+        (err) => {
+          console.error("[chinotto sync] ingest snapshot error", err);
         }
-        if (changed) {
-          onIngested();
-        }
-        await flushSyncTombstoneOutbox();
-      },
-      (err) => {
-        console.error("[chinotto sync] ingest snapshot error", err);
-      }
-    );
+      );
 
-    const qTombstones = tombstoneQuery(coll);
-    unsubTombstones = onSnapshot(
-      qTombstones,
-      async (snap) => {
-        // Query already enforces `deletedAt != null`; do not rely on JS tombstone heuristics here.
-        const ids = snap.docs.map((d) => d.id);
-        lastTombstoneQueryDocIds = new Set(ids);
-        const removed = await applyRemoteTombstonesById(ids);
-        if (removed > 0) {
-          onIngested();
+      const qTombstones = tombstoneQuery(coll);
+      unsubTombstones = onSnapshot(
+        qTombstones,
+        async (snap) => {
+          // Query already enforces `deletedAt != null`; do not rely on JS tombstone heuristics here.
+          const ids = snap.docs.map((d) => d.id);
+          lastTombstoneQueryDocIds = new Set(ids);
+          const removed = await applyRemoteTombstonesById(ids);
+          if (removed > 0) {
+            onIngested();
+          }
+          await flushSyncTombstoneOutbox();
+        },
+        (err) => {
+          console.error("[chinotto sync] tombstone snapshot error", err);
         }
-        await flushSyncTombstoneOutbox();
-      },
-      (err) => {
-        console.error("[chinotto sync] tombstone snapshot error", err);
-      }
-    );
+      );
+    })();
   });
 
   return () => {
