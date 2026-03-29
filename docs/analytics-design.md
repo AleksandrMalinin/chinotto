@@ -27,6 +27,9 @@ Canonical list: **`AnalyticsEvent`** in `src/lib/analytics.ts`.
 | `resurface_shown`     | `age_days` (number)  | Resurface overlay is shown |
 | `resurface_opened`    | `age_days` (number)  | User opens entry from resurface overlay |
 | `thought_trail_opened` | (none)              | User views an entry that has a thought trail |
+| `jump_to_date_calendar_opened` | (none)    | User opens the jump-to-date calendar popover |
+| `jump_to_date_completed` | `days_ago` (number) | User picks a date and scroll succeeds (local-calendar days before today; no date string) |
+| `jump_to_date_back_to_now` | (none)        | User clicks “Back to now” after a jump |
 
 **On every event**, Umami `data` also includes `ts` (ISO timestamp) and `app_version` (semver string from `package.json` at build time) so you can segment by release. No other properties beyond the table above and those two. No free-form strings that could contain user content.
 
@@ -51,6 +54,9 @@ Canonical list: **`AnalyticsEvent`** in `src/lib/analytics.ts`.
 | `resurface_shown`     | When resurfaced overlay is shown (when `setResurfaced(r)` is called with non-null). Compute `age_days` from `entry.created_at`. |
 | `resurface_opened`    | When user clicks to open from resurfaced overlay (`onOpen(entry)`). Same `age_days`. |
 | `thought_trail_opened`| When entry detail (thought trail) is opened, e.g. when `EntryDetail` mounts for an entry. |
+| `jump_to_date_calendar_opened` | When `JumpToDatePopover` opens (`open` becomes true). |
+| `jump_to_date_completed` | After `jump_anchor_for_local_date` returns an id, before scroll; `days_ago` via `jumpDateDaysAgoMetric(ymd)`. |
+| `jump_to_date_back_to_now` | Start of `handleJumpBackToNow` in `App.tsx`. |
 
 All calls must be fire-and-forget; never block the UI or depend on analytics for app logic.
 

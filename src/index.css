@@ -58,6 +58,122 @@ html {
   min-height: 100%;
 }
 
+html.tray-capture-page {
+  background: transparent !important;
+  height: 100%;
+  overflow: hidden;
+}
+
+html.tray-capture-page body {
+  background: transparent !important;
+  min-height: 100%;
+  overflow: hidden;
+}
+
+html.tray-capture-page #root {
+  background: transparent !important;
+}
+
+/* Grain filter SVG is for the main app; avoid an extra compositor layer in the popover webview. */
+html.tray-capture-page body > svg[aria-hidden="true"] {
+  display: none;
+}
+
+.tray-capture-root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  width: 100%;
+  background: transparent !important;
+  overflow: hidden;
+}
+
+/* Menu bar quick capture: reads as Chinotto, not a system sheet */
+.tray-capture-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+  margin: 0;
+  border-radius: 18px;
+  overflow: hidden;
+  background: linear-gradient(
+    158deg,
+    rgb(22 22 38) 0%,
+    rgb(15 16 26) 45%,
+    rgb(10 11 18) 100%
+  );
+}
+
+.tray-capture-panel__row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px 12px 16px;
+  min-height: 0;
+}
+
+textarea.tray-capture-field {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  width: auto;
+  min-height: 0 !important;
+  max-height: 2.5rem;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: 14px;
+  line-height: 1.35;
+  color: rgba(228, 228, 233, 0.9);
+  caret-color: rgba(168, 178, 228, 0.82);
+  transition: color 160ms ease-out;
+}
+
+button.tray-capture-open-main {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(168, 176, 210, 0.38);
+  cursor: pointer;
+  transition: color 160ms ease-out, background 160ms ease-out;
+}
+
+button.tray-capture-open-main:hover {
+  color: rgba(210, 216, 240, 0.62);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+button.tray-capture-open-main:focus-visible {
+  outline: 1px solid rgba(138, 148, 200, 0.35);
+  outline-offset: 2px;
+}
+
+.tray-capture-open-main__icon {
+  display: block;
+}
+
+textarea.tray-capture-field::placeholder {
+  color: rgba(155, 160, 172, 0.42);
+}
+
+textarea.tray-capture-field:focus,
+textarea.tray-capture-field:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 body {
   margin: 0;
   font-family: "Open Sauce One", system-ui, -apple-system, sans-serif;
@@ -664,6 +780,225 @@ body.welcome .app-bg {
   min-height: auto;
 }
 
+.entry-input-row-aside--with-jump {
+  min-width: 6.25rem;
+  gap: 0.2rem;
+}
+
+.jump-date-trigger {
+  flex-shrink: 0;
+  padding: 0.25rem 0.35rem;
+  min-height: auto;
+  color: var(--muted);
+}
+
+.jump-date-trigger:hover,
+.jump-date-trigger:focus-visible {
+  color: var(--fg-dim);
+}
+
+.jump-date-popover-inner {
+  width: 280px;
+  padding: 0.65rem 0.75rem 0.75rem;
+  border-radius: 12px;
+  background: rgba(14, 14, 20, 0.94);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+    0 12px 40px -12px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.jump-date-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.jump-date-title {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.jump-date-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem;
+  margin: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  transition: color var(--transition), background var(--transition);
+}
+
+.jump-date-nav:hover {
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.jump-date-nav:focus-visible {
+  outline: 1px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.jump-date-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 0.25rem;
+}
+
+.jump-date-wd {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.28);
+}
+
+.jump-date-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.jump-date-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 2.35rem;
+  padding: 0.28rem 0 0.2rem;
+  margin: 0;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 450;
+  color: rgba(255, 255, 255, 0.42);
+  cursor: default;
+  transition: background var(--transition), color var(--transition);
+}
+
+.jump-date-cell--empty {
+  pointer-events: none;
+}
+
+.jump-date-cell--has-entry {
+  color: rgba(255, 255, 255, 0.78);
+  cursor: pointer;
+}
+
+.jump-date-cell--has-entry:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Today with thoughts: visible in grid but not clickable (already top of stream). */
+.jump-date-cell--today-at-top {
+  color: rgba(255, 255, 255, 0.62);
+  cursor: default;
+  pointer-events: none;
+}
+
+.jump-date-cell--today-at-top .jump-date-dot {
+  opacity: 0.72;
+}
+
+.jump-date-cell--today-at-top.jump-date-cell--context {
+  background: rgba(120, 130, 200, 0.14);
+  box-shadow: 0 0 0 1px rgba(140, 150, 220, 0.22) inset;
+}
+
+.jump-date-cell--today:not(.jump-date-cell--has-entry) {
+  color: rgba(255, 255, 255, 0.52);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+  border-radius: 7px;
+}
+
+.jump-date-cell--context.jump-date-cell--has-entry {
+  background: rgba(120, 130, 200, 0.14);
+  box-shadow: 0 0 0 1px rgba(140, 150, 220, 0.22) inset;
+}
+
+.jump-date-day-num {
+  line-height: 1.1;
+}
+
+.jump-date-dot {
+  width: 3px;
+  height: 3px;
+  margin-top: 0.2rem;
+  border-radius: 50%;
+  background: rgba(160, 170, 255, 0.42);
+}
+
+.jump-date-context {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+  margin: 0 0 0.95rem auto;
+  padding: 0.28rem 0.42rem;
+  width: fit-content;
+  max-width: 100%;
+  position: sticky;
+  top: 0.55rem;
+  z-index: 4;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(10, 10, 16, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 6px 22px -14px rgba(0, 0, 0, 0.6);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.jump-date-context-label {
+  color: rgba(255, 255, 255, 0.56);
+  padding: 0 0.08rem;
+  white-space: nowrap;
+}
+
+.jump-date-context-back {
+  padding: 0.12rem 0.5rem;
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(130, 140, 210, 0.12);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: rgba(180, 190, 240, 0.78);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--transition), background var(--transition), border-color var(--transition);
+}
+
+.jump-date-context-back:hover {
+  color: rgba(205, 214, 255, 0.92);
+  background: rgba(145, 155, 225, 0.2);
+  border-color: rgba(170, 180, 235, 0.28);
+}
+
+.jump-date-context-back:focus-visible {
+  outline: 1px solid var(--border-focus);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
 .search-overlay {
   position: fixed;
   inset: 0;
@@ -1004,14 +1339,14 @@ body.welcome .app-bg {
   justify-content: center;
 }
 
-/* Card: preferences panel, single column, left-aligned; auto margins center when content is short */
+/* Card: preferences panel; two-column body under header; auto margins center when content is short */
 .chinotto-card {
   width: 100%;
-  max-width: 420px;
+  max-width: min(92vw, 640px);
   margin: 0 auto;
   margin-top: auto;
   margin-bottom: auto;
-  padding: 1.5rem 1.5rem;
+  padding: 1.5rem 1.625rem;
   text-align: left;
   background: var(--landing-border-subtle);
   backdrop-filter: blur(20px);
@@ -1054,6 +1389,46 @@ body.welcome .app-bg {
   color: var(--landing-muted);
 }
 
+.chinotto-card-body {
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.18fr);
+  gap: 1.25rem 2rem;
+  align-items: start;
+  margin-top: 1.125rem;
+}
+
+.chinotto-card-col {
+  min-width: 0;
+}
+
+.chinotto-card-col .chinotto-card-section {
+  margin-top: 1.125rem;
+}
+
+.chinotto-card-col .chinotto-card-section:first-child {
+  margin-top: 0;
+}
+
+.chinotto-card-col--left .chinotto-card-icon-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.chinotto-card-col--right .chinotto-card-shortcuts-list {
+  gap: 0.8125rem 2.25rem;
+}
+
+@media (max-width: 560px) {
+  .chinotto-card-body {
+    grid-template-columns: 1fr;
+    row-gap: 1.125rem;
+    column-gap: 0;
+  }
+
+  .chinotto-card-col--left .chinotto-card-icon-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
 .chinotto-card-section {
   margin-top: 1.125rem;
 }
@@ -1074,7 +1449,7 @@ body.welcome .app-bg {
   line-height: 1.4;
 }
 
-/* Single row of 6 icon tiles */
+/* Default: one row of six tiles; two-column Settings uses `.chinotto-card-col--left` for 3×2 */
 .chinotto-card-icon-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
@@ -1823,6 +2198,8 @@ body.welcome .app-bg {
 
 .stream-section {
   margin-bottom: 1.5rem;
+  /* Jump-to-date / focus: ~STREAM_SECTION_TOP_OFFSET_REM in scrollJumpSectionIntoView.ts */
+  scroll-margin-top: 1.3rem;
 }
 
 .stream-section:last-child {

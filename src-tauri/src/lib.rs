@@ -10,6 +10,9 @@ mod thought_trail;
 #[cfg(target_os = "macos")]
 mod speech;
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod tray_capture;
+
 use base64::Engine;
 use chrono::TimeZone;
 use db::Db;
@@ -297,6 +300,30 @@ fn get_entry(db: tauri::State<Db>, entry_id: String) -> Result<Option<EntryPaylo
             })
         }
     })
+}
+
+#[tauri::command]
+fn jump_dates_in_month(
+    db: tauri::State<Db>,
+    year: i32,
+    month: u32,
+) -> Result<Vec<String>, String> {
+    if !(1970..=2100).contains(&year) || !(1..=12).contains(&month) {
+        return Err("invalid year or month".to_string());
+    }
+    db.local_entry_dates_in_month(year, month)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn jump_anchor_for_local_date(
+    db: tauri::State<Db>,
+    local_date: String,
+) -> Result<Option<String>, String> {
+    let target = chrono::NaiveDate::parse_from_str(&local_date, "%Y-%m-%d")
+        .map_err(|_| "invalid date (expected YYYY-MM-DD)".to_string())?;
+    db.jump_anchor_entry_id_for_local_date(target)
+        .map_err(|e| e.to_string())
 }
 
 /// Temporal recall: try 24h, 7d, 30d anchors (±3h window); fallback to random past entry.
@@ -841,6 +868,8 @@ pub fn run() {
                 app.manage(SpeechCommandTx(Arc::new(cmd_tx)));
                 std::thread::spawn(move || speech::run_speech_loop(cmd_rx));
             }
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            tray_capture::setup(app)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -856,6 +885,8 @@ pub fn run() {
             update_entry,
             list_entries,
             get_entry,
+            jump_dates_in_month,
+            jump_anchor_for_local_date,
             search_entries,
             run_native_speech_recognition,
             generate_embedding,

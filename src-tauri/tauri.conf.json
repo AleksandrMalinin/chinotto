@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Chinotto",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "identifier": "app.chinotto",
   "build": {
     "frontendDist": "../dist",
@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Chinotto",
         "width": 800,
         "height": 600,
@@ -20,6 +21,27 @@
         "theme": "Dark",
         "titleBarStyle": "Transparent",
         "backgroundColor": "#0a0a0e"
+      },
+      {
+        "label": "capture-popover",
+        "title": "",
+        "width": 380,
+        "height": 68,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "closable": false,
+        "decorations": false,
+        "transparent": true,
+        "visible": false,
+        "skipTaskbar": true,
+        "alwaysOnTop": true,
+        "shadow": false,
+        "focus": true,
+        "url": "index.html#tray-capture",
+        "titleBarStyle": "Transparent",
+        "hiddenTitle": true,
+        "backgroundColor": "#00000000"
       }
     ],
     "security": {

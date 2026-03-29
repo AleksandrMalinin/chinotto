@@ -54,11 +54,13 @@ The product is “capture first, structure later.” The MVP avoids folders, pag
 - `src-tauri/` – Rust: app entry, Tauri setup, `db` (SQLite + FTS5 schema and commands)
 - `docs/` – Product and architecture notes
 
-Frontend calls backend via Tauri `invoke()` for `create_entry`, `list_entries`, and `search_entries`.
+Frontend calls backend via Tauri `invoke()` for `create_entry`, `list_entries`, `search_entries`, and (jump to date) `jump_dates_in_month`, `jump_anchor_for_local_date`.
 
 **Empty stream onboarding:** Progressive UI when the main stream has no entries. State and triggers live in `src/App.tsx`; empty layout and motion in `src/features/entries/EntryStream.tsx`; draft callbacks in `src/features/entries/EntryInput.tsx`; trail panel in `src/components/StreamFlowPanel.tsx`. First-time vs “empty again” uses `src/lib/streamOnboarding.ts` (`localStorage` key `chinotto.hasEverSavedThought`). Product behavior: **`docs/product-spec.md`** → *Empty stream onboarding*.
 
 **Search:** FTS5 virtual table `entries_fts` is kept in sync with `entries` via triggers (insert, update, delete). Search uses prefix matching (partial words match), case-insensitive FTS, and results are ordered by BM25 relevance. If FTS returns no rows, a case-insensitive substring (LIKE) fallback is used. The overlay shows result count, highlights matches, and supports Enter (open selected/first) and Escape (close and focus capture input).
+
+**Jump to date:** Small calendar popover (not a separate screen or filtered mode). `jump_dates_in_month` returns local calendar dates (`YYYY-MM-DD`) in a given month that have at least one entry; `jump_anchor_for_local_date` returns the entry id with the latest `created_at` on that local day (scroll anchor in the existing reverse-chronological stream). UI: `src/features/entries/JumpToDatePopover.tsx`; logic wired from `src/App.tsx`.
 
 **Related thoughts:** UI label on entry detail; same data as entries, computed by embedding cosine similarity (not FTS). Entries are embedded on save (AllMiniLML6V2); `find_similar_entries` returns the top-N by similarity. Root cause of noisy results was *no minimum score*: the top-N included weak matches (e.g. 0.2–0.4 similarity). We now require `cosine_similarity >= 0.5` so only clearly related entries are shown; if none pass, the block shows “None yet.” Normal search is unchanged (FTS only).
 

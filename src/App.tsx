@@ -22,6 +22,7 @@ import {
   updateEntry,
   listEntries,
   searchEntries,
+  jumpAnchorForLocalDate,
   generateEmbedding,
   getResurfacedEntry,
   getPinnedEntryIds,
@@ -31,6 +32,10 @@ import {
   deleteAllEntries,
   deleteEntry,
 } from "./features/entries/entryApi";
+import {
+  JumpToDatePopover,
+  JumpToDateTriggerIcon,
+} from "./features/entries/JumpToDatePopover";
 import type { Entry } from "./types/entry";
 import { getStoredIconVariantId } from "@/lib/iconVariants";
 import { setDesktopIcon } from "@/lib/setDesktopIcon";
@@ -48,7 +53,11 @@ import {
   markAsShown,
   mayAttemptResurface,
 } from "@/lib/resurfaceSession";
-import { getAnalyticsPromptShown, track } from "@/lib/analytics";
+import {
+  getAnalyticsPromptShown,
+  jumpDateDaysAgoMetric,
+  track,
+} from "@/lib/analytics";
 import {
   getDevSimulateNewUser,
   setDevSimulateNewUser,
@@ -64,6 +73,8 @@ import {
   shouldShowSearchTrigger,
 } from "@/lib/entryCatalogPresence";
 import { UpdateNudge } from "@/components/UpdateNudge";
+import { scrollJumpSectionIntoView } from "@/lib/scrollJumpSectionIntoView";
+import { useJumpContextAutoClear } from "@/lib/useJumpContextAutoClear";
 import { APP_VERSION } from "@/lib/appVersion";
 import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
 import { isFirebaseSyncConfigured } from "@/lib/firebaseConfig";
@@ -80,6 +91,7 @@ const RESURFACE_SHOW_PROBABILITY = 0.65;
 const FEEDBACK_EMAIL = "hello@chinotto.app";
 /** Tiny offset after intro→main handoff so empty onboarding stagger reads clearly. */
 const EMPTY_ONBOARDING_POST_INTRO_DELAY_MS = 750;
+const JUMP_CONTEXT_EXPANDED_MS = 3000;
 
 function isTypingInInput(): boolean {
   const el = document.activeElement;
@@ -92,6 +104,29 @@ function isTypingInInput(): boolean {
 
 function loadEntries(query: string): Promise<Entry[]> {
   return query.trim() ? searchEntries(query) : listEntries();
+}
+
+function formatJumpContextLabel(ymd: string): string {
+  const p = ymd.split("-").map(Number);
+  if (p.length !== 3 || p.some((n) => !Number.isFinite(n))) return ymd;
+  const [y, m, d] = p;
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function toLocalYmd(iso: string): string {
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function todayLocalYmd(): string {
+  return toLocalYmd(new Date().toISOString());
 }
 
 /** Dev-only: mock resurfaced entry so the overlay can be previewed when backend returns nothing */
@@ -119,6 +154,9 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [jumpPopoverOpen, setJumpPopoverOpen] = useState(false);
+  const [jumpContextYmd, setJumpContextYmd] = useState<string | null>(null);
+  const [jumpContextExpanded, setJumpContextExpanded] = useState(false);
   const [isChinottoCardOpen, setIsChinottoCardOpen] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isStreamShowcaseOpen, setIsStreamShowcaseOpen] = useState(false);
@@ -152,6 +190,7 @@ export default function App() {
   const [hoveredEntryId, setHoveredEntryId] = useState<string | null>(null);
   const [searchSelectedIndex, setSearchSelectedIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const jumpToDateButtonRef = useRef<HTMLButtonElement>(null);
   const entryInputRef = useRef<EntryInputRef>(null);
   const searchRef = useRef(search);
   searchRef.current = search;
@@ -248,9 +287,62 @@ export default function App() {
     [search, entries.length, hasEntriesInDb]
   );
 
+  const canJumpByDate = useMemo(() => {
+    const dayKeys = new Set<string>();
+    for (const entry of entries) {
+      dayKeys.add(toLocalYmd(entry.created_at));
+      if (dayKeys.size >= 2) return true;
+    }
+    return false;
+  }, [entries]);
+
+  const showJumpTrigger = useMemo(
+    () =>
+      introDismissed &&
+      !loading &&
+      !selectedEntry &&
+      !search.trim() &&
+      !isSearchOpen &&
+      showSearchTrigger &&
+      canJumpByDate,
+    [
+      introDismissed,
+      loading,
+      selectedEntry,
+      search,
+      isSearchOpen,
+      showSearchTrigger,
+      canJumpByDate,
+    ]
+  );
+
   useEffect(() => {
     if (!hasEntriesInDb) setIsStreamShowcaseOpen(false);
   }, [hasEntriesInDb]);
+
+  useEffect(() => {
+    if (!showJumpTrigger) setJumpPopoverOpen(false);
+  }, [showJumpTrigger]);
+
+  useEffect(() => {
+    if (!jumpContextYmd || !jumpContextExpanded) return;
+    const t = window.setTimeout(() => {
+      setJumpContextExpanded(false);
+    }, JUMP_CONTEXT_EXPANDED_MS);
+    return () => clearTimeout(t);
+  }, [jumpContextYmd, jumpContextExpanded]);
+
+  const clearJumpContext = useCallback(() => {
+    setJumpContextYmd(null);
+    setJumpContextExpanded(false);
+  }, []);
+
+  useJumpContextAutoClear({
+    jumpContextYmd,
+    clearJumpContext,
+    isSearchOpen,
+    selectedEntry,
+  });
 
   useEffect(() => {
     const len = streamEntries.length;
@@ -518,7 +610,9 @@ export default function App() {
         setIsSearchOpen(false);
         setSearch("");
       }
+      if (jumpPopoverOpen) setJumpPopoverOpen(false);
       if (isChinottoCardOpen) setIsChinottoCardOpen(false);
+      clearJumpContext();
       requestAnimationFrame(() => {
         entryInputRef.current?.focus();
       });
@@ -526,7 +620,22 @@ export default function App() {
     return () => {
       unlistenCapture.then((u) => u());
     };
-  }, [selectedEntry, isSearchOpen, isChinottoCardOpen]);
+  }, [
+    selectedEntry,
+    isSearchOpen,
+    jumpPopoverOpen,
+    isChinottoCardOpen,
+    clearJumpContext,
+  ]);
+
+  useEffect(() => {
+    const unlistenTraySave = listen("chinotto-tray-entry-saved", () => {
+      void refresh(search);
+    });
+    return () => {
+      unlistenTraySave.then((u) => u());
+    };
+  }, [search, refresh]);
 
   useEffect(() => {
     if (import.meta.env.DEV) {
@@ -611,6 +720,13 @@ export default function App() {
       if (isTypingInInput()) return;
       if (e.key === "Escape") {
         if (isSyncModalOpen) {
+          setIsSyncModalOpen(false);
+          e.preventDefault();
+          return;
+        }
+        if (jumpPopoverOpen) {
+          setJumpPopoverOpen(false);
+          e.preventDefault();
           return;
         }
         if (selectedEntry) {
@@ -621,7 +737,17 @@ export default function App() {
       }
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
+        setJumpPopoverOpen(false);
         setIsSearchOpen(true);
+      }
+      if (
+        showJumpTrigger &&
+        e.key.toLowerCase() === "j" &&
+        (e.metaKey || e.ctrlKey) &&
+        e.shiftKey
+      ) {
+        e.preventDefault();
+        setJumpPopoverOpen((o) => !o);
       }
       if (e.key === "n" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
@@ -649,7 +775,14 @@ export default function App() {
     }
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [selectedEntry, voiceCaptureOpen, isSearchOpen, isSyncModalOpen]);
+  }, [
+    selectedEntry,
+    voiceCaptureOpen,
+    isSearchOpen,
+    isSyncModalOpen,
+    jumpPopoverOpen,
+    showJumpTrigger,
+  ]);
 
   const EPHEMERAL_WINDOW_MS = 15_000;
   const SETTLING_DURATION_MS = 200;
@@ -704,6 +837,53 @@ export default function App() {
       entryInputRef.current?.focus();
     });
   }
+
+  const handleJumpDatePick = useCallback(
+    async (ymd: string) => {
+      if (getDevSimulateNewUser()) return;
+      setJumpPopoverOpen(false);
+
+      if (ymd === todayLocalYmd()) {
+        clearJumpContext();
+        track({
+          event: "jump_to_date_completed",
+          days_ago: 0,
+        });
+        requestAnimationFrame(() => {
+          const scroller = document.scrollingElement;
+          scroller?.scrollTo({ top: 0, behavior: "smooth" });
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        });
+        return;
+      }
+
+      const id = await jumpAnchorForLocalDate(ymd);
+      if (!id) return;
+      track({
+        event: "jump_to_date_completed",
+        days_ago: jumpDateDaysAgoMetric(ymd),
+      });
+      setJumpContextYmd(ymd);
+      setJumpContextExpanded(true);
+      const runScroll = () => {
+        scrollJumpSectionIntoView(id);
+      };
+      requestAnimationFrame(() => {
+        requestAnimationFrame(runScroll);
+      });
+    },
+    [clearJumpContext]
+  );
+
+  const handleJumpBackToNow = useCallback(() => {
+    track({ event: "jump_to_date_back_to_now" });
+    clearJumpContext();
+    requestAnimationFrame(() => {
+      const scroller = document.scrollingElement;
+      scroller?.scrollTo({ top: 0, behavior: "smooth" });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }, [clearJumpContext]);
 
   const handleOpenEntry = useCallback((entry: Entry) => {
     track({ event: "entry_opened" });
@@ -1159,21 +1339,65 @@ export default function App() {
               onSubmit={handleSubmit}
               onDraftChange={onCaptureDraftChange}
             />
-            <div className="entry-input-row-aside">
+            <div
+              className={`entry-input-row-aside ${showJumpTrigger ? "entry-input-row-aside--with-jump" : ""}`}
+            >
+              {showJumpTrigger ? (
+                <Button
+                  ref={jumpToDateButtonRef}
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="jump-date-trigger"
+                  onClick={() => setJumpPopoverOpen((o) => !o)}
+                  aria-label="Jump to date (⌘⇧J)"
+                  aria-expanded={jumpPopoverOpen && showJumpTrigger}
+                >
+                  <JumpToDateTriggerIcon />
+                </Button>
+              ) : null}
               {showSearchTrigger ? (
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   className="search-trigger-inline text-[var(--muted)] hover:text-[var(--fg-dim)]"
-                  onClick={() => setIsSearchOpen(true)}
+                  onClick={() => {
+                    setJumpPopoverOpen(false);
+                    setIsSearchOpen(true);
+                  }}
                   aria-label="Search (⌘K)"
                 >
                   ⌘K
                 </Button>
               ) : null}
             </div>
+            <JumpToDatePopover
+              open={jumpPopoverOpen && showJumpTrigger}
+              anchorRef={jumpToDateButtonRef}
+              contextYmd={jumpContextYmd}
+              onClose={() => setJumpPopoverOpen(false)}
+              onPickDate={(ymd) => {
+                void handleJumpDatePick(ymd);
+              }}
+            />
           </div>
+      {jumpContextYmd && !search.trim() && !selectedEntry ? (
+        <div className="jump-date-context">
+          {jumpContextExpanded ? (
+            <span className="jump-date-context-label">
+              {formatJumpContextLabel(jumpContextYmd)}
+            </span>
+          ) : null}
+          <button
+            type="button"
+            className="jump-date-context-back"
+            onClick={handleJumpBackToNow}
+          >
+            Back to now
+          </button>
+        </div>
+      ) : null}
       {loading ? (
         <p className="stream-loading">Loading…</p>
       ) : selectedEntry ? (

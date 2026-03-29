@@ -4,6 +4,22 @@ These sections feed the **GitHub Release** description in CI (see `.github/workf
 
 Add **`## vX.Y.Z`** before you push tag **`vX.Y.Z`**.
 
+## v1.2.0
+
+* **Menu bar tray polish:** improved capture popover stability by debouncing hide on focus loss and keeping main stream refresh behavior reliable after tray saves (`src/features/entries/TrayCapturePanel.tsx`, `src/App.tsx`)
+* **Jump to date:** added calendar jump flow with `jump_dates_in_month` / `jump_anchor_for_local_date` commands, month dots for local dates with entries, and stream scroll-to-date in `src/features/entries/JumpToDatePopover.tsx`, `src/features/entries/entryApi.ts`, and `src/App.tsx`
+* **Stream grouping:** replaced older catch-all grouping with per-day section headers (Today, Yesterday, and explicit calendar dates) in `src/features/entries/EntryStream.tsx`
+* **Jump context UX:** added sticky right-aligned jump context with `Back to now`, auto-collapse label timing, and auto-clear when returning near top or switching modes (`src/App.tsx`, `src/lib/useJumpContextAutoClear.ts`, `src/index.css`)
+* **Jump scroll polish:** aligned date-jump scrolling to section containers with explicit top offset via `src/lib/scrollJumpSectionIntoView.ts` and `.stream-section` `scroll-margin-top` in `src/index.css`; disabled jump-calendar click affordance for current day when already at stream top
+* **Analytics:** added opt-in jump funnel events (`jump_to_date_calendar_opened`, `jump_to_date_completed` with `days_ago`, `jump_to_date_back_to_now`) and docs in `src/lib/analytics.ts` / `docs/analytics-design.md`
+* **Tests:** added jump date coverage for scroll-dismiss logic and analytics day metric (`src/lib/jumpContextScroll.test.ts`, `src/lib/useJumpContextAutoClear.test.tsx`, `src/lib/jumpDateDaysAgoMetric.test.ts`) plus Rust DB tests for jump date commands
+
+## v1.1.0
+
+* **Menu bar tray:** added native tray integration in `src-tauri/src/tray_capture.rs` with left-click quick capture toggle and template icon handling on macOS
+* **Quick capture popup:** shipped dedicated `capture-popover` UI (`src/features/entries/TrayCapturePanel.tsx`, `src/main.tsx`, `src/index.css`) as a compact single-row input with secondary open-app action
+* **Platform wiring:** enabled tray/macOS private API features, added transparent popover window config in `src-tauri/tauri.conf.json`, and updated `core:window` permissions in `src-tauri/capabilities/default.json`
+
 ## v1.0.0
 
 * **Empty stream / onboarding:** `StreamFlowPanel` + progressive empty-stream onboarding in `EntryStream.tsx`; `hasEverSavedThought` / `streamOnboarding.ts`; capture `onDraftChange` wiring; intro gradient headline, proceed hint, press-any-key copy; design-system + recall guardrail doc updates

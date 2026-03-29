@@ -34,3 +34,6 @@ src-tauri/updater.key.pub
 docs/pre-release-checklist.md
 docs/release-macos.md
 docs/release-process.md
+
+# PR drafting notes (local-only)
+.github/pull_request_body*.md

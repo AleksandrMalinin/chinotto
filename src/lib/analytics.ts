@@ -27,7 +27,10 @@ export type AnalyticsEvent =
   | { event: "entry_opened" }
   | { event: "resurface_shown"; age_days: number }
   | { event: "resurface_opened"; age_days: number }
-  | { event: "thought_trail_opened" };
+  | { event: "thought_trail_opened" }
+  | { event: "jump_to_date_calendar_opened" }
+  | { event: "jump_to_date_completed"; days_ago: number }
+  | { event: "jump_to_date_back_to_now" };
 
 type QueuedEvent = AnalyticsEvent & { ts: string };
 
@@ -114,6 +117,7 @@ function eventToData(payload: QueuedEvent): Record<string, string | number> {
   if ("result_count" in payload && payload.result_count !== undefined)
     data.result_count = payload.result_count;
   if ("age_days" in payload) data.age_days = payload.age_days;
+  if ("days_ago" in payload) data.days_ago = payload.days_ago;
   return data;
 }
 
@@ -190,6 +194,25 @@ function flush(): void {
   for (const event of batch) {
     sendToUmami(event);
   }
+}
+
+/**
+ * Local-calendar full days from a picked `YYYY-MM-DD` to today (0 = today, 1 = yesterday).
+ * For `jump_to_date_completed` only; clamped ≥ 0. Does not send the string in payloads.
+ */
+export function jumpDateDaysAgoMetric(ymd: string): number {
+  const p = ymd.split("-").map(Number);
+  if (p.length !== 3 || p.some((n) => !Number.isFinite(n))) return 0;
+  const [y, m, d] = p;
+  const picked = new Date(y, m - 1, d).getTime();
+  const now = new Date();
+  const todayStart = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  ).getTime();
+  const diffDays = Math.round((todayStart - picked) / 86400000);
+  return Math.max(0, diffDays);
 }
 
 /**
