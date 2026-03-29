@@ -101,7 +101,7 @@ struct FirestoreEntryIn {
     created_at: String,
 }
 
-/// Ingest remote entries (Firestore pull). Idempotent per SYNC.md: existing `id` skipped.
+/// Ingest remote entries (Firestore pull). Idempotent per mobile sync.md: existing `id` skipped.
 #[tauri::command]
 fn ingest_firestore_entries(
     db: tauri::State<Db>,

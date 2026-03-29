@@ -1,6 +1,6 @@
 /**
  * Optional Firestore pull sync — same Firebase project as Chinotto mobile.
- * Env names mirror mobile (`EXPO_PUBLIC_*` there → `VITE_*` here). See docs/SYNC.md.
+ * Env names mirror mobile (`EXPO_PUBLIC_*` there → `VITE_*` here). See mobile docs/sync.md.
  */
 export function isFirebaseSyncConfigured(): boolean {
   const apiKey = import.meta.env.VITE_FIREBASE_API_KEY?.trim();

@@ -123,7 +123,7 @@ impl Db {
         Ok(())
     }
 
-    /// Firestore ingest (SYNC.md): insert only when `id` is new; idempotent on retries.
+    /// Firestore ingest (mobile sync.md): insert only when `id` is new; idempotent on retries.
     /// Skips empty text or unparseable `created_at` (RFC3339).
     pub fn ingest_firestore_entries(
         &self,
