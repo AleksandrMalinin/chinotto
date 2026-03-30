@@ -30,6 +30,7 @@ Canonical list: **`AnalyticsEvent`** in `src/lib/analytics.ts`.
 | `jump_to_date_calendar_opened` | (none)    | User opens the jump-to-date calendar popover |
 | `jump_to_date_completed` | `days_ago` (number) | User picks a date and scroll succeeds (local-calendar days before today; no date string) |
 | `jump_to_date_back_to_now` | (none)        | User clicks “Back to now” after a jump |
+| `sync_modal_opened`   | (none)               | User opens Enable sync from the header |
 
 **On every event**, Umami `data` also includes `ts` (ISO timestamp) and `app_version` (semver string from `package.json` at build time) so you can segment by release. No other properties beyond the table above and those two. No free-form strings that could contain user content.
 
@@ -57,6 +58,7 @@ Canonical list: **`AnalyticsEvent`** in `src/lib/analytics.ts`.
 | `jump_to_date_calendar_opened` | When `JumpToDatePopover` opens (`open` becomes true). |
 | `jump_to_date_completed` | After `jump_anchor_for_local_date` returns an id, before scroll; `days_ago` via `jumpDateDaysAgoMetric(ymd)`. |
 | `jump_to_date_back_to_now` | Start of `handleJumpBackToNow` in `App.tsx`. |
+| `sync_modal_opened`        | When user opens Enable sync (`App.tsx` header button). |
 
 All calls must be fire-and-forget; never block the UI or depend on analytics for app logic.
 

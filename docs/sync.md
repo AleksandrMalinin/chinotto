@@ -136,9 +136,16 @@ Command **`delete_local_entries_for_sync`** expects **top-level** `entryIds` (ca
 
 Use the **same** Firebase Web app as mobile (`EXPO_PUBLIC_*` → `VITE_*`).
 
-### OAuth and dev
+### QR bridge → mobile (always)
 
-- **Sync modal:** Apple via secondary window (release) or **system browser** (dev); credential returns to main window.  
+- **Header:** **Enable sync** opens `SyncModal` for every user (does not require `VITE_FIREBASE_*`).  
+- **QR URL (only):** `https://getchinotto.app/sync` — no query params, no tokens (contract: `chinotto-mobile/docs/sync/desktop-handoff-monetization-deeplinks.md`).  
+- **Constant:** `CHINOTTO_SYNC_MOBILE_UNIVERSAL_LINK` in `src/components/SyncModal.tsx` — change there if the link changes.  
+- **Fallback:** “Open on your phone” copies that URL; if clipboard fails, the same control becomes **Couldn’t copy — try again** (no extra block; URL unchanged).
+
+### OAuth and dev (this Mac, when Firebase is configured)
+
+- **Sync modal:** QR bridge and supporting copy only; when already signed in, shows **Sync is on**. It does not start Apple sign-in (no auth actions in the modal).  
 - **Path:** `/chinotto-oauth` (path-based routing survives redirects better than query-only).  
 - **Dev:** Add **`localhost`** / **`127.0.0.1`** to Firebase **Authorized domains**.  
 - **`init.json`:** `https://{authDomain}/__/firebase/init.json` — **404** means deploy Hosting once (`firebase deploy --only hosting`).
