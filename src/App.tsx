@@ -1228,7 +1228,7 @@ export default function App() {
               )}
             </div>
             <div className="app-header-end">
-              {isFirebaseSyncConfigured() && introDismissed ? (
+              {introDismissed ? (
                 <button
                   type="button"
                   className="app-header-sync"
@@ -1236,9 +1236,9 @@ export default function App() {
                     track({ event: "sync_modal_opened" });
                     setIsSyncModalOpen(true);
                   }}
-                  aria-label="Phone sync with mobile app"
+                  aria-label="Enable sync — continue on your phone"
                 >
-                  Sync
+                  Enable sync
                 </button>
               ) : null}
               {import.meta.env.DEV && introDismissed && getDevSimulateNewUser() && (
@@ -1516,9 +1516,7 @@ export default function App() {
       {showAnalyticsModal && (
         <AnalyticsOptInModal onClose={() => setShowAnalyticsModal(false)} />
       )}
-      {isSyncModalOpen && isFirebaseSyncConfigured() && (
-        <SyncModal onClose={() => setIsSyncModalOpen(false)} />
-      )}
+      {isSyncModalOpen ? <SyncModal onClose={() => setIsSyncModalOpen(false)} /> : null}
       {isChinottoCardOpen && (
         <ChinottoCard
           onClose={() => setIsChinottoCardOpen(false)}

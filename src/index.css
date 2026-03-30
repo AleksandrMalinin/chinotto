@@ -1855,36 +1855,194 @@ body.welcome .app-bg {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.sync-modal-dev-hint {
-  display: block;
-  margin-top: 0.35rem;
+/* Sync modal: same shell as Settings; compact centered bridge (text + QR as one unit) */
+.chinotto-card.sync-modal-card {
+  max-height: min(85vh, calc(100vh - 2.5rem));
+  overflow-y: auto;
+}
+
+.chinotto-card-footer.sync-modal-footer {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  align-items: stretch;
+}
+
+.sync-modal-footer-note {
+  margin: 0 auto;
+  max-width: 28rem;
   font-size: 11px;
-  opacity: 0.9;
+  line-height: 1.5;
+  color: var(--landing-muted);
+  text-align: center;
 }
 
-.sync-modal-busy {
-  margin: 0 0 0.75rem !important;
-  font-size: 12px !important;
-  color: var(--landing-foreground) !important;
-}
-
-.sync-modal-error {
-  margin: 0.75rem 0 0 !important;
-  font-size: 12px !important;
-  color: var(--landing-muted) !important;
-}
-
-.sync-modal-footer-links {
+.sync-modal-bridge-shell {
+  margin-top: 1.125rem;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.75rem 1rem;
-  margin-top: 1rem;
+  justify-content: center;
+  width: 100%;
 }
 
-.sync-modal-footer-links .analytics-optin-learn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+.sync-modal-bridge-body.chinotto-card-body {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0;
+  grid-template-columns: minmax(0, 15.75rem) minmax(12rem, 14.5rem);
+  column-gap: 1rem;
+  row-gap: 0.75rem;
+  align-items: center;
+}
+
+.sync-modal-col--copy {
+  align-self: center;
+}
+
+.sync-modal-bridge-title {
+  margin: 0 0 0.45rem;
+  font-size: clamp(1rem, 2vw, 1.05rem);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--landing-foreground);
+  text-wrap: balance;
+}
+
+.sync-modal-bridge-lead {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--landing-muted);
+}
+
+.sync-modal-bridge-hint {
+  margin: 0.55rem 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--landing-muted);
+}
+
+.sync-modal-col--qr {
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.sync-modal-qr-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 200px;
+  margin: 0;
+}
+
+@keyframes sync-modal-dot-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.sync-modal-sync-dot {
+  display: inline-block;
+  margin-right: 0.35em;
+  font-size: 0.72em;
+  line-height: 1;
+  vertical-align: 0.08em;
+  color: var(--landing-foreground);
+  animation: sync-modal-dot-pulse 2.6s ease-in-out infinite;
+}
+
+.sync-modal-sync-on {
+  margin: 0.7rem 0 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  color: var(--landing-foreground);
+  text-align: center;
+}
+
+.sync-modal-qr-frame {
+  width: 100%;
+  max-width: 200px;
+  padding: 11px;
+  border-radius: 10px;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+@media (max-width: 560px) {
+  .sync-modal-bridge-shell {
+    margin-top: 1rem;
+  }
+
+  .sync-modal-bridge-body.chinotto-card-body {
+    width: 100%;
+    grid-template-columns: 1fr;
+    row-gap: 1rem;
+    justify-items: stretch;
+  }
+
+  .sync-modal-col--copy {
+    text-align: center;
+    padding-top: 0;
+  }
+
+  .sync-modal-qr-wrap {
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+.sync-modal-qr-caption {
+  margin: 0.65rem 0 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--landing-muted);
+  text-align: center;
+}
+
+.sync-modal-phone-slot {
+  margin: 0.75rem 0 0;
+  width: 100%;
+  min-height: 2.75em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.sync-modal-open-phone {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--landing-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  max-width: 100%;
+}
+
+.sync-modal-open-phone:hover,
+.sync-modal-open-phone:focus-visible {
+  color: var(--landing-foreground);
+}
+
+.sync-modal-open-phone-static {
+  margin: 0;
+  padding: 0;
+  max-width: 100%;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--landing-muted);
+  text-align: center;
 }
 
 .app-header-end {
