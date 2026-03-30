@@ -25,6 +25,7 @@ import {
   type CollectionReference,
   type DocumentData,
   type Firestore,
+  type Query,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import {
@@ -183,7 +184,7 @@ async function runFirestoreIngestBackfill(
     if (shouldAbort()) {
       return;
     }
-    const q = lastDoc
+    const q: Query<DocumentData> = lastDoc
       ? query(
           coll,
           orderBy("createdAt", "desc"),
@@ -206,8 +207,9 @@ async function runFirestoreIngestBackfill(
       break;
     }
 
-    lastDoc = snap.docs[snap.docs.length - 1]!;
-    const { tombstonedIds, activeRows } = partitionFirestoreSnapshotDocs(snap.docs);
+    const docs = snap.docs as QueryDocumentSnapshot<DocumentData>[];
+    lastDoc = docs[docs.length - 1]!;
+    const { tombstonedIds, activeRows } = partitionFirestoreSnapshotDocs(docs);
     await applyRemoteTombstonesById(tombstonedIds);
     if (shouldAbort()) {
       return;
@@ -417,7 +419,9 @@ export function startDesktopFirestoreIngest(onIngested: () => void): () => void 
           // still stale → we skip `lastTombstoneQueryDocIds` and re-insert a row Firestore already
           // tombstoned (mobile wrote `deletedAt`).
           await pullTombstonesFromServer(coll, onIngested, { force: true });
-          const { tombstonedIds, activeRows } = partitionFirestoreSnapshotDocs(snap.docs);
+          const { tombstonedIds, activeRows } = partitionFirestoreSnapshotDocs(
+            snap.docs as QueryDocumentSnapshot<DocumentData>[]
+          );
           let changed = false;
           const removedMain = await applyRemoteTombstonesById(tombstonedIds);
           if (removedMain > 0) {
