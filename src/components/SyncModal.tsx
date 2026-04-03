@@ -1,7 +1,18 @@
-import { useCallback, useEffect, useState, type MouseEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type AnimationEvent,
+  type MouseEvent,
+} from "react";
 import QRCode from "react-qr-code";
 import { ChinottoLogo } from "@/components/ChinottoLogo";
 import { isFirebaseSyncConfigured } from "@/lib/firebaseConfig";
+import {
+  subscribeChinottoUserSyncAccess,
+  subscribeDesktopSyncGateSession,
+} from "@/lib/desktopFirestoreSync";
 import { useAppleSyncOAuth } from "@/lib/useAppleSyncOAuth";
 
 type Props = {
@@ -9,8 +20,8 @@ type Props = {
 };
 
 /**
- * Universal link for mobile “Enable sync” entry (contract: chinotto-mobile docs). No query params.
- * Copy lives here and in docs/sync.md — change both if the URL changes.
+ * Universal link base for mobile “Enable sync” entry (contract: chinotto-mobile docs).
+ * Desktop appends `?ds=<uuid>` so the phone can signal this modal session in Firestore.
  */
 export const CHINOTTO_SYNC_MOBILE_UNIVERSAL_LINK = "https://getchinotto.app/sync";
 
@@ -19,22 +30,110 @@ type PropsInternal = Props & {
 };
 
 function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
-  const { stable } = useAppleSyncOAuth({ active: firebaseConfigured });
+  const [sessionId] = useState(() => crypto.randomUUID());
+  const syncMobileUrl = useMemo(() => {
+    const u = new URL(CHINOTTO_SYNC_MOBILE_UNIVERSAL_LINK);
+    u.searchParams.set("ds", sessionId);
+    return u.toString();
+  }, [sessionId]);
+
+  const [gateUnlocked, setGateUnlocked] = useState(false);
+  /** Lets users enable the desktop CTA if the iPhone step is already done but the `ds` gate doc didn’t update (or they can’t scan). */
+  const [bypassGate, setBypassGate] = useState(false);
+
+  const {
+    stable,
+    busy,
+    signingOut,
+    error,
+    setError,
+    onContinueApple,
+    onSignOut,
+    user,
+  } = useAppleSyncOAuth({ active: firebaseConfigured });
+
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileActive, setProfileActive] = useState(false);
+
+  useEffect(() => {
+    if (!firebaseConfigured) {
+      setGateUnlocked(false);
+      return undefined;
+    }
+    return subscribeDesktopSyncGateSession(sessionId, setGateUnlocked);
+  }, [firebaseConfigured, sessionId]);
+
+  useEffect(() => {
+    if (!firebaseConfigured || !stable || user == null || user.isAnonymous) {
+      setProfileLoading(false);
+      setProfileActive(false);
+      return undefined;
+    }
+    setProfileLoading(true);
+    const uid = user.uid;
+    return subscribeChinottoUserSyncAccess(uid, (active) => {
+      setProfileActive(active);
+      setProfileLoading(false);
+    });
+  }, [firebaseConfigured, stable, user?.uid, user?.isAnonymous]);
+
+  /**
+   * Left column copy + CTA (3 states, single block — no stacking):
+   * 1) Not signed in on desktop (`!stable`): instruction (+ optional bypass footnote in copy); CTA after copy block.
+   * 2) Signed in, sync not active yet: status + iPhone line; no Apple CTA (already signed in — use QR / Disconnect).
+   * 3) Not signed in, gate open (`!stable && (gateUnlocked || bypassGate)`): same instruction as (1); CTA enabled.
+   * While `profileLoading`, show (1)/(3) instruction so we don’t flash (2) before we know access.
+   */
+  const ctaEnabled = firebaseConfigured && !stable && (gateUnlocked || bypassGate);
+  const showSyncReady = stable && profileActive && !profileLoading;
+  const showBypassHint =
+    firebaseConfigured && !stable && !bypassGate && !gateUnlocked;
+
+  const { bodyLine1, bodyLine1Class, bodyLine2 } = useMemo((): {
+    bodyLine1: string;
+    bodyLine1Class: string;
+    bodyLine2: string | null;
+  } => {
+    if (stable && !profileLoading && !profileActive) {
+      return {
+        bodyLine1: "Sync isn’t enabled yet",
+        bodyLine1Class: "sync-modal-bridge-lead sync-modal-bridge-lead--status",
+        bodyLine2: "Finish setup on your iPhone.",
+      };
+    }
+    return {
+      bodyLine1: "Enable sync on your iPhone first.",
+      bodyLine1Class: "sync-modal-bridge-lead",
+      bodyLine2: null,
+    };
+  }, [stable, profileLoading, profileActive]);
+
   const [linkCopied, setLinkCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
 
-  const requestClose = useCallback(() => {
-    onClose();
-  }, [onClose]);
+  const close = useCallback(() => {
+    if (isClosing) return;
+    setIsClosing(true);
+  }, [isClosing]);
+
+  const handleAnimationEnd = useCallback(
+    (e: AnimationEvent) => {
+      if (e.animationName === "chinotto-card-overlay-out") {
+        onClose();
+      }
+    },
+    [onClose]
+  );
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        requestClose();
+        close();
       }
     },
-    [requestClose]
+    [close]
   );
 
   useEffect(() => {
@@ -44,7 +143,7 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
 
   const handleCopyLink = useCallback(() => {
     setCopyFailed(false);
-    void navigator.clipboard.writeText(CHINOTTO_SYNC_MOBILE_UNIVERSAL_LINK).then(
+    void navigator.clipboard.writeText(syncMobileUrl).then(
       () => {
         setLinkCopied(true);
         window.setTimeout(() => setLinkCopied(false), 2000);
@@ -53,22 +152,37 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
         setCopyFailed(true);
       }
     );
-  }, []);
+  }, [syncMobileUrl]);
 
   const handleOverlayClick = (e: MouseEvent) => {
     if (!(e.target as HTMLElement).closest?.(".chinotto-card")) {
-      requestClose();
+      close();
     }
   };
+
+  const handleContinueApple = useCallback(() => {
+    if (!ctaEnabled || busy) {
+      return;
+    }
+    setError(null);
+    void onContinueApple();
+  }, [ctaEnabled, busy, onContinueApple, setError]);
+
+  const connectButtonDisabled = !ctaEnabled || busy;
+  const connectButtonDimmed = !ctaEnabled && !busy;
+  const showAppleCta = !stable;
+  const copyStatusPair = stable && !profileLoading && !profileActive;
 
   return (
     <div
       className="chinotto-card-overlay"
+      data-closing={isClosing || undefined}
       role="dialog"
       aria-labelledby="sync-modal-title"
-      aria-describedby="sync-modal-footer-help"
+      aria-describedby="sync-modal-body-copy sync-modal-footer-hint"
       aria-modal="true"
       onClick={handleOverlayClick}
+      onAnimationEnd={handleAnimationEnd}
     >
       <div className="chinotto-card-scroll">
         <article
@@ -77,39 +191,121 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
           role="document"
           aria-label="Enable sync"
         >
-          <header className="chinotto-card-head">
-            <ChinottoLogo size={24} className="chinotto-card-head-logo text-[var(--landing-foreground)]" />
-            <div>
-              <h1 id="sync-modal-title" className="chinotto-card-head-title">
-                Enable sync
-              </h1>
+          <header className="chinotto-card-head sync-modal-head">
+            <div className="sync-modal-head-start">
+              <ChinottoLogo size={24} className="chinotto-card-head-logo text-[var(--landing-foreground)]" />
+              <div>
+                <h1 id="sync-modal-title" className="chinotto-card-head-title">
+                  Enable sync
+                </h1>
+              </div>
             </div>
+            {stable ? (
+              <button
+                type="button"
+                className="sync-modal-head-disconnect"
+                aria-label="Disconnect this Mac"
+                disabled={busy || signingOut}
+                onClick={() => void onSignOut()}
+              >
+                {signingOut ? "Disconnecting…" : "Disconnect"}
+              </button>
+            ) : null}
           </header>
 
           <div className="sync-modal-bridge-shell">
             <div className="chinotto-card-body sync-modal-bridge-body">
-              <div className="chinotto-card-col sync-modal-col--copy">
-                <h2 className="sync-modal-bridge-title">
+              <div className="chinotto-card-col sync-modal-col--copy sync-modal-col--copy-with-cta">
+                <h2
+                  className={[
+                    "sync-modal-bridge-title",
+                    copyStatusPair ? "sync-modal-bridge-title--room-below" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  id="sync-modal-body-copy"
+                >
                   Keep your thoughts with you — across devices.
                 </h2>
-                <p className="sync-modal-bridge-lead">
-                  To enable sync, continue on your phone.
-                </p>
-                <p className="sync-modal-bridge-hint">
-                  After you enable sync, use the same Apple ID on this Mac.
-                </p>
+                <div
+                  className={[
+                    "sync-modal-copy-swap",
+                    copyStatusPair ? "sync-modal-copy-swap--status-pair" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  role="status"
+                >
+                  <p className={bodyLine1Class}>{bodyLine1}</p>
+                  {bodyLine2 ? (
+                    <p className="sync-modal-bridge-lead sync-modal-bridge-lead--second">{bodyLine2}</p>
+                  ) : null}
+                  {firebaseConfigured && !stable ? (
+                    <div className="sync-modal-copy-footnote">
+                      {showBypassHint ? (
+                        <button type="button" className="sync-modal-bypass" onClick={() => setBypassGate(true)}>
+                          Already finished on your iPhone?
+                        </button>
+                      ) : (
+                        <span className="sync-modal-copy-footnote-spacer" aria-hidden="true" />
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="sync-modal-connect-slot sync-modal-connect-slot--left">
+                  {showAppleCta ? (
+                    <button
+                      type="button"
+                      className={[
+                        "sync-modal-connect-apple",
+                        connectButtonDimmed ? "sync-modal-connect-apple--dimmed" : "",
+                        busy ? "sync-modal-connect-apple--busy" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                      disabled={connectButtonDisabled}
+                      onClick={handleContinueApple}
+                    >
+                      {busy ? "Opening…" : "Continue with Apple"}
+                    </button>
+                  ) : (
+                    <div className="sync-modal-connect-apple-slot-spacer" aria-hidden="true" />
+                  )}
+                  <div className="sync-modal-post-cta sync-modal-post-cta--left">
+                    <p
+                      className={[
+                        "sync-modal-sync-on",
+                        showSyncReady ? "sync-modal-sync-on--visible" : "sync-modal-sync-on--hidden",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                      role={showSyncReady ? "status" : undefined}
+                      aria-live={showSyncReady ? "polite" : undefined}
+                      aria-hidden={!showSyncReady}
+                    >
+                      <span className="sync-modal-sync-dot" aria-hidden="true">
+                        ●
+                      </span>
+                      Sync is on
+                    </p>
+                  </div>
+                </div>
+                {error ? (
+                  <p className="sync-modal-bridge-warn" role="alert">
+                    {error}
+                  </p>
+                ) : null}
               </div>
               <div className="chinotto-card-col sync-modal-col--qr">
-                <div className="sync-modal-qr-wrap">
+                <div className="sync-modal-qr-wrap sync-modal-qr-wrap--compact">
                   <div className="sync-modal-qr-frame" aria-hidden="true">
                     <QRCode
-                      value={CHINOTTO_SYNC_MOBILE_UNIVERSAL_LINK}
-                      size={200}
+                      value={syncMobileUrl}
+                      size={168}
                       style={{ height: "auto", maxWidth: "100%", width: "100%" }}
                     />
                   </div>
-                  <p className="sync-modal-qr-caption">Scan with your iPhone</p>
-                  <div className="sync-modal-phone-slot">
+                  <div className="sync-modal-phone-slot sync-modal-phone-slot--compact">
                     {copyFailed ? (
                       <button
                         type="button"
@@ -131,23 +327,14 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
                       </button>
                     )}
                   </div>
-                  {firebaseConfigured && stable ? (
-                    <p className="sync-modal-sync-on">
-                      <span className="sync-modal-sync-dot" aria-hidden="true">
-                        ●
-                      </span>
-                      Sync is on
-                    </p>
-                  ) : null}
                 </div>
               </div>
             </div>
           </div>
 
           <footer className="chinotto-card-footer sync-modal-footer">
-            <p id="sync-modal-footer-help" className="sync-modal-footer-note">
-              Scan or copy opens Chinotto on your iPhone so you can enable sync there. The link carries
-              no sign-in and no personal information.
+            <p id="sync-modal-footer-hint" className="sync-modal-footer-hint">
+              Local by default. Sync optional.
             </p>
           </footer>
         </article>
@@ -157,7 +344,7 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
 }
 
 /**
- * Mobile sync entry: QR to universal link; shows sync-on when Firebase is configured and signed in.
+ * Mobile sync entry: QR to universal link + `ds` session; Firestore-backed gate before Continue with Apple.
  */
 export function SyncModal({ onClose }: Props) {
   const firebaseConfigured = isFirebaseSyncConfigured();
