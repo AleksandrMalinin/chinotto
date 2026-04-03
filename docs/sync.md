@@ -2,7 +2,7 @@
 
 **Repo:** `chinotto-app` (this file). **Release QA:** [sync-release-checklist.md](./sync-release-checklist.md) (mirror in `chinotto-mobile/docs/`).
 
-**Normative wire contract (cross-repo):** `chinotto-mobile/docs/sync.md` — paths, field shapes, §8 tombstones, §4 module map. When mobile’s contract changes, update this file’s **§ Cross-platform parity** and **§ Changelog**.
+**Normative wire contract (cross-repo):** `chinotto-mobile/docs/sync.md` — paths, field shapes, §8 tombstones, §4 module map. **Unlock / Enable sync UX:** `chinotto-mobile/docs/sync/cross-device-sync-unlock-flow.md`. When mobile’s contract changes, update this file’s **§ Cross-platform parity** and **§ Changelog**.
 
 ---
 
@@ -62,7 +62,7 @@ Tombstone listener query: `deletedAt != null` + **`orderBy('deletedAt','desc')`*
 |--------|------|
 | `src/lib/firebaseConfig.ts` | `VITE_FIREBASE_*` gate. |
 | `src/lib/firestoreTombstone.ts` | `isFirestoreDocumentTombstoned` (+ tests). |
-| `src/lib/desktopFirestoreSync.ts` | Auth, **backfill** (`getDocs`, `startAfter`, ≤40×500), live ingest + tombstone listeners, forced tombstone `getDocs` (sign-in, each ingest snapshot, ~12s poll), `lastTombstoneQueryDocIds`, push + tombstone flush. |
+| `src/lib/desktopFirestoreSync.ts` | Auth, **backfill** (`getDocs`, `startAfter`, ≤40×500), live ingest + tombstone listeners, forced tombstone `getDocs` (sign-in, each ingest snapshot, ~12s poll), `lastTombstoneQueryDocIds`, push + tombstone flush; `subscribeDesktopSyncGateSession`, `subscribeChinottoUserSyncAccess` for sync modal gating. |
 | `src/features/entries/entryApi.ts` | `invoke` wrappers; **`ingestFirestoreEntries`**; **`deleteLocalEntriesForSync`** → `{ entryIds }`. |
 | `src/App.tsx` | `startDesktopFirestoreIngest`, push after create/restore, `notifyEntryDeletedForSync` on delete. |
 | `src/features/entries/TrayCapturePanel.tsx` | Push after `createEntry` when sync on (menu bar surface). |
@@ -139,13 +139,13 @@ Use the **same** Firebase Web app as mobile (`EXPO_PUBLIC_*` → `VITE_*`).
 ### QR bridge → mobile (always)
 
 - **Header:** **Enable sync** opens `SyncModal` for every user (does not require `VITE_FIREBASE_*`).  
-- **QR URL (only):** `https://getchinotto.app/sync` — no query params, no tokens (contract: `chinotto-mobile/docs/sync/desktop-handoff-monetization-deeplinks.md`).  
-- **Constant:** `CHINOTTO_SYNC_MOBILE_UNIVERSAL_LINK` in `src/components/SyncModal.tsx` — change there if the link changes.  
-- **Fallback:** “Open on your phone” copies that URL; if clipboard fails, the same control becomes **Couldn’t copy — try again** (no extra block; URL unchanged).
+- **QR URL:** `https://getchinotto.app/sync` plus per-open **`?ds=<uuid-v4>`** for Firestore `sync_desktop_sessions` (contract: `chinotto-mobile/docs/sync/desktop-handoff-monetization-deeplinks.md`, `chinotto-mobile/docs/sync/sync.md` §3).  
+- **Constant:** `CHINOTTO_SYNC_MOBILE_UNIVERSAL_LINK` in `src/components/SyncModal.tsx` — change there if the host/path changes (desktop still appends `ds`).  
+- **Fallback:** “Open on your phone” copies the full URL (including `ds`); if clipboard fails, the same control becomes **Couldn’t copy — try again**.
 
 ### OAuth and dev (this Mac, when Firebase is configured)
 
-- **Sync modal:** QR bridge and supporting copy only; when already signed in, shows **Sync is on**. It does not start Apple sign-in (no auth actions in the modal).  
+- **Sync modal:** QR + Firestore gate; **Continue with Apple** is enabled only after mobile confirms unlock (`sync_desktop_sessions` or user taps **Already finished on your iPhone?**). **Sync is on** requires `users/{uid}.chinottoSyncAccess.active` from mobile, not Firebase sign-in alone.  
 - **Path:** `/chinotto-oauth` (path-based routing survives redirects better than query-only).  
 - **Dev:** Add **`localhost`** / **`127.0.0.1`** to Firebase **Authorized domains**.  
 - **`init.json`:** `https://{authDomain}/__/firebase/init.json` — **404** means deploy Hosting once (`firebase deploy --only hosting`).
@@ -194,6 +194,7 @@ Use the **same** Firebase Web app as mobile (`EXPO_PUBLIC_*` → `VITE_*`).
 
 | Date | Change |
 |------|--------|
+| 2026-04-02 | **Docs:** Canonical **Enable sync / unlock** flow — `chinotto-mobile/docs/sync/cross-device-sync-unlock-flow.md` (desktop `SyncModal` states, `ds` gate, `chinottoSyncAccess`). |
 | 2026-03-29 | **Docs:** Merged `sync-deletion-v2.md`, `sync-v2-as-built.md`, `sync-mobile-parity-and-followups.md`, and `firestore-sync.md` into this file. Release QA lives only in `sync-release-checklist.md`. |
 
 *(Add a row when sync behavior or contract alignment changes materially.)*
