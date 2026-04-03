@@ -39,7 +39,7 @@ type UseAppleSyncOAuthOptions = {
 export function useAppleSyncOAuth({ active }: UseAppleSyncOAuthOptions) {
   const [user, setUser] = useState<User | null>(null);
   const [busy, setBusy] = useState(false);
-  /** True only while Disconnect runs; avoids reusing the “finish sign-in elsewhere” copy. */
+  /** True while disconnect (sign-out) runs; keeps the modal in a short “Disconnecting…” state. */
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inflightCleanupRef = useRef<(() => void) | null>(null);
@@ -61,7 +61,7 @@ export function useAppleSyncOAuth({ active }: UseAppleSyncOAuthOptions) {
   const onContinueApple = useCallback(async () => {
     setError(null);
     if (!isTauriShell()) {
-      setError("Use the Chinotto desktop app to sign in.");
+      setError("Use the Chinotto desktop app to continue.");
       return;
     }
 
@@ -163,7 +163,7 @@ export function useAppleSyncOAuth({ active }: UseAppleSyncOAuthOptions) {
           width: 480,
           height: 720,
           center: true,
-          title: "Sign in with Apple",
+          title: "Continue with Apple",
           resizable: true,
         });
         const unOnceErr = await oauthWin.once("tauri://error", (e) => {
@@ -171,11 +171,11 @@ export function useAppleSyncOAuth({ active }: UseAppleSyncOAuthOptions) {
           const payload =
             typeof e === "object" && e !== null && "payload" in e
               ? String((e as { payload: unknown }).payload)
-              : "Could not open the sign-in window.";
+              : "Could not open the Apple window.";
           logOAuthDiagnostic("popup_redirect", "oauth_webview_failed_to_open", {
             message: payload,
           });
-          setError("Could not open the sign-in window. Quit Chinotto fully and try again.");
+          setError("Could not open the Apple window. Quit Chinotto fully and try again.");
           setBusy(false);
         });
         unlisteners.push(unOnceErr);
@@ -183,7 +183,7 @@ export function useAppleSyncOAuth({ active }: UseAppleSyncOAuthOptions) {
     } catch (e) {
       cleanup();
       logOAuthUnknownError("onContinueApple", e);
-      setError("Could not start sign-in. Quit Chinotto fully and try again.");
+      setError("Could not start this step. Quit Chinotto fully and try again.");
       setBusy(false);
     }
   }, []);
@@ -194,7 +194,7 @@ export function useAppleSyncOAuth({ active }: UseAppleSyncOAuthOptions) {
     setBusy(true);
     try {
       await signOutFirebaseSync();
-      /* onAuthStateChanged can lag; update UI immediately so the modal leaves “Disconnect” state. */
+      /* onAuthStateChanged can lag; update UI immediately so the modal leaves the connected state. */
       setUser(null);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
