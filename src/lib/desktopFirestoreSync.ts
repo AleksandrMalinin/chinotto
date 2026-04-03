@@ -11,9 +11,11 @@ import {
   collection,
   deleteField,
   doc,
+  getDoc,
   getDocs,
-  getFirestore,
+  initializeFirestore,
   limit,
+  memoryLocalCache,
   onSnapshot,
   orderBy,
   query,
@@ -55,6 +57,8 @@ const INGEST_PAGE_SIZE = 500;
 const INGEST_BACKFILL_MAX_PAGES = 40;
 /** Tombstones are queried separately so deletes on older entries (outside the recent ingest window) still apply locally. */
 const TOMBSTONE_QUERY_LIMIT = 1000;
+/** Modal doc reads only: fewer watch streams (ingest already uses onSnapshot) — mitigates Firestore INTERNAL ASSERTION b815/ca9 in embedded WebKit. */
+const SYNC_MODAL_DOC_POLL_MS = 2500;
 
 /**
  * Doc ids from the latest tombstone-query snapshot. Firestore already filtered `deletedAt != null`;
@@ -85,7 +89,9 @@ function getOrInitFirestore(): Firestore {
   if (dbSingleton) {
     return dbSingleton;
   }
-  dbSingleton = getFirestore(getOrInitApp());
+  dbSingleton = initializeFirestore(getOrInitApp(), {
+    localCache: memoryLocalCache(),
+  });
   return dbSingleton;
 }
 
@@ -357,8 +363,14 @@ export function startDesktopFirestoreIngest(onIngested: () => void): () => void 
     return () => {};
   }
 
-  const app = getOrInitApp();
-  const auth = getAuth(app);
+  let auth: ReturnType<typeof getAuth>;
+  try {
+    auth = getAuth(getOrInitApp());
+  } catch (e) {
+    console.error("[chinotto sync] Firebase init failed; sync disabled for this session.", e);
+    return () => {};
+  }
+
   let unsubIngest: (() => void) | undefined;
   let unsubTombstones: (() => void) | undefined;
   let tombstonePollTimer: ReturnType<typeof setInterval> | undefined;
@@ -385,8 +397,14 @@ export function startDesktopFirestoreIngest(onIngested: () => void): () => void 
     }
     ingestBackfillAbort = false;
     const uidAtStart = user.uid;
-    const db = getOrInitFirestore();
-    const coll = collection(db, "users", user.uid, "entries");
+    let coll: ReturnType<typeof collection>;
+    try {
+      const db = getOrInitFirestore();
+      coll = collection(db, "users", user.uid, "entries");
+    } catch (e) {
+      console.error("[chinotto sync] Firestore init failed after sign-in; ingest skipped.", e);
+      return;
+    }
 
     void (async () => {
       await flushSyncTombstoneOutbox();
@@ -507,6 +525,110 @@ export function subscribeSyncAuth(onChange: (user: User | null) => void): () => 
     onChange(null);
     return () => {};
   }
-  const auth = getAuth(getOrInitApp());
-  return onAuthStateChanged(auth, onChange);
+  try {
+    const auth = getAuth(getOrInitApp());
+    return onAuthStateChanged(auth, onChange);
+  } catch (e) {
+    console.error("[chinotto sync] subscribeSyncAuth: Firebase init failed.", e);
+    onChange(null);
+    return () => {};
+  }
+}
+
+/**
+ * Desktop sync modal: poll for mobile unlock on this session (`?ds=` on the QR URL).
+ * Uses getDoc polling instead of onSnapshot to avoid extra watch streams (see SYNC_MODAL_DOC_POLL_MS).
+ * Rules must allow unauthenticated **read** on `sync_desktop_sessions/{sessionId}`.
+ */
+export function subscribeDesktopSyncGateSession(
+  sessionId: string,
+  onUnlocked: (unlocked: boolean) => void
+): () => void {
+  if (!isFirebaseSyncConfigured()) {
+    onUnlocked(false);
+    return () => {};
+  }
+  if (!sessionId?.trim()) {
+    onUnlocked(false);
+    return () => {};
+  }
+  try {
+    const db = getOrInitFirestore();
+    const ref = doc(db, "sync_desktop_sessions", sessionId);
+    let stopped = false;
+    const poll = async () => {
+      if (stopped) {
+        return;
+      }
+      try {
+        const snap = await getDoc(ref);
+        if (stopped) {
+          return;
+        }
+        onUnlocked(snap.data()?.unlocked === true);
+      } catch (e) {
+        console.error("[chinotto sync] desktop gate poll error", e);
+        if (!stopped) {
+          onUnlocked(false);
+        }
+      }
+    };
+    void poll();
+    const timer = setInterval(() => void poll(), SYNC_MODAL_DOC_POLL_MS);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  } catch (e) {
+    console.error("[chinotto sync] desktop gate listener setup failed", e);
+    onUnlocked(false);
+    return () => {};
+  }
+}
+
+/** After Sign in with Apple: mobile mirrors paid sync access on `users/{uid}` (polled; see SYNC_MODAL_DOC_POLL_MS). */
+export function subscribeChinottoUserSyncAccess(
+  uid: string,
+  onActive: (active: boolean) => void
+): () => void {
+  if (!isFirebaseSyncConfigured()) {
+    onActive(false);
+    return () => {};
+  }
+  if (!uid?.trim()) {
+    onActive(false);
+    return () => {};
+  }
+  try {
+    const db = getOrInitFirestore();
+    const ref = doc(db, "users", uid);
+    let stopped = false;
+    const poll = async () => {
+      if (stopped) {
+        return;
+      }
+      try {
+        const snap = await getDoc(ref);
+        if (stopped) {
+          return;
+        }
+        onActive(snap.data()?.chinottoSyncAccess?.active === true);
+      } catch (e) {
+        console.error("[chinotto sync] user sync access poll error", e);
+        if (!stopped) {
+          onActive(false);
+        }
+      }
+    };
+    void poll();
+    const timer = setInterval(() => void poll(), SYNC_MODAL_DOC_POLL_MS);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  } catch (e) {
+    console.error("[chinotto sync] user sync access listener setup failed", e);
+    onActive(false);
+    return () => {};
+  }
 }
