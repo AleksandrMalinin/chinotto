@@ -1,4 +1,11 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+  type AnimationEvent,
+} from "react";
 import { IntroScreen } from "@/components/IntroScreen";
 import { LogoTransition } from "@/components/LogoTransition";
 import { ChinottoLogo } from "@/components/ChinottoLogo";
@@ -93,6 +100,18 @@ const FEEDBACK_EMAIL = "hello@chinotto.app";
 const EMPTY_ONBOARDING_POST_INTRO_DELAY_MS = 750;
 const JUMP_CONTEXT_EXPANDED_MS = 3000;
 
+/** Lets ChinottoCard (and similar) run their exit animation instead of unmounting from the parent. */
+function emitSyntheticEscapeKeydown(): void {
+  window.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      key: "Escape",
+      code: "Escape",
+      bubbles: true,
+      cancelable: true,
+    })
+  );
+}
+
 function isTypingInInput(): boolean {
   const el = document.activeElement;
   return (
@@ -154,6 +173,7 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchOverlayClosing, setSearchOverlayClosing] = useState(false);
   const [jumpPopoverOpen, setJumpPopoverOpen] = useState(false);
   const [jumpContextYmd, setJumpContextYmd] = useState<string | null>(null);
   const [jumpContextExpanded, setJumpContextExpanded] = useState(false);
@@ -192,6 +212,32 @@ export default function App() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const jumpToDateButtonRef = useRef<HTMLButtonElement>(null);
   const entryInputRef = useRef<EntryInputRef>(null);
+
+  const handleSearchCloseImmediate = useCallback(() => {
+    setSearchOverlayClosing(false);
+    setIsSearchOpen(false);
+    setSearch("");
+    requestAnimationFrame(() => {
+      entryInputRef.current?.focus();
+    });
+  }, []);
+
+  const handleSearchOverlayAnimationEnd = useCallback((e: AnimationEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return;
+    if (e.animationName !== "search-overlay-out") return;
+    setIsSearchOpen(false);
+    setSearchOverlayClosing(false);
+    setSearch("");
+    requestAnimationFrame(() => {
+      entryInputRef.current?.focus();
+    });
+  }, []);
+
+  const handleSearchClose = useCallback(() => {
+    if (!isSearchOpen || searchOverlayClosing) return;
+    setSearchOverlayClosing(true);
+  }, [isSearchOpen, searchOverlayClosing]);
+
   const searchRef = useRef(search);
   searchRef.current = search;
   const devDeleteAllThoughtsRef = useRef<(() => Promise<void>) | null>(null);
@@ -424,19 +470,42 @@ export default function App() {
     return () => clearTimeout(id);
   }, [introDismissed, introTransitioning]);
 
+  const chromeOverlayOpen = isChinottoCardOpen || isSyncModalOpen || isSearchOpen;
+
   useEffect(() => {
-    if (isChinottoCardOpen) {
-      document.documentElement.classList.add("chinotto-card-open");
-      document.body.classList.add("chinotto-card-open");
-    } else {
-      document.documentElement.classList.remove("chinotto-card-open");
-      document.body.classList.remove("chinotto-card-open");
-    }
-    return () => {
+    let raf0 = 0;
+    let raf1 = 0;
+    let cancelled = false;
+
+    const removeChromeClass = () => {
       document.documentElement.classList.remove("chinotto-card-open");
       document.body.classList.remove("chinotto-card-open");
     };
-  }, [isChinottoCardOpen]);
+
+    const scheduleRemove = () => {
+      raf0 = requestAnimationFrame(() => {
+        raf1 = requestAnimationFrame(() => {
+          if (!cancelled) {
+            removeChromeClass();
+          }
+        });
+      });
+    };
+
+    if (chromeOverlayOpen) {
+      document.documentElement.classList.add("chinotto-card-open");
+      document.body.classList.add("chinotto-card-open");
+    } else {
+      scheduleRemove();
+    }
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf0);
+      cancelAnimationFrame(raf1);
+      removeChromeClass();
+    };
+  }, [chromeOverlayOpen]);
 
   useEffect(() => {
     setDesktopIcon(getStoredIconVariantId()).catch(() => {});
@@ -607,11 +676,12 @@ export default function App() {
       if (isTypingInInput()) return;
       if (selectedEntry) setSelectedEntry(null);
       if (isSearchOpen) {
-        setIsSearchOpen(false);
-        setSearch("");
+        handleSearchClose();
       }
       if (jumpPopoverOpen) setJumpPopoverOpen(false);
-      if (isChinottoCardOpen) setIsChinottoCardOpen(false);
+      if (isChinottoCardOpen) {
+        emitSyntheticEscapeKeydown();
+      }
       clearJumpContext();
       requestAnimationFrame(() => {
         entryInputRef.current?.focus();
@@ -626,6 +696,7 @@ export default function App() {
     jumpPopoverOpen,
     isChinottoCardOpen,
     clearJumpContext,
+    handleSearchClose,
   ]);
 
   useEffect(() => {
@@ -711,6 +782,7 @@ export default function App() {
 
   useEffect(() => {
     if (isSearchOpen) {
+      setSearchOverlayClosing(false);
       searchInputRef.current?.focus();
     }
   }, [isSearchOpen]);
@@ -719,11 +791,6 @@ export default function App() {
     function onKeyDown(e: KeyboardEvent) {
       if (isTypingInInput()) return;
       if (e.key === "Escape") {
-        if (isSyncModalOpen) {
-          setIsSyncModalOpen(false);
-          e.preventDefault();
-          return;
-        }
         if (jumpPopoverOpen) {
           setJumpPopoverOpen(false);
           e.preventDefault();
@@ -752,8 +819,11 @@ export default function App() {
       if (e.key === "n" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         if (selectedEntry) setSelectedEntry(null);
-        if (isSearchOpen) setIsSearchOpen(false);
-        entryInputRef.current?.focus();
+        if (isSearchOpen) {
+          handleSearchClose();
+        } else {
+          entryInputRef.current?.focus();
+        }
       }
       if (EXPERIMENTAL_VOICE_CAPTURE && (e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "v") {
         e.preventDefault();
@@ -779,9 +849,9 @@ export default function App() {
     selectedEntry,
     voiceCaptureOpen,
     isSearchOpen,
-    isSyncModalOpen,
     jumpPopoverOpen,
     showJumpTrigger,
+    handleSearchClose,
   ]);
 
   const EPHEMERAL_WINDOW_MS = 15_000;
@@ -828,14 +898,6 @@ export default function App() {
     }, 400);
     refresh(search);
     generateEmbedding(id);
-  }
-
-  function handleSearchClose() {
-    setIsSearchOpen(false);
-    setSearch("");
-    requestAnimationFrame(() => {
-      entryInputRef.current?.focus();
-    });
   }
 
   const handleJumpDatePick = useCallback(
@@ -1145,13 +1207,12 @@ export default function App() {
       setEphemeralEntryIds(new Set());
       setSettlingEntryIds(new Set());
       setHoveredEntryId(null);
-      setSearch("");
-      setIsSearchOpen(false);
+      handleSearchCloseImmediate();
       await refresh("");
     } catch (e) {
       void dialogMessage(String(e), { kind: "error", title: "Chinotto" });
     }
-  }, [refresh]);
+  }, [refresh, handleSearchCloseImmediate]);
 
   devDeleteAllThoughtsRef.current = handleDevDeleteAllThoughts;
 
@@ -1280,8 +1341,10 @@ export default function App() {
           {isSearchOpen && (
             <div
               className="search-overlay"
+              data-closing={searchOverlayClosing || undefined}
               role="dialog"
               aria-label="Search"
+              onAnimationEnd={handleSearchOverlayAnimationEnd}
               onClick={(e) => e.target === e.currentTarget && handleSearchClose()}
             >
               <div className="search-center search-reveal">
@@ -1295,8 +1358,10 @@ export default function App() {
                       track({ event: "search_used", result_count: entries.length });
                       const entry = entries[searchSelectedIndex] ?? entries[0];
                       handleOpenEntry(entry);
+                      handleSearchCloseImmediate();
+                    } else {
+                      handleSearchClose();
                     }
-                    handleSearchClose();
                   }}
                   onArrowUp={
                     entries.length > 0
@@ -1325,7 +1390,7 @@ export default function App() {
                       onSelectEntry={(entry) => {
                         track({ event: "search_used", result_count: entries.length });
                         handleOpenEntry(entry);
-                        handleSearchClose();
+                        handleSearchCloseImmediate();
                       }}
                     />
                   </>
