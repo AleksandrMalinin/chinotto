@@ -221,3 +221,16 @@ export function userMessageOAuthTimeoutMainWindow(devBrowserFlow: boolean): stri
   }
   return parts.join(" ");
 }
+
+/**
+ * Firebase `signInWithRedirect` stores pending state in sessionStorage; WKWebView / embedded
+ * browsers often clear it on the Apple round-trip (“missing initial state” on *.firebaseapp.com).
+ */
+export function userMessageTauriOAuthPopupOnly(): string {
+  return [
+    "This window can’t complete Apple sign-in via a redirect (the system clears saved login state).",
+    "Tap Continue with Apple again so sign-in opens inside this window.",
+    "If nothing appears, quit Chinotto completely and try once more.",
+    OAUTH_RECOVERY_CONSOLE,
+  ].join(" ");
+}

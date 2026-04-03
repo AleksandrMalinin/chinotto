@@ -25,6 +25,7 @@ import {
   userMessageRedirectIncomplete,
   userMessageRedirectTimeout,
   userMessageSyncNotConfigured,
+  userMessageTauriOAuthPopupOnly,
 } from "@/lib/oauthDiagnostics";
 import type { FirebaseApp } from "firebase/app";
 import { getApp, getApps, initializeApp } from "firebase/app";
@@ -87,6 +88,11 @@ function clearDevBridgeSession(): void {
   }
 }
 
+/** OAuth bridge runs inside the auxiliary Tauri webview (not the Safari dev-browser flow). */
+function isTauriOAuthWebview(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
 /**
  * Firebase stores redirect pending state under this sessionStorage key (see @firebase/auth
  * `pendingRedirectKey`). WKWebView sometimes drops it on the Apple round-trip while our
@@ -130,6 +136,24 @@ function authForOAuthWebview(app: FirebaseApp): Auth {
 
 function isBrowserDevOauthBridge(): boolean {
   return getDevBridgeSession() != null;
+}
+
+/** Safari dev-bridge: plain DOM after `replaceChildren`; flex centers copy horizontally and vertically. */
+function showDevBridgeSafariPage(message: string): void {
+  try {
+    document.documentElement.style.minHeight = "100%";
+    document.documentElement.style.background = "#0a0a0e";
+  } catch {
+    /* ignore */
+  }
+  document.body.replaceChildren();
+  document.body.style.cssText =
+    "min-height:100vh;margin:0;background:#0a0a0e;display:flex;flex-direction:column;align-items:center;justify-content:center;box-sizing:border-box;padding:1.5rem;";
+  const p = document.createElement("p");
+  p.style.cssText =
+    "font-family:system-ui,-apple-system,sans-serif;margin:0;max-width:28rem;width:100%;color:#e4e4e9;text-align:center;line-height:1.5;font-size:15px;";
+  p.textContent = message;
+  document.body.appendChild(p);
 }
 
 function readNonce(): string | null {
@@ -178,13 +202,7 @@ async function oauthBridgeEmitError(
   });
   if (isBrowserDevOauthBridge()) {
     clearDevBridgeSession();
-    document.body.replaceChildren();
-    document.body.style.background = "#0a0a0e";
-    const p = document.createElement("p");
-    p.style.cssText =
-      "font-family:system-ui,sans-serif;padding:2rem;max-width:36rem;margin:auto;color:#e4e4e9";
-    p.textContent = message;
-    document.body.appendChild(p);
+    showDevBridgeSafariPage(message);
     return;
   }
   await emit("chinotto-sync-oauth-error", { nonce, message });
@@ -383,34 +401,18 @@ export function OAuthBridge() {
                 extra: { detail },
               });
               clearDevBridgeSession();
-              document.body.replaceChildren();
-              document.body.style.background = "#0a0a0e";
-              const el = document.createElement("p");
-              el.style.cssText =
-                "font-family:system-ui,sans-serif;padding:2rem;color:#e4e4e9;max-width:36rem;margin:auto";
-              el.textContent =
-                "Could not hand sign-in back to Chinotto. Quit the app completely and try again. Details: browser console → [Chinotto OAuth].";
-              document.body.appendChild(el);
+              showDevBridgeSafariPage(
+                "Could not hand sign-in back to Chinotto. Quit the app completely and try again. Details: browser console → [Chinotto OAuth]."
+              );
               return;
             }
-            document.body.replaceChildren();
-            document.body.style.background = "#0a0a0e";
-            const ok = document.createElement("p");
-            ok.style.cssText =
-              "font-family:system-ui,sans-serif;padding:2rem;color:#e4e4e9;max-width:36rem;margin:auto";
-            ok.textContent = "Signed in. Close this tab and return to Chinotto.";
-            document.body.appendChild(ok);
+            showDevBridgeSafariPage("Signed in. Close this tab and return to Chinotto.");
             clearDevBridgeSession();
           } catch (e) {
             logOAuthUnknownError("dev_bridge_POST_fetch", e);
-            document.body.replaceChildren();
-            document.body.style.background = "#0a0a0e";
-            const el = document.createElement("p");
-            el.style.cssText =
-              "font-family:system-ui,sans-serif;padding:2rem;color:#e4e4e9;max-width:36rem;margin:auto";
-            el.textContent =
-              "Could not hand sign-in back to Chinotto. Quit the app completely and try again. Details: browser console → [Chinotto OAuth].";
-            document.body.appendChild(el);
+            showDevBridgeSafariPage(
+              "Could not hand sign-in back to Chinotto. Quit the app completely and try again. Details: browser console → [Chinotto OAuth]."
+            );
             clearDevBridgeSession();
           }
           try {
@@ -455,6 +457,14 @@ export function OAuthBridge() {
             code === "auth/popup-blocked" ||
             code === "auth/operation-not-supported-in-this-environment"
           ) {
+            if (isTauriOAuthWebview()) {
+              logOAuthDiagnostic("popup_redirect", "redirect_fallback_skipped_tauri_webview", {
+                code: code || undefined,
+                message:
+                  "signInWithRedirect loses sessionStorage in WKWebView; user must use signInWithPopup after a tap",
+              });
+              throw new Error(userMessageTauriOAuthPopupOnly());
+            }
             try {
               sessionStorage.setItem(FIREBASE_REDIRECT_PENDING_KEY, "1");
             } catch {
@@ -506,6 +516,20 @@ export function OAuthBridge() {
           return;
         }
         if (redirectAlreadyStarted && !browserDevBridge) {
+          if (isTauriOAuthWebview()) {
+            logOAuthDiagnostic("stale_session", "redirect_pending_recover_tauri_popup_only", {
+              extra: {
+                origin: typeof window !== "undefined" ? window.location.origin : "",
+                note: "prior redirect flow unreliable in webview; offer tap + popup",
+              },
+            });
+            clearOAuthPending();
+            setStatus(
+              "The last sign-in used a path this window can’t finish. Tap Continue with Apple to try again."
+            );
+            setShowContinueButton(true);
+            return;
+          }
           logOAuthDiagnostic("stale_session", "redirect_pending_but_no_redirect_result", {
             extra: {
               origin: typeof window !== "undefined" ? window.location.origin : "",
@@ -531,6 +555,12 @@ export function OAuthBridge() {
           setStatus(
             "Tap Continue with Apple. Safari requires this tap so the sign-in window can open (automatic start is blocked)."
           );
+          setShowContinueButton(true);
+          return;
+        }
+
+        if (isTauriOAuthWebview()) {
+          setStatus("Tap Continue with Apple to sign in.");
           setShowContinueButton(true);
           return;
         }
