@@ -1,6 +1,7 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import {
   getAuth,
+  linkWithCredential,
   onAuthStateChanged,
   OAuthProvider,
   signInWithCredential,
@@ -11,7 +12,8 @@ import {
   collection,
   deleteField,
   doc,
-  getDoc,
+  enableNetwork,
+  getDocFromServer,
   getDocs,
   initializeFirestore,
   limit,
@@ -26,6 +28,7 @@ import {
   where,
   type CollectionReference,
   type DocumentData,
+  type DocumentSnapshot,
   type Firestore,
   type Query,
   type QueryDocumentSnapshot,
@@ -57,8 +60,42 @@ const INGEST_PAGE_SIZE = 500;
 const INGEST_BACKFILL_MAX_PAGES = 40;
 /** Tombstones are queried separately so deletes on older entries (outside the recent ingest window) still apply locally. */
 const TOMBSTONE_QUERY_LIMIT = 1000;
-/** Modal doc reads only: fewer watch streams (ingest already uses onSnapshot) — mitigates Firestore INTERNAL ASSERTION b815/ca9 in embedded WebKit. */
-const SYNC_MODAL_DOC_POLL_MS = 2500;
+/**
+ * Desktop sync modal **gate** (`sync_desktop_sessions/{ds}`) only: poll interval.
+ * Fewer watch streams on that path mitigates Firestore INTERNAL ASSERTION b815/ca9 in embedded WebKit.
+ */
+const SYNC_MODAL_GATE_POLL_MS = 2500;
+/** Re-read `users/{uid}` while waiting for mobile to set `active: true` (stuck snapshot workaround). */
+const SYNC_ACCESS_WAITING_POLL_MS = 800;
+/** Extra server reads after subscribe (ms) — mobile may write `active` right after the first read. */
+const SYNC_ACCESS_WAITING_STAGGER_MS = [250, 550, 1100] as const;
+/** After `active` is true, still re-read occasionally so **turning sync off on mobile** reaches desktop if `onSnapshot` stalls. */
+const SYNC_ACCESS_WHILE_ACTIVE_POLL_MS = 30000;
+/** After focus/visibility: short burst of server reads while still waiting for `active: true` (timers are throttled in background WebViews). */
+const SYNC_ACCESS_FOCUS_BURST_MS = 1000;
+const SYNC_ACCESS_FOCUS_BURST_MAX = 15;
+
+const FIRESTORE_RULES_SYNC_MODAL_HINT =
+  "Firestore Security Rules must allow: (1) anyone may read sync_desktop_sessions/{sessionId}; " +
+  "(2) signed-in users may read/write users/{userId} when request.auth.uid == userId. " +
+  "Paste rules from chinotto-mobile docs/sync/sync.md (Security Rules) and Publish in Firebase Console.";
+
+function isFirestorePermissionDenied(e: unknown): boolean {
+  if (e && typeof e === "object" && "code" in e) {
+    const c = String((e as { code: string }).code);
+    return c === "permission-denied";
+  }
+  return false;
+}
+
+/** Mobile-written field on `users/{uid}`; keep in sync with chinotto-mobile `firestoreSyncAccessMirror`. */
+export function isChinottoSyncAccessActiveInUserDoc(data: DocumentData | undefined): boolean {
+  return data?.chinottoSyncAccess?.active === true;
+}
+
+/**
+ * Enable sync modal / header: **only** `users/{uid}.chinottoSyncAccess.active === true` (mobile mirror).
+ */
 
 /**
  * Doc ids from the latest tombstone-query snapshot. Firestore already filtered `deletedAt != null`;
@@ -494,6 +531,26 @@ export function startDesktopFirestoreIngest(onIngested: () => void): () => void 
   };
 }
 
+function authErrorCode(e: unknown): string {
+  if (e && typeof e === "object" && "code" in e && typeof (e as { code: unknown }).code === "string") {
+    const c = (e as { code: string }).code;
+    /** Some SDKs / wrappers emit `failed-precondition` without the `auth/` prefix. */
+    return c === "failed-precondition" ? "auth/failed-precondition" : c;
+  }
+  return "";
+}
+
+function isAuthFailedPrecondition(e: unknown): boolean {
+  return authErrorCode(e) === "auth/failed-precondition";
+}
+
+/**
+ * Applies the Apple OAuth credential from the bridge webview in the **main** window.
+ *
+ * `signInWithCredential` can throw `auth/failed-precondition` if a non-anonymous user is already
+ * signed in (Firebase expects sign-out or `linkWithCredential` for anonymous). We sign out first
+ * when replacing an existing session so “Continue with Apple” always applies the fresh credential.
+ */
 export async function signInWithAppleCredential(credentialJson: BridgedOAuthCredentialJson): Promise<void> {
   if (!isFirebaseSyncConfigured()) {
     throw new Error("Sync is not configured");
@@ -503,12 +560,50 @@ export async function signInWithAppleCredential(credentialJson: BridgedOAuthCred
     throw new Error("Apple sign-in did not provide an ID token");
   }
   const auth = getAuth(getOrInitApp());
+  await auth.authStateReady();
   const credential = OAuthProvider.credentialFromJSON({
     ...credentialJson,
     idToken,
     accessToken: credentialJson.accessToken?.trim() ? credentialJson.accessToken : undefined,
   });
-  await signInWithCredential(auth, credential);
+  if (!credential) {
+    throw new Error("Apple sign-in credential could not be built");
+  }
+
+  const signInAfterClearingSession = async () => {
+    try {
+      await signInWithCredential(auth, credential);
+    } catch (e) {
+      if (!isAuthFailedPrecondition(e)) {
+        throw e;
+      }
+      await signOut(auth);
+      await auth.authStateReady();
+      await signInWithCredential(auth, credential);
+    }
+  };
+
+  const cur = auth.currentUser;
+  if (cur?.isAnonymous) {
+    try {
+      await linkWithCredential(cur, credential);
+    } catch (e) {
+      if (isAuthFailedPrecondition(e)) {
+        await signOut(auth);
+        await auth.authStateReady();
+        await signInAfterClearingSession();
+      } else {
+        throw e;
+      }
+    }
+  } else if (cur) {
+    await signOut(auth);
+    await auth.authStateReady();
+    await signInAfterClearingSession();
+  } else {
+    await signInAfterClearingSession();
+  }
+
   await flushSyncTombstoneOutbox();
 }
 
@@ -537,12 +632,14 @@ export function subscribeSyncAuth(onChange: (user: User | null) => void): () => 
 
 /**
  * Desktop sync modal: poll for mobile unlock on this session (`?ds=` on the QR URL).
- * Uses getDoc polling instead of onSnapshot to avoid extra watch streams (see SYNC_MODAL_DOC_POLL_MS).
+ * Uses **getDocFromServer** polling (not cache) instead of onSnapshot to avoid extra watch streams
+ * (see SYNC_MODAL_GATE_POLL_MS) and stale `chinottoSyncAccess` after mobile writes.
  * Rules must allow unauthenticated **read** on `sync_desktop_sessions/{sessionId}`.
  */
 export function subscribeDesktopSyncGateSession(
   sessionId: string,
-  onUnlocked: (unlocked: boolean) => void
+  onUnlocked: (unlocked: boolean) => void,
+  options?: { onPermissionDenied?: () => void; onReadSucceeded?: () => void }
 ): () => void {
   if (!isFirebaseSyncConfigured()) {
     onUnlocked(false);
@@ -556,25 +653,38 @@ export function subscribeDesktopSyncGateSession(
     const db = getOrInitFirestore();
     const ref = doc(db, "sync_desktop_sessions", sessionId);
     let stopped = false;
+    let loggedPermissionDenied = false;
     const poll = async () => {
       if (stopped) {
         return;
       }
       try {
-        const snap = await getDoc(ref);
+        const snap = await getDocFromServer(ref);
         if (stopped) {
           return;
         }
+        options?.onReadSucceeded?.();
         onUnlocked(snap.data()?.unlocked === true);
       } catch (e) {
-        console.error("[chinotto sync] desktop gate poll error", e);
+        if (isFirestorePermissionDenied(e)) {
+          if (!loggedPermissionDenied) {
+            loggedPermissionDenied = true;
+            console.warn(
+              `[chinotto sync] desktop gate: permission denied — ${FIRESTORE_RULES_SYNC_MODAL_HINT}`,
+              e
+            );
+            options?.onPermissionDenied?.();
+          }
+        } else {
+          console.error("[chinotto sync] desktop gate poll error", e);
+        }
         if (!stopped) {
           onUnlocked(false);
         }
       }
     };
     void poll();
-    const timer = setInterval(() => void poll(), SYNC_MODAL_DOC_POLL_MS);
+    const timer = setInterval(() => void poll(), SYNC_MODAL_GATE_POLL_MS);
     return () => {
       stopped = true;
       clearInterval(timer);
@@ -586,10 +696,19 @@ export function subscribeDesktopSyncGateSession(
   }
 }
 
-/** After Sign in with Apple: mobile mirrors paid sync access on `users/{uid}` (polled; see SYNC_MODAL_DOC_POLL_MS). */
+/**
+ * After Sign in with Apple: mobile mirrors paid sync access on `users/{uid}`.
+ * Uses **`onSnapshot`** for push updates, plus **`getDocFromServer`** on focus/visibility and on a
+ * timer (fast while waiting for access, slower while `active` so **revokes** from mobile still land
+ * if the listener stalls) — embedded WebKit can stop delivering snapshot updates until restart.
+ * On **focus / visibility**, nudges the client with `enableNetwork`, **re-attaches** the snapshot
+ * listener, and (while still waiting for `active`) runs a short **burst** of server reads — background
+ * tabs throttle `setInterval`, so polling alone may not run until the app is restarted.
+ */
 export function subscribeChinottoUserSyncAccess(
   uid: string,
-  onActive: (active: boolean) => void
+  onActive: (active: boolean) => void,
+  options?: { onPermissionDenied?: () => void; onReadSucceeded?: () => void }
 ): () => void {
   if (!isFirebaseSyncConfigured()) {
     onActive(false);
@@ -603,32 +722,259 @@ export function subscribeChinottoUserSyncAccess(
     const db = getOrInitFirestore();
     const ref = doc(db, "users", uid);
     let stopped = false;
-    const poll = async () => {
+    let loggedPermissionDenied = false;
+    let lastActive = false;
+
+    let serverPoll: ReturnType<typeof setInterval> | null = null;
+    const clearServerPoll = () => {
+      if (serverPoll != null) {
+        clearInterval(serverPoll);
+        serverPoll = null;
+      }
+    };
+
+    const scheduleServerPoll = () => {
+      clearServerPoll();
+      if (stopped) {
+        return;
+      }
+      const ms = lastActive ? SYNC_ACCESS_WHILE_ACTIVE_POLL_MS : SYNC_ACCESS_WAITING_POLL_MS;
+      serverPoll = setInterval(() => {
+        void refetchFromServer();
+      }, ms);
+    };
+
+    const applySnap = (snap: DocumentSnapshot) => {
+      if (stopped) {
+        return;
+      }
+      const prev = lastActive;
+      lastActive = isChinottoSyncAccessActiveInUserDoc(snap.data());
+      options?.onReadSucceeded?.();
+      onActive(lastActive);
+      if (prev !== lastActive) {
+        scheduleServerPoll();
+      }
+    };
+
+    const applyError = (e: unknown) => {
+      if (isFirestorePermissionDenied(e)) {
+        if (!loggedPermissionDenied) {
+          loggedPermissionDenied = true;
+          console.warn(
+            `[chinotto sync] user sync access: permission denied — ${FIRESTORE_RULES_SYNC_MODAL_HINT}`,
+            e
+          );
+          options?.onPermissionDenied?.();
+        }
+      } else {
+        console.error("[chinotto sync] user sync access listener error", e);
+      }
+      if (!stopped) {
+        const prev = lastActive;
+        lastActive = false;
+        onActive(false);
+        if (prev !== lastActive) {
+          scheduleServerPoll();
+        }
+      }
+    };
+
+    const refetchFromServer = async () => {
       if (stopped) {
         return;
       }
       try {
-        const snap = await getDoc(ref);
+        const snap = await getDocFromServer(ref);
         if (stopped) {
           return;
         }
-        onActive(snap.data()?.chinottoSyncAccess?.active === true);
+        applySnap(snap);
       } catch (e) {
-        console.error("[chinotto sync] user sync access poll error", e);
-        if (!stopped) {
-          onActive(false);
+        if (isFirestorePermissionDenied(e)) {
+          applyError(e);
+        } else {
+          console.warn("[chinotto sync] user sync access: getDocFromServer refetch failed", e);
         }
       }
     };
-    void poll();
-    const timer = setInterval(() => void poll(), SYNC_MODAL_DOC_POLL_MS);
+
+    let snapshotUnsub: (() => void) | null = null;
+
+    const attachSnapshotListener = () => {
+      if (snapshotUnsub != null) {
+        snapshotUnsub();
+        snapshotUnsub = null;
+      }
+      if (stopped) {
+        return;
+      }
+      snapshotUnsub = onSnapshot(ref, applySnap, applyError);
+    };
+
+    attachSnapshotListener();
+
+    scheduleServerPoll();
+    void refetchFromServer();
+
+    const staggerIds: number[] = [];
+    for (const ms of SYNC_ACCESS_WAITING_STAGGER_MS) {
+      staggerIds.push(
+        window.setTimeout(() => {
+          if (stopped || lastActive) {
+            return;
+          }
+          void refetchFromServer();
+        }, ms)
+      );
+    }
+
+    let focusDebounce: ReturnType<typeof setTimeout> | null = null;
+    let focusBurst: ReturnType<typeof setInterval> | null = null;
+    const clearFocusBurst = () => {
+      if (focusBurst != null) {
+        clearInterval(focusBurst);
+        focusBurst = null;
+      }
+    };
+
+    const scheduleFocusRecover = () => {
+      if (typeof window === "undefined") {
+        return;
+      }
+      if (focusDebounce != null) {
+        clearTimeout(focusDebounce);
+      }
+      focusDebounce = setTimeout(() => {
+        focusDebounce = null;
+        void (async () => {
+          try {
+            await enableNetwork(db);
+          } catch {
+            /* ignore — best-effort reconnect */
+          }
+          attachSnapshotListener();
+          await refetchFromServer();
+          clearFocusBurst();
+          let burstCount = 0;
+          focusBurst = setInterval(() => {
+            if (stopped || lastActive) {
+              clearFocusBurst();
+              return;
+            }
+            burstCount += 1;
+            if (burstCount > SYNC_ACCESS_FOCUS_BURST_MAX) {
+              clearFocusBurst();
+              return;
+            }
+            void refetchFromServer();
+          }, SYNC_ACCESS_FOCUS_BURST_MS);
+        })();
+      }, 250);
+    };
+
+    const onVisibility = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        scheduleFocusRecover();
+      }
+    };
+
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        scheduleFocusRecover();
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("focus", scheduleFocusRecover);
+      window.addEventListener("online", scheduleFocusRecover);
+      window.addEventListener("pageshow", onPageShow);
+    }
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVisibility);
+    }
+
+    let tauriFocusUnlisten: (() => void) | null = null;
+    void (async () => {
+      try {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        const unlisten = await getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+          if (stopped) {
+            return;
+          }
+          if (focused) {
+            scheduleFocusRecover();
+          }
+        });
+        if (stopped) {
+          unlisten();
+          return;
+        }
+        tauriFocusUnlisten = unlisten;
+      } catch {
+        /* Web build, tests, or non-Tauri — DOM focus/visibility only */
+      }
+    })();
+
     return () => {
       stopped = true;
-      clearInterval(timer);
+      for (const id of staggerIds) {
+        clearTimeout(id);
+      }
+      clearServerPoll();
+      clearFocusBurst();
+      if (focusDebounce != null) {
+        clearTimeout(focusDebounce);
+      }
+      if (typeof window !== "undefined") {
+        window.removeEventListener("focus", scheduleFocusRecover);
+        window.removeEventListener("online", scheduleFocusRecover);
+        window.removeEventListener("pageshow", onPageShow);
+      }
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisibility);
+      }
+      if (tauriFocusUnlisten != null) {
+        tauriFocusUnlisten();
+        tauriFocusUnlisten = null;
+      }
+      if (snapshotUnsub != null) {
+        snapshotUnsub();
+        snapshotUnsub = null;
+      }
     };
   } catch (e) {
     console.error("[chinotto sync] user sync access listener setup failed", e);
     onActive(false);
     return () => {};
+  }
+}
+
+/** One server read (e.g. diagnostics); modal uses {@link subscribeChinottoUserSyncAccess} for live updates. */
+export async function fetchChinottoUserSyncAccessActive(uid: string): Promise<{
+  active: boolean;
+  permissionDenied: boolean;
+}> {
+  if (!isFirebaseSyncConfigured() || !uid?.trim()) {
+    return { active: false, permissionDenied: false };
+  }
+  try {
+    const db = getOrInitFirestore();
+    const ref = doc(db, "users", uid);
+    const snap = await getDocFromServer(ref);
+    return {
+      active: isChinottoSyncAccessActiveInUserDoc(snap.data()),
+      permissionDenied: false,
+    };
+  } catch (e) {
+    if (isFirestorePermissionDenied(e)) {
+      console.warn(
+        `[chinotto sync] fetch user sync access: permission denied — ${FIRESTORE_RULES_SYNC_MODAL_HINT}`,
+        e
+      );
+      return { active: false, permissionDenied: true };
+    }
+    console.error("[chinotto sync] fetch user sync access failed", e);
+    return { active: false, permissionDenied: false };
   }
 }

@@ -1,6 +1,9 @@
 import { Timestamp } from "firebase/firestore";
 import { describe, expect, it } from "vitest";
-import { normalizeFirestoreCreatedAtForIngest } from "./desktopFirestoreSync";
+import {
+  isChinottoSyncAccessActiveInUserDoc,
+  normalizeFirestoreCreatedAtForIngest,
+} from "./desktopFirestoreSync";
 
 describe("normalizeFirestoreCreatedAtForIngest", () => {
   it("passes through non-empty ISO strings", () => {
@@ -39,5 +42,15 @@ describe("normalizeFirestoreCreatedAtForIngest", () => {
     expect(normalizeFirestoreCreatedAtForIngest("")).toBeNull();
     expect(normalizeFirestoreCreatedAtForIngest("   ")).toBeNull();
     expect(normalizeFirestoreCreatedAtForIngest({})).toBeNull();
+  });
+});
+
+describe("isChinottoSyncAccessActiveInUserDoc", () => {
+  it("is true only when chinottoSyncAccess.active is strictly true", () => {
+    expect(isChinottoSyncAccessActiveInUserDoc(undefined)).toBe(false);
+    expect(isChinottoSyncAccessActiveInUserDoc({})).toBe(false);
+    expect(isChinottoSyncAccessActiveInUserDoc({ chinottoSyncAccess: {} })).toBe(false);
+    expect(isChinottoSyncAccessActiveInUserDoc({ chinottoSyncAccess: { active: false } })).toBe(false);
+    expect(isChinottoSyncAccessActiveInUserDoc({ chinottoSyncAccess: { active: true } })).toBe(true);
   });
 });
