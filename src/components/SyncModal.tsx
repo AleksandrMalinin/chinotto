@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type AnimationEvent,
   type MouseEvent,
@@ -24,6 +25,9 @@ type Props = {
  * Desktop appends `?ds=<uuid>` so the phone can signal this modal session in Firestore.
  */
 export const CHINOTTO_SYNC_MOBILE_UNIVERSAL_LINK = "https://getchinotto.app/sync";
+
+/** Overlay exit is 0.3s — buffer for WebKit/Tauri when `animationend` does not fire (stuck invisible layer). */
+const SYNC_MODAL_CLOSE_FALLBACK_MS = 450;
 
 type PropsInternal = Props & {
   firebaseConfigured: boolean;
@@ -54,27 +58,41 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
 
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileActive, setProfileActive] = useState(false);
+  /** Firestore returned permission-denied for sync modal reads (rules must allow gate + users/{uid}). */
+  const [firestoreRulesBlocked, setFirestoreRulesBlocked] = useState(false);
 
   useEffect(() => {
     if (!firebaseConfigured) {
       setGateUnlocked(false);
+      setFirestoreRulesBlocked(false);
       return undefined;
     }
-    return subscribeDesktopSyncGateSession(sessionId, setGateUnlocked);
+    return subscribeDesktopSyncGateSession(sessionId, setGateUnlocked, {
+      onPermissionDenied: () => setFirestoreRulesBlocked(true),
+      onReadSucceeded: () => setFirestoreRulesBlocked(false),
+    });
   }, [firebaseConfigured, sessionId]);
 
   useEffect(() => {
     if (!firebaseConfigured || !stable || user == null || user.isAnonymous) {
       setProfileLoading(false);
       setProfileActive(false);
+      setFirestoreRulesBlocked(false);
       return undefined;
     }
     setProfileLoading(true);
     const uid = user.uid;
-    return subscribeChinottoUserSyncAccess(uid, (active) => {
-      setProfileActive(active);
-      setProfileLoading(false);
-    });
+    return subscribeChinottoUserSyncAccess(
+      uid,
+      (active) => {
+        setProfileActive(active);
+        setProfileLoading(false);
+      },
+      {
+        onPermissionDenied: () => setFirestoreRulesBlocked(true),
+        onReadSucceeded: () => setFirestoreRulesBlocked(false),
+      }
+    );
   }, [firebaseConfigured, stable, user?.uid, user?.isAnonymous]);
 
   /**
@@ -94,11 +112,26 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
     bodyLine1Class: string;
     bodyLine2: string | null;
   } => {
+    if (showSyncReady) {
+      return {
+        bodyLine1: "You’re set up. New thoughts sync in the background.",
+        bodyLine1Class: "sync-modal-bridge-lead",
+        bodyLine2: null,
+      };
+    }
+    if (stable && profileLoading) {
+      return {
+        bodyLine1: "Checking sync access…",
+        bodyLine1Class: "sync-modal-bridge-lead",
+        bodyLine2: null,
+      };
+    }
     if (stable && !profileLoading && !profileActive) {
       return {
         bodyLine1: "Sync isn’t enabled yet",
         bodyLine1Class: "sync-modal-bridge-lead sync-modal-bridge-lead--status",
-        bodyLine2: "Finish setup on your iPhone.",
+        bodyLine2:
+          "This Mac is signed in. Open Chinotto on your iPhone once (same Apple ID) — status updates automatically.",
       };
     }
     return {
@@ -106,24 +139,47 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
       bodyLine1Class: "sync-modal-bridge-lead",
       bodyLine2: null,
     };
-  }, [stable, profileLoading, profileActive]);
+  }, [stable, profileLoading, profileActive, showSyncReady]);
 
   const [linkCopied, setLinkCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const closeCommittedRef = useRef(false);
+
+  const finishClose = useCallback(() => {
+    if (closeCommittedRef.current) {
+      return;
+    }
+    closeCommittedRef.current = true;
+    onClose();
+  }, [onClose]);
 
   const close = useCallback(() => {
     if (isClosing) return;
     setIsClosing(true);
   }, [isClosing]);
 
+  useEffect(() => {
+    if (!isClosing) {
+      return undefined;
+    }
+    const id = window.setTimeout(() => {
+      finishClose();
+    }, SYNC_MODAL_CLOSE_FALLBACK_MS);
+    return () => clearTimeout(id);
+  }, [isClosing, finishClose]);
+
   const handleAnimationEnd = useCallback(
     (e: AnimationEvent) => {
-      if (e.animationName === "chinotto-card-overlay-out") {
-        onClose();
+      if (e.animationName !== "chinotto-card-overlay-out") {
+        return;
       }
+      if (e.target !== e.currentTarget) {
+        return;
+      }
+      finishClose();
     },
-    [onClose]
+    [finishClose]
   );
 
   const handleKeyDown = useCallback(
@@ -293,6 +349,11 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
                 {error ? (
                   <p className="sync-modal-bridge-warn" role="alert">
                     {error}
+                  </p>
+                ) : null}
+                {firestoreRulesBlocked && firebaseConfigured ? (
+                  <p className="sync-modal-bridge-warn" role="alert">
+                    Firebase blocked reading sync status. In Firebase Console → Firestore → Rules, publish the rules from the Chinotto sync docs (Security Rules: `sync_desktop_sessions` and `users`).
                   </p>
                 ) : null}
               </div>
