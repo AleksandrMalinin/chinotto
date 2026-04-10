@@ -145,7 +145,7 @@ Use the **same** Firebase Web app as mobile (`EXPO_PUBLIC_*` → `VITE_*`).
 
 ### OAuth and dev (this Mac, when Firebase is configured)
 
-- **Sync modal:** QR + Firestore gate; **Continue with Apple** is enabled only after mobile confirms unlock (`sync_desktop_sessions` or user taps **Already finished on your iPhone?**). **Sync is on** requires `users/{uid}.chinottoSyncAccess.active` from mobile, not Firebase sign-in alone.  
+- **Sync modal:** QR + Firestore gate; **Continue with Apple** is enabled only after mobile confirms unlock (`sync_desktop_sessions` or user taps **Already finished on your iPhone?**). **Sync is on** requires `users/{uid}.chinottoSyncAccess.active === true` from mobile (same field the modal polls via `getDocFromServer`).  
 - **Path:** `/chinotto-oauth` (path-based routing survives redirects better than query-only).  
 - **Dev:** Add **`localhost`** / **`127.0.0.1`** to Firebase **Authorized domains**.  
 - **`init.json`:** `https://{authDomain}/__/firebase/init.json` — **404** means deploy Hosting once (`firebase deploy --only hosting`).
@@ -176,6 +176,7 @@ Use the **same** Firebase Web app as mobile (`EXPO_PUBLIC_*` → `VITE_*`).
 | **`tombstone snapshot error` / `tombstone getDocs failed`** | Missing Firestore **composite index** (link in error). |
 | **`tombstone apply failed`** | IPC: use **`entryIds`** at top level — see **§ Desktop IPC**. |
 | **`database is locked`** on tombstone flush | **Mobile** — see **§ Mobile reference**. |
+| **`permission-denied`** on `sync_desktop_sessions` or `users/{uid}` (desktop console: `[chinotto sync] … gate` / `user sync access`) | **Firestore rules** in the Firebase project do not match the wire contract. Publish the **Security Rules** block from `chinotto-mobile/docs/sync/sync.md` (public read on `sync_desktop_sessions`; authenticated owner read/write on `users/{userId}` and `entries`). |
 
 ---
 
