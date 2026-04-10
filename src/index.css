@@ -1146,6 +1146,8 @@ body.welcome .app-bg {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   animation: chinotto-card-overlay-out 0.3s ease-in forwards;
+  /* Avoid an invisible full-screen layer blocking the main UI if exit animation flakes. */
+  pointer-events: none;
 }
 
 .chinotto-card-overlay[data-closing] .chinotto-card {
@@ -2386,6 +2388,9 @@ body.welcome .app-bg {
 }
 
 .app-header-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   padding: 0.25rem 0.5rem;
   font-size: 12px;
   font-weight: 500;
@@ -2396,6 +2401,16 @@ body.welcome .app-bg {
   border-radius: 8px;
   cursor: pointer;
   transition: color var(--transition), border-color var(--transition), background var(--transition);
+}
+
+/** Match mobile `SyncHeaderStatus` dot (lavender, ~7px). */
+.app-header-sync-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: rgba(148, 156, 212, 0.58);
+  box-shadow: 0 0 5px rgba(165, 172, 225, 0.45);
 }
 
 .app-header-sync:hover,
