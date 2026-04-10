@@ -19,7 +19,10 @@ export type ParsedAuthError = { code: string; message: string };
 export function parseFirebaseAuthError(e: unknown): ParsedAuthError {
   if (e && typeof e === "object") {
     const o = e as { code?: unknown; message?: unknown };
-    const code = typeof o.code === "string" ? o.code : "";
+    let code = typeof o.code === "string" ? o.code : "";
+    if (code === "failed-precondition") {
+      code = "auth/failed-precondition";
+    }
     const message =
       typeof o.message === "string"
         ? o.message
@@ -189,6 +192,14 @@ export function userMessageFromCredentialApplyError(e: unknown): string {
   if (code === "auth/argument-error" || code === "auth/invalid-credential") {
     return [
       "The sign-in session was incomplete or out of date.",
+      OAUTH_RECOVERY_QUIT,
+      OAUTH_RECOVERY_SAFARI_DATA,
+      OAUTH_RECOVERY_CONSOLE,
+    ].join(" ");
+  }
+  if (code === "auth/failed-precondition") {
+    return [
+      "Sign-in could not complete because the Firebase session was in an unexpected state.",
       OAUTH_RECOVERY_QUIT,
       OAUTH_RECOVERY_SAFARI_DATA,
       OAUTH_RECOVERY_CONSOLE,
