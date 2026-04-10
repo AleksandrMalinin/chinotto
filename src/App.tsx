@@ -85,6 +85,7 @@ import { useJumpContextAutoClear } from "@/lib/useJumpContextAutoClear";
 import { APP_VERSION } from "@/lib/appVersion";
 import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
 import { isFirebaseSyncConfigured } from "@/lib/firebaseConfig";
+import { useDesktopSyncHeaderCta } from "@/lib/useDesktopSyncHeaderCta";
 import {
   notifyEntryDeletedForSync,
   pushEntryUpsertToFirestore,
@@ -99,6 +100,10 @@ const FEEDBACK_EMAIL = "hello@chinotto.app";
 /** Tiny offset after intro→main handoff so empty onboarding stagger reads clearly. */
 const EMPTY_ONBOARDING_POST_INTRO_DELAY_MS = 750;
 const JUMP_CONTEXT_EXPANDED_MS = 3000;
+/** Coalesce rapid Firestore ingest callbacks so the stream does not stutter during backfill. */
+const DESKTOP_FIRESTORE_INGEST_DEBOUNCE_MS = 120;
+/** After closing Sync modal, wait for the dismiss transition before attaching ingest listeners. */
+const DESKTOP_FIRESTORE_INGEST_AFTER_SYNC_MODAL_MS = 200;
 
 /** Lets ChinottoCard (and similar) run their exit animation instead of unmounting from the parent. */
 function emitSyntheticEscapeKeydown(): void {
@@ -179,6 +184,8 @@ export default function App() {
   const [jumpContextExpanded, setJumpContextExpanded] = useState(false);
   const [isChinottoCardOpen, setIsChinottoCardOpen] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const syncModalWasOpenForFirestoreIngestRef = useRef(false);
+  const desktopFirestoreIngestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isStreamShowcaseOpen, setIsStreamShowcaseOpen] = useState(false);
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
   const [, setIntroSettled] = useState(false);
@@ -310,10 +317,58 @@ export default function App() {
     if (!isFirebaseSyncConfigured()) {
       return undefined;
     }
-    return startDesktopFirestoreIngest(() => {
-      void refresh(searchRef.current);
-    });
-  }, [refresh]);
+    if (isSyncModalOpen) {
+      syncModalWasOpenForFirestoreIngestRef.current = true;
+      return undefined;
+    }
+
+    const resumeAfterSyncModal = syncModalWasOpenForFirestoreIngestRef.current;
+    syncModalWasOpenForFirestoreIngestRef.current = false;
+
+    let cancelled = false;
+    let stopIngest: (() => void) | undefined;
+    let startTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const scheduleIngestRefresh = () => {
+      if (desktopFirestoreIngestDebounceRef.current) {
+        clearTimeout(desktopFirestoreIngestDebounceRef.current);
+      }
+      desktopFirestoreIngestDebounceRef.current = setTimeout(() => {
+        desktopFirestoreIngestDebounceRef.current = null;
+        if (!cancelled) {
+          void refresh(searchRef.current);
+        }
+      }, DESKTOP_FIRESTORE_INGEST_DEBOUNCE_MS);
+    };
+
+    const runStart = () => {
+      if (cancelled) {
+        return;
+      }
+      stopIngest = startDesktopFirestoreIngest(() => {
+        scheduleIngestRefresh();
+      });
+    };
+
+    if (resumeAfterSyncModal) {
+      startTimer = setTimeout(runStart, DESKTOP_FIRESTORE_INGEST_AFTER_SYNC_MODAL_MS);
+    } else {
+      runStart();
+    }
+
+    return () => {
+      cancelled = true;
+      if (startTimer !== undefined) {
+        clearTimeout(startTimer);
+      }
+      if (desktopFirestoreIngestDebounceRef.current) {
+        clearTimeout(desktopFirestoreIngestDebounceRef.current);
+        desktopFirestoreIngestDebounceRef.current = null;
+        void refresh(searchRef.current);
+      }
+      stopIngest?.();
+    };
+  }, [refresh, isSyncModalOpen]);
 
   const { pinnedEntries, streamEntries } = useMemo(() => {
     const pinnedEntries = pinnedIds
@@ -1245,6 +1300,8 @@ export default function App() {
 
   const canOpenStreamShowcase = introDismissed && hasEntriesInDb;
 
+  const syncHeaderCta = useDesktopSyncHeaderCta();
+
   return (
     <>
       <div className={mainAppClass}>
@@ -1297,9 +1354,12 @@ export default function App() {
                     track({ event: "sync_modal_opened" });
                     setIsSyncModalOpen(true);
                   }}
-                  aria-label="Enable sync — continue on your phone"
+                  aria-label={syncHeaderCta.ariaLabel}
                 >
-                  Enable sync
+                  {syncHeaderCta.showDot ? (
+                    <span className="app-header-sync-dot" aria-hidden="true" />
+                  ) : null}
+                  {syncHeaderCta.label}
                 </button>
               ) : null}
               {import.meta.env.DEV && introDismissed && getDevSimulateNewUser() && (
