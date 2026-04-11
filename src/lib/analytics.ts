@@ -15,6 +15,8 @@ const BATCH_SIZE_MAX = 10;
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
+export type SyncModalSurface = "header" | "settings" | "deeplink";
+
 export type AnalyticsEvent =
   | { event: "entry_created"; text_length: number }
   | { event: "first_entry_created"; text_length: number }
@@ -22,7 +24,7 @@ export type AnalyticsEvent =
   | { event: "entry_pinned" }
   | { event: "search_used"; result_count?: number }
   | { event: "settings_opened" }
-  | { event: "sync_modal_opened" }
+  | { event: "sync_modal_opened"; surface?: SyncModalSurface }
   | { event: "stream_showcase_opened" }
   | { event: "entry_opened" }
   | { event: "resurface_shown"; age_days: number }
@@ -30,7 +32,24 @@ export type AnalyticsEvent =
   | { event: "thought_trail_opened" }
   | { event: "jump_to_date_calendar_opened" }
   | { event: "jump_to_date_completed"; days_ago: number }
-  | { event: "jump_to_date_back_to_now" };
+  | { event: "jump_to_date_back_to_now" }
+  | { event: "sync_apple_continue_clicked" }
+  | { event: "sync_gate_bypass_clicked" }
+  | { event: "sync_mobile_link_copy_clicked" }
+  | { event: "sync_disconnect_clicked" }
+  | { event: "sync_oauth_completed" }
+  | { event: "sync_oauth_failed"; reason: "credential" | "oauth_bridge" | "timeout" | "window" | "start" }
+  | { event: "sync_paywall_shown" }
+  | { event: "sync_plus_continue_clicked"; package_kind: "monthly" | "yearly" | "lifetime" }
+  | {
+      event: "sync_purchase_outcome";
+      outcome: "purchased" | "already_has_sync_access" | "cancelled" | "unavailable" | "failed";
+      failure_kind?: "user_cancelled" | "network" | "unknown";
+    }
+  | { event: "sync_restore_tapped" }
+  | { event: "sync_restore_outcome"; outcome: "entitlement_active" | "no_entitlement" | "error" }
+  | { event: "sync_apple_mobile_sign_in_outcome"; outcome: "success" | "user_cancelled" | "error" }
+  | { event: "sync_stop_sync_clicked" };
 
 type QueuedEvent = AnalyticsEvent & { ts: string };
 
@@ -118,6 +137,12 @@ function eventToData(payload: QueuedEvent): Record<string, string | number> {
     data.result_count = payload.result_count;
   if ("age_days" in payload) data.age_days = payload.age_days;
   if ("days_ago" in payload) data.days_ago = payload.days_ago;
+  if ("surface" in payload && payload.surface !== undefined) data.surface = payload.surface;
+  if ("package_kind" in payload) data.package_kind = payload.package_kind;
+  if ("outcome" in payload) data.outcome = payload.outcome;
+  if ("failure_kind" in payload && payload.failure_kind !== undefined)
+    data.failure_kind = payload.failure_kind;
+  if ("reason" in payload) data.reason = payload.reason;
   return data;
 }
 

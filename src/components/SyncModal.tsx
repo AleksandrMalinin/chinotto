@@ -14,6 +14,7 @@ import {
   subscribeChinottoUserSyncAccess,
   subscribeDesktopSyncGateSession,
 } from "@/lib/desktopFirestoreSync";
+import { track } from "@/lib/analytics";
 import { useAppleSyncOAuth } from "@/lib/useAppleSyncOAuth";
 
 type Props = {
@@ -199,6 +200,7 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
 
   const handleCopyLink = useCallback(() => {
     setCopyFailed(false);
+    track({ event: "sync_mobile_link_copy_clicked" });
     void navigator.clipboard.writeText(syncMobileUrl).then(
       () => {
         setLinkCopied(true);
@@ -221,6 +223,7 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
       return;
     }
     setError(null);
+    track({ event: "sync_apple_continue_clicked" });
     void onContinueApple();
   }, [ctaEnabled, busy, onContinueApple, setError]);
 
@@ -262,7 +265,10 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
                 className="sync-modal-head-disconnect"
                 aria-label="Disconnect this Mac"
                 disabled={busy || signingOut}
-                onClick={() => void onSignOut()}
+                onClick={() => {
+                  track({ event: "sync_disconnect_clicked" });
+                  void onSignOut();
+                }}
               >
                 {signingOut ? "Disconnecting…" : "Disconnect"}
               </button>
@@ -299,7 +305,14 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
                   {firebaseConfigured && !stable ? (
                     <div className="sync-modal-copy-footnote">
                       {showBypassHint ? (
-                        <button type="button" className="sync-modal-bypass" onClick={() => setBypassGate(true)}>
+                        <button
+                          type="button"
+                          className="sync-modal-bypass"
+                          onClick={() => {
+                            track({ event: "sync_gate_bypass_clicked" });
+                            setBypassGate(true);
+                          }}
+                        >
                           Already finished on your iPhone?
                         </button>
                       ) : (

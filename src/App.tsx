@@ -1351,7 +1351,7 @@ export default function App() {
                   type="button"
                   className="app-header-sync"
                   onClick={() => {
-                    track({ event: "sync_modal_opened" });
+                    track({ event: "sync_modal_opened", surface: "header" });
                     setIsSyncModalOpen(true);
                   }}
                   aria-label={syncHeaderCta.ariaLabel}

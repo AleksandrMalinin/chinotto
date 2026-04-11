@@ -11,6 +11,7 @@ import {
   subscribeSyncAuth,
   type BridgedOAuthCredentialJson,
 } from "@/lib/desktopFirestoreSync";
+import { track } from "@/lib/analytics";
 import {
   logOAuthDiagnostic,
   logOAuthUnknownError,
@@ -104,7 +105,9 @@ export function useAppleSyncOAuth({ active }: UseAppleSyncOAuthOptions) {
       cleanup();
       try {
         await signInWithAppleCredential(event.payload.credential);
+        track({ event: "sync_oauth_completed" });
       } catch (e) {
+        track({ event: "sync_oauth_failed", reason: "credential" });
         setError(userMessageFromCredentialApplyError(e));
       } finally {
         setBusy(false);
@@ -117,6 +120,7 @@ export function useAppleSyncOAuth({ active }: UseAppleSyncOAuthOptions) {
         return;
       }
       cleanup();
+      track({ event: "sync_oauth_failed", reason: "oauth_bridge" });
       setError(event.payload.message);
       setBusy(false);
     });
@@ -133,6 +137,7 @@ export function useAppleSyncOAuth({ active }: UseAppleSyncOAuthOptions) {
       logOAuthDiagnostic("timeout", "main_window_listen_timeout", {
         message: `no success/error event within ${OAUTH_TIMEOUT_MS}ms`,
       });
+      track({ event: "sync_oauth_failed", reason: "timeout" });
       setError(userMessageOAuthTimeoutMainWindow(import.meta.env.DEV));
       void WebviewWindow.getByLabel(OAUTH_WINDOW_LABEL).then((w) => w?.close().catch(() => {}));
     }, OAUTH_TIMEOUT_MS);
@@ -168,6 +173,7 @@ export function useAppleSyncOAuth({ active }: UseAppleSyncOAuthOptions) {
         });
         const unOnceErr = await oauthWin.once("tauri://error", (e) => {
           cleanup();
+          track({ event: "sync_oauth_failed", reason: "window" });
           const payload =
             typeof e === "object" && e !== null && "payload" in e
               ? String((e as { payload: unknown }).payload)
@@ -182,6 +188,7 @@ export function useAppleSyncOAuth({ active }: UseAppleSyncOAuthOptions) {
       }
     } catch (e) {
       cleanup();
+      track({ event: "sync_oauth_failed", reason: "start" });
       logOAuthUnknownError("onContinueApple", e);
       setError("Could not start this step. Quit Chinotto fully and try again.");
       setBusy(false);
