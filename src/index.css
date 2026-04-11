@@ -2295,6 +2295,24 @@ body.welcome .app-bg {
   width: 100%;
 }
 
+/* Signed in + sync active: no Apple row — drop phantom button rail so “Sync is on” sits under the lead copy. */
+.sync-modal-connect-slot--left.sync-modal-connect-slot--sync-ready {
+  margin-top: 0.35rem;
+}
+
+.sync-modal-connect-slot--sync-ready .sync-modal-connect-apple-slot-spacer {
+  min-height: 0;
+  max-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.sync-modal-connect-slot--sync-ready .sync-modal-post-cta {
+  margin-top: 0.25rem;
+  min-height: 0;
+}
+
 .sync-modal-connect-slot--left .sync-modal-connect-apple {
   width: fit-content;
   max-width: min(20rem, 100%);

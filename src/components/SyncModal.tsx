@@ -321,7 +321,15 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
                     </div>
                   ) : null}
                 </div>
-                <div className="sync-modal-connect-slot sync-modal-connect-slot--left">
+                <div
+                  className={[
+                    "sync-modal-connect-slot",
+                    "sync-modal-connect-slot--left",
+                    showSyncReady ? "sync-modal-connect-slot--sync-ready" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
                   {showAppleCta ? (
                     <button
                       type="button"
