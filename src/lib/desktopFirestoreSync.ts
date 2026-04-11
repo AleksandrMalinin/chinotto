@@ -74,6 +74,8 @@ const SYNC_ACCESS_WHILE_ACTIVE_POLL_MS = 30000;
 /** After focus/visibility: short burst of server reads while still waiting for `active: true` (timers are throttled in background WebViews). */
 const SYNC_ACCESS_FOCUS_BURST_MS = 1000;
 const SYNC_ACCESS_FOCUS_BURST_MAX = 15;
+/** After we have shown sync active, delay reporting inactive so focus/reattach glitches do not flip the header or modal. */
+const SYNC_ACCESS_EMIT_FALSE_DEBOUNCE_MS = 450;
 
 const FIRESTORE_RULES_SYNC_MODAL_HINT =
   "Firestore Security Rules must allow: (1) anyone may read sync_desktop_sessions/{sessionId}; " +
@@ -704,6 +706,8 @@ export function subscribeDesktopSyncGateSession(
  * On **focus / visibility**, nudges the client with `enableNetwork`, **re-attaches** the snapshot
  * listener, and (while still waiting for `active`) runs a short **burst** of server reads — background
  * tabs throttle `setInterval`, so polling alone may not run until the app is restarted.
+ * Transitions to **inactive** are debounced briefly once the UI has shown active, so reattach/network
+ * hiccups after restore from tray do not flash “sync off”.
  */
 export function subscribeChinottoUserSyncAccess(
   uid: string,
@@ -724,6 +728,45 @@ export function subscribeChinottoUserSyncAccess(
     let stopped = false;
     let loggedPermissionDenied = false;
     let lastActive = false;
+    let lastEmittedToUi: boolean | null = null;
+    let emitFalsePending: ReturnType<typeof setTimeout> | null = null;
+
+    const clearEmitFalsePending = () => {
+      if (emitFalsePending != null) {
+        clearTimeout(emitFalsePending);
+        emitFalsePending = null;
+      }
+    };
+
+    const emitActiveToUi = (active: boolean) => {
+      if (stopped) {
+        return;
+      }
+      if (active) {
+        clearEmitFalsePending();
+        if (lastEmittedToUi !== true) {
+          lastEmittedToUi = true;
+          onActive(true);
+        }
+        return;
+      }
+      if (lastEmittedToUi !== true) {
+        if (lastEmittedToUi !== false) {
+          lastEmittedToUi = false;
+          onActive(false);
+        }
+        return;
+      }
+      clearEmitFalsePending();
+      emitFalsePending = setTimeout(() => {
+        emitFalsePending = null;
+        if (stopped) {
+          return;
+        }
+        lastEmittedToUi = false;
+        onActive(false);
+      }, SYNC_ACCESS_EMIT_FALSE_DEBOUNCE_MS);
+    };
 
     let serverPoll: ReturnType<typeof setInterval> | null = null;
     const clearServerPoll = () => {
@@ -751,7 +794,7 @@ export function subscribeChinottoUserSyncAccess(
       const prev = lastActive;
       lastActive = isChinottoSyncAccessActiveInUserDoc(snap.data());
       options?.onReadSucceeded?.();
-      onActive(lastActive);
+      emitActiveToUi(lastActive);
       if (prev !== lastActive) {
         scheduleServerPoll();
       }
@@ -773,7 +816,7 @@ export function subscribeChinottoUserSyncAccess(
       if (!stopped) {
         const prev = lastActive;
         lastActive = false;
-        onActive(false);
+        emitActiveToUi(false);
         if (prev !== lastActive) {
           scheduleServerPoll();
         }
@@ -918,6 +961,7 @@ export function subscribeChinottoUserSyncAccess(
 
     return () => {
       stopped = true;
+      clearEmitFalsePending();
       for (const id of staggerIds) {
         clearTimeout(id);
       }
