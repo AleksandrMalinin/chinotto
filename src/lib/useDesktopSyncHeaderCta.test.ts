@@ -23,7 +23,19 @@ describe("getDesktopSyncHeaderCtaCopy", () => {
       profileActive: false,
     });
     expect(c.label).toBe("Checking sync");
-    expect(c.showDot).toBe(true);
+    expect(c.showDot).toBe(false);
+  });
+
+  it("hides dot while Checking sync after sign-in until profile is known", () => {
+    const c = getDesktopSyncHeaderCtaCopy({
+      firebaseConfigured: true,
+      authReady: true,
+      signedInNonAnonymous: true,
+      profileLoading: true,
+      profileActive: false,
+    });
+    expect(c.label).toBe("Checking sync");
+    expect(c.showDot).toBe(false);
   });
 
   it("shows Sync on when signed in and profile reports active", () => {
@@ -47,7 +59,7 @@ describe("getDesktopSyncHeaderCtaCopy", () => {
       profileActive: false,
     });
     expect(c.label).toBe("Enable sync");
-    expect(c.showDot).toBe(true);
+    expect(c.showDot).toBe(false);
   });
 
   it("hides dot when signed out with Firebase configured", () => {

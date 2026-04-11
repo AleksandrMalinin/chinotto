@@ -10,7 +10,7 @@ import {
 export type DesktopSyncHeaderCta = {
   label: string;
   ariaLabel: string;
-  /** Lavender dot before label — parity with mobile sync header (`restoring` / `signed_in`). */
+  /** Lavender dot before label — only when cloud sync is on (`chinottoSyncAccess.active`). */
   showDot: boolean;
 };
 
@@ -26,9 +26,7 @@ export function getDesktopSyncHeaderCtaCopy(params: {
 }): DesktopSyncHeaderCta {
   const { firebaseConfigured, authReady, signedInNonAnonymous, profileLoading, profileActive } =
     params;
-  /** Same idea as mobile `showDot`: restoring or signed in (non-anonymous). */
-  const showDot =
-    firebaseConfigured && (!authReady || signedInNonAnonymous);
+  const showDot = firebaseConfigured && profileActive;
   if (!firebaseConfigured) {
     return {
       label: "Enable sync",
