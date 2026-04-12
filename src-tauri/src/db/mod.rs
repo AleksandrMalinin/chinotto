@@ -1,8 +1,21 @@
 mod schema;
 
+use chrono::{DateTime, Datelike, Local, NaiveDate, Utc};
 use rusqlite::Connection;
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::sync::Mutex;
+
+fn utc_dt_from_created_at(iso: &str) -> Option<DateTime<Utc>> {
+    chrono::DateTime::parse_from_rfc3339(iso)
+        .ok()
+        .map(|dt| dt.with_timezone(&Utc))
+}
+
+fn local_naive_date_from_created_at(iso: &str) -> Option<NaiveDate> {
+    let utc = utc_dt_from_created_at(iso)?;
+    Some(utc.with_timezone(&Local).date_naive())
+}
 
 /// Build an FTS5 prefix query so partial words match (e.g. "cap" matches "capture").
 /// Tokens are space-separated; each becomes "token*". Special chars " and - are escaped.
@@ -160,6 +173,66 @@ impl Db {
             })
         })?;
         rows.collect()
+    }
+
+    /// Local calendar dates (YYYY-MM-DD) in `[year, month]` that have at least one entry.
+    pub fn local_entry_dates_in_month(
+        &self,
+        year: i32,
+        month: u32,
+    ) -> Result<Vec<String>, rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT created_at FROM entries")?;
+        let mut set = BTreeSet::new();
+        let rows = stmt.query_map([], |r| {
+            let created_at: String = r.get(0)?;
+            Ok(created_at)
+        })?;
+        for row in rows {
+            let created_at = row?;
+            let Some(d) = local_naive_date_from_created_at(&created_at) else {
+                continue;
+            };
+            if d.year() == year && d.month() == month {
+                set.insert(d.format("%Y-%m-%d").to_string());
+            }
+        }
+        Ok(set.into_iter().collect())
+    }
+
+    /// Newest entry on the given local calendar day (first row for that day in `created_at DESC` stream order).
+    pub fn jump_anchor_entry_id_for_local_date(
+        &self,
+        target: NaiveDate,
+    ) -> Result<Option<String>, rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT id, created_at FROM entries")?;
+        let rows = stmt.query_map([], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+            ))
+        })?;
+        let mut best: Option<(String, DateTime<Utc>)> = None;
+        for row in rows {
+            let (id, created_at) = row?;
+            let Some(d) = local_naive_date_from_created_at(&created_at) else {
+                continue;
+            };
+            if d != target {
+                continue;
+            }
+            let Some(ts) = utc_dt_from_created_at(&created_at) else {
+                continue;
+            };
+            if best
+                .as_ref()
+                .map_or(true, |(_, t)| ts > *t)
+            {
+                best = Some((id, ts));
+            }
+        }
+        Ok(best.map(|(id, _)| id))
     }
 
     pub fn get_entry_by_id(&self, id: &str) -> Result<Option<EntryRow>, rusqlite::Error> {
@@ -453,5 +526,49 @@ mod tests {
             "entry with more term matches should rank higher"
         );
         assert_eq!(ids[1], "once");
+    }
+
+    #[test]
+    fn jump_anchor_matches_list_entries_local_day() {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        db.create_entry("e1", "x", "2025-01-20T18:30:00Z").unwrap();
+        let created = db.list_entries().unwrap()[0].created_at.clone();
+        let utc: chrono::DateTime<chrono::Utc> = chrono::DateTime::parse_from_rfc3339(&created)
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let target = utc.with_timezone(&chrono::Local).date_naive();
+        assert_eq!(
+            db.jump_anchor_entry_id_for_local_date(target)
+                .unwrap()
+                .as_deref(),
+            Some("e1")
+        );
+    }
+
+    #[test]
+    fn local_entry_dates_in_month_drops_day_after_last_delete() {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        db.create_entry("a", "one", "2025-03-24T08:00:00Z").unwrap();
+        db.create_entry("b", "two", "2025-03-24T18:00:00Z").unwrap();
+
+        let initial = db.local_entry_dates_in_month(2025, 3).unwrap();
+        assert!(
+            initial.iter().any(|d| d == "2025-03-24"),
+            "date with entries should be marked"
+        );
+
+        db.delete_entry("a").unwrap();
+        let after_first_delete = db.local_entry_dates_in_month(2025, 3).unwrap();
+        assert!(
+            after_first_delete.iter().any(|d| d == "2025-03-24"),
+            "date should stay marked while at least one entry remains"
+        );
+
+        db.delete_entry("b").unwrap();
+        let after_last_delete = db.local_entry_dates_in_month(2025, 3).unwrap();
+        assert!(
+            !after_last_delete.iter().any(|d| d == "2025-03-24"),
+            "date should unmark after last entry is deleted"
+        );
     }
 }
