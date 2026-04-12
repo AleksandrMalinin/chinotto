@@ -75,6 +75,7 @@ import { scrollJumpSectionIntoView } from "@/lib/scrollJumpSectionIntoView";
 import { useJumpContextAutoClear } from "@/lib/useJumpContextAutoClear";
 import { APP_VERSION } from "@/lib/appVersion";
 import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
+import { isThoughtDetailEditEnabled } from "@/lib/thoughtDetailEdit";
 
 /** Voice capture is disabled in the main flow. Set to true to re-enable as an experimental feature. */
 const EXPERIMENTAL_VOICE_CAPTURE = false;
@@ -134,6 +135,8 @@ function devMockResurfaced(): { entry: Entry; reason: string } {
     reason: "From 3 days ago.",
   };
 }
+
+const THOUGHT_DETAIL_EDIT = isThoughtDetailEditEnabled();
 
 export default function App() {
   const appUpdater = useAppUpdater();
@@ -199,6 +202,14 @@ export default function App() {
     width: number;
     height: number;
   } | null>(null);
+
+  useEffect(() => {
+    const root = document.getElementById("root");
+    root?.classList.toggle("thought-detail-edit-enabled", THOUGHT_DETAIL_EDIT);
+    return () => {
+      root?.classList.remove("thought-detail-edit-enabled");
+    };
+  }, []);
 
   const handleSendFeedback = useCallback(() => {
     const subject = "Chinotto feedback";
@@ -864,6 +875,13 @@ export default function App() {
     setSelectedEntry(entry);
   }, []);
 
+  const handleCloseEntryReadOnly = useCallback(() => {
+    setSelectedEntry(null);
+    requestAnimationFrame(() => {
+      entryInputRef.current?.focus();
+    });
+  }, []);
+
   const handleEntryDetailTextChange = useCallback((entryId: string, text: string) => {
     setEntries((prev) => prev.map((e) => (e.id === entryId ? { ...e, text } : e)));
     setSelectedEntry((prev) => (prev && prev.id === entryId ? { ...prev, text } : prev));
@@ -1390,9 +1408,11 @@ export default function App() {
       ) : selectedEntry ? (
         <EntryDetail
           entry={selectedEntry}
-          onBack={handleCloseEntryDetail}
+          onBack={THOUGHT_DETAIL_EDIT ? handleCloseEntryDetail : handleCloseEntryReadOnly}
           onSelectEntry={handleOpenEntry}
-          onEntryTextChange={handleEntryDetailTextChange}
+          {...(THOUGHT_DETAIL_EDIT
+            ? { onEntryTextChange: handleEntryDetailTextChange }
+            : {})}
         />
       ) : (
         <>

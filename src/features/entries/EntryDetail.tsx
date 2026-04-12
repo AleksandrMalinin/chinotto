@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { Entry } from "../../types/entry";
 import { Button } from "@/components/ui/button";
+import { EntryTextWithLinks } from "./EntryTextWithLinks";
 import { track } from "@/lib/analytics";
 import { findSimilarEntries, getThoughtTrail } from "./entryApi";
 
@@ -8,7 +9,8 @@ type Props = {
   entry: Entry;
   onBack: () => void;
   onSelectEntry: (entry: Entry) => void;
-  onEntryTextChange: (entryId: string, text: string) => void;
+  /** When set, thought body is editable with debounced save from the parent. */
+  onEntryTextChange?: (entryId: string, text: string) => void;
 };
 
 function formatTimestamp(iso: string): string {
@@ -44,17 +46,19 @@ export function EntryDetail({ entry, onBack, onSelectEntry, onEntryTextChange }:
   const [trailLoading, setTrailLoading] = useState(true);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const hasInsertedContinuationBreakRef = useRef(false);
+  const editable = Boolean(onEntryTextChange);
 
   useEffect(() => {
     hasInsertedContinuationBreakRef.current = false;
   }, [entry.id]);
 
   useEffect(() => {
+    if (!editable) return;
     const el = textRef.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${Math.max(el.scrollHeight, 24)}px`;
-  }, [entry.text]);
+  }, [entry.text, editable]);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,7 +83,7 @@ export function EntryDetail({ entry, onBack, onSelectEntry, onEntryTextChange }:
   };
 
   const beginExitToStream = () => {
-    textRef.current?.blur();
+    if (editable) textRef.current?.blur();
     onBack();
   };
 
@@ -116,66 +120,70 @@ export function EntryDetail({ entry, onBack, onSelectEntry, onEntryTextChange }:
       <time className="entry-detail-time" dateTime={entry.created_at}>
         {formatTimestamp(entry.created_at)}
       </time>
-      <textarea
-        ref={textRef}
-        className="entry-detail-editable"
-        aria-label="Thought text"
-        value={entry.text}
-        rows={1}
-        onFocus={moveCaretToEnd}
-        onClick={(e) => {
-          if (e.currentTarget !== document.activeElement) {
-            moveCaretToEnd();
-          }
-        }}
-        onInput={(e) => {
-          const el = e.currentTarget;
-          el.style.height = "auto";
-          el.style.height = `${Math.max(el.scrollHeight, 24)}px`;
-        }}
-        onBeforeInput={(e) => {
-          if (hasInsertedContinuationBreakRef.current) return;
-          const native = e.nativeEvent as InputEvent;
-          if (native.inputType !== "insertText" || !native.data) return;
-          const el = e.currentTarget;
-          const caretAtEnd =
-            el.selectionStart === el.value.length &&
-            el.selectionEnd === el.value.length;
-          if (!caretAtEnd || el.value.length === 0 || el.value.endsWith("\n")) return;
-          e.preventDefault();
-          hasInsertedContinuationBreakRef.current = true;
-          const end = el.value.length;
-          el.setRangeText(`\n${native.data}`, end, end, "end");
-          onEntryTextChange(entry.id, el.value);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.preventDefault();
-            e.currentTarget.blur();
-            return;
-          }
-        }}
-        onPaste={(e) => {
-          const el = e.currentTarget;
-          const pasted = e.clipboardData.getData("text");
-          const caretAtEnd =
-            el.selectionStart === el.value.length &&
-            el.selectionEnd === el.value.length;
-          if (
-            pasted.length > 0 &&
-            caretAtEnd &&
-            el.value.length > 0 &&
-            !el.value.endsWith("\n") &&
-            !hasInsertedContinuationBreakRef.current
-          ) {
+      {editable && onEntryTextChange ? (
+        <textarea
+          ref={textRef}
+          className="entry-detail-editable"
+          aria-label="Thought text"
+          value={entry.text}
+          rows={1}
+          onFocus={moveCaretToEnd}
+          onClick={(e) => {
+            if (e.currentTarget !== document.activeElement) {
+              moveCaretToEnd();
+            }
+          }}
+          onInput={(e) => {
+            const el = e.currentTarget;
+            el.style.height = "auto";
+            el.style.height = `${Math.max(el.scrollHeight, 24)}px`;
+          }}
+          onBeforeInput={(e) => {
+            if (hasInsertedContinuationBreakRef.current) return;
+            const native = e.nativeEvent as InputEvent;
+            if (native.inputType !== "insertText" || !native.data) return;
+            const el = e.currentTarget;
+            const caretAtEnd =
+              el.selectionStart === el.value.length &&
+              el.selectionEnd === el.value.length;
+            if (!caretAtEnd || el.value.length === 0 || el.value.endsWith("\n")) return;
             e.preventDefault();
             hasInsertedContinuationBreakRef.current = true;
-            onEntryTextChange(entry.id, `${el.value}\n${pasted}`);
-            requestAnimationFrame(moveCaretToEnd);
-          }
-        }}
-        onChange={(e) => onEntryTextChange(entry.id, e.target.value)}
-      />
+            const end = el.value.length;
+            el.setRangeText(`\n${native.data}`, end, end, "end");
+            onEntryTextChange(entry.id, el.value);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              e.currentTarget.blur();
+              return;
+            }
+          }}
+          onPaste={(e) => {
+            const el = e.currentTarget;
+            const pasted = e.clipboardData.getData("text");
+            const caretAtEnd =
+              el.selectionStart === el.value.length &&
+              el.selectionEnd === el.value.length;
+            if (
+              pasted.length > 0 &&
+              caretAtEnd &&
+              el.value.length > 0 &&
+              !el.value.endsWith("\n") &&
+              !hasInsertedContinuationBreakRef.current
+            ) {
+              e.preventDefault();
+              hasInsertedContinuationBreakRef.current = true;
+              onEntryTextChange(entry.id, `${el.value}\n${pasted}`);
+              requestAnimationFrame(moveCaretToEnd);
+            }
+          }}
+          onChange={(e) => onEntryTextChange(entry.id, e.target.value)}
+        />
+      ) : (
+        <EntryTextWithLinks text={entry.text} variant="detail" />
+      )}
       {trailLoading ? null : trail.length > 1 ? (
         <section className="entry-detail-trail" aria-label="Thought trail">
           <h2 className="entry-detail-trail-title">Thought trail</h2>
