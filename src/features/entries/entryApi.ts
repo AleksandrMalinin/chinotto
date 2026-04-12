@@ -45,6 +45,10 @@ export async function listEntries(): Promise<Entry[]> {
   return invoke<Entry[]>("list_entries");
 }
 
+export async function getEntry(entryId: string): Promise<Entry | null> {
+  return invoke<Entry | null>("get_entry", { entryId });
+}
+
 export async function searchEntries(query: string): Promise<Entry[]> {
   return invoke<Entry[]>("search_entries", { query });
 }
@@ -89,4 +93,36 @@ export async function deleteEntry(entryId: string): Promise<void> {
 /** Wipes all entries (and pins/embeddings). Used by dev/debug UI only. */
 export async function deleteAllEntries(): Promise<void> {
   return invoke("delete_all_entries", {});
+}
+
+/** Firestore pull ingest (mobile sync.md). Returns count of newly inserted rows. */
+export async function ingestFirestoreEntries(
+  entries: { id: string; text: string; createdAt: string }[]
+): Promise<number> {
+  return invoke<number>("ingest_firestore_entries", { entries });
+}
+
+/** Sync v2: queue `{ op: "tombstone", entryId }` for Firestore flush (coalesced in SQLite). */
+export async function enqueueSyncTombstone(entryId: string): Promise<void> {
+  return invoke("enqueue_sync_tombstone", { entryId });
+}
+
+export async function listSyncTombstoneOutbox(): Promise<string[]> {
+  return invoke<string[]>("list_sync_tombstone_outbox");
+}
+
+export async function removeSyncTombstoneOutbox(entryId: string): Promise<void> {
+  return invoke("remove_sync_tombstone_outbox", { entryId });
+}
+
+export async function clearFirestoreIngestSuppression(entryId: string): Promise<void> {
+  return invoke("clear_firestore_ingest_suppression", { entryId });
+}
+
+/** Physically delete local rows for remote tombstones (no new suppression). */
+export async function deleteLocalEntriesForSync(entryIds: string[]): Promise<number> {
+  if (entryIds.length === 0) {
+    return 0;
+  }
+  return invoke<number>("delete_local_entries_for_sync", { entryIds });
 }

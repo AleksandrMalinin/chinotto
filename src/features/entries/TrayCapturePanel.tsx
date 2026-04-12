@@ -4,7 +4,9 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { ChinottoLogo } from "@/components/ChinottoLogo";
 import { Textarea } from "@/components/ui/textarea";
-import { createEntry, generateEmbedding } from "@/features/entries/entryApi";
+import { createEntry, generateEmbedding, getEntry } from "@/features/entries/entryApi";
+import { pushEntryUpsertToFirestore } from "@/lib/desktopFirestoreSync";
+import { isFirebaseSyncConfigured } from "@/lib/firebaseConfig";
 import { getDevSimulateNewUser } from "@/lib/devSimulateNewUser";
 import { track } from "@/lib/analytics";
 import { setHasEverSavedThought } from "@/lib/streamOnboarding";
@@ -92,6 +94,11 @@ export function TrayCapturePanel() {
     if (getDevSimulateNewUser()) return;
     try {
       const id = await createEntry(text);
+      if (isFirebaseSyncConfigured()) {
+        void getEntry(id).then((row) => {
+          if (row) void pushEntryUpsertToFirestore(row);
+        });
+      }
       track({ event: "entry_created", text_length: text.length });
       setHasEverSavedThought();
       generateEmbedding(id);

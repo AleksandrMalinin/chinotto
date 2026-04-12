@@ -136,7 +136,46 @@ impl Db {
             "INSERT INTO entries (id, text, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)",
             [id, text, created_at],
         )?;
+        conn.execute(
+            "DELETE FROM firestore_ingest_suppressed_ids WHERE id = ?1",
+            [id],
+        )?;
         Ok(())
+    }
+
+    /// Firestore ingest (mobile sync.md): insert only when `id` is new; idempotent on retries.
+    /// Skips empty text or unparseable `created_at` (RFC3339).
+    pub fn ingest_firestore_entries(
+        &self,
+        entries: &[(String, String, String)],
+    ) -> Result<u32, rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let mut inserted: u32 = 0;
+        for (id, text, created_at) in entries {
+            let trimmed = text.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            if chrono::DateTime::parse_from_rfc3339(created_at).is_err() {
+                continue;
+            }
+            let suppressed: i32 = conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM firestore_ingest_suppressed_ids WHERE id = ?1)",
+                [id.as_str()],
+                |r| r.get(0),
+            )?;
+            if suppressed != 0 {
+                continue;
+            }
+            let n = conn.execute(
+                "INSERT OR IGNORE INTO entries (id, text, created_at) VALUES (?1, ?2, ?3)",
+                [id.as_str(), trimmed, created_at.as_str()],
+            )?;
+            if n > 0 {
+                inserted += 1;
+            }
+        }
+        Ok(inserted)
     }
 
     pub fn update_entry_text(&self, id: &str, text: &str) -> Result<(), rusqlite::Error> {
@@ -161,7 +200,7 @@ impl Db {
     pub fn list_entries(&self) -> Result<Vec<EntryRow>, rusqlite::Error> {
         let conn = self.0.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, text, created_at, COALESCE(edit_count, 0), COALESCE(open_count, 0) FROM entries ORDER BY created_at DESC",
+            "SELECT id, text, created_at, COALESCE(edit_count, 0), COALESCE(open_count, 0) FROM entries ORDER BY created_at DESC, id ASC",
         )?;
         let rows = stmt.query_map([], |r| {
             Ok(EntryRow {
@@ -363,6 +402,11 @@ impl Db {
     pub fn delete_entry(&self, entry_id: &str) -> Result<(), rusqlite::Error> {
         let conn = self.0.lock().unwrap();
         conn.execute("DELETE FROM entries WHERE id = ?1", [entry_id])?;
+        let at = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT OR REPLACE INTO firestore_ingest_suppressed_ids (id, suppressed_at) VALUES (?1, ?2)",
+            [entry_id, at.as_str()],
+        )?;
         Ok(())
     }
 
@@ -372,7 +416,67 @@ impl Db {
         conn.execute("DELETE FROM pinned_entries", [])?;
         conn.execute("DELETE FROM entry_embeddings", [])?;
         conn.execute("DELETE FROM entries", [])?;
+        conn.execute("DELETE FROM firestore_ingest_suppressed_ids", [])?;
+        conn.execute("DELETE FROM sync_tombstone_outbox", [])?;
         Ok(())
+    }
+
+    /// Coalesce: one pending tombstone per entry id (sync v2).
+    pub fn enqueue_sync_tombstone(&self, entry_id: &str) -> Result<(), rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let at = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT OR REPLACE INTO sync_tombstone_outbox (entry_id, enqueued_at) VALUES (?1, ?2)",
+            [entry_id, at.as_str()],
+        )?;
+        Ok(())
+    }
+
+    pub fn list_sync_tombstone_outbox(&self) -> Result<Vec<String>, rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT entry_id FROM sync_tombstone_outbox ORDER BY enqueued_at ASC",
+        )?;
+        let rows = stmt.query_map([], |r| r.get(0))?;
+        rows.collect()
+    }
+
+    pub fn remove_sync_tombstone_outbox(&self, entry_id: &str) -> Result<(), rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        conn.execute(
+            "DELETE FROM sync_tombstone_outbox WHERE entry_id = ?1",
+            [entry_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn clear_firestore_ingest_suppression(&self, entry_id: &str) -> Result<(), rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        conn.execute(
+            "DELETE FROM firestore_ingest_suppressed_ids WHERE id = ?1",
+            [entry_id],
+        )?;
+        Ok(())
+    }
+
+    /// Remote tombstone (or sync apply): remove local row without adding suppression; clear suppression for this id.
+    pub fn delete_local_entries_for_sync(&self, entry_ids: &[String]) -> Result<u32, rusqlite::Error> {
+        if entry_ids.is_empty() {
+            return Ok(0);
+        }
+        let conn = self.0.lock().unwrap();
+        let mut removed: u32 = 0;
+        for id in entry_ids {
+            let n = conn.execute("DELETE FROM entries WHERE id = ?1", [id.as_str()])?;
+            if n > 0 {
+                removed += 1;
+            }
+            conn.execute(
+                "DELETE FROM firestore_ingest_suppressed_ids WHERE id = ?1",
+                [id.as_str()],
+            )?;
+        }
+        Ok(removed)
     }
 
     pub fn search_entries(&self, query: &str) -> Result<Vec<SearchEntryRow>, rusqlite::Error> {
@@ -513,6 +617,73 @@ mod tests {
     }
 
     #[test]
+    fn firestore_ingest_skips_duplicate_id() {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        db.create_entry("a", "local", "2025-01-01T12:00:00Z")
+            .unwrap();
+        let n = db
+            .ingest_firestore_entries(&[(
+                "a".to_string(),
+                "remote".to_string(),
+                "2025-02-01T12:00:00Z".to_string(),
+            )])
+            .unwrap();
+        assert_eq!(n, 0);
+        let row = db.get_entry_by_id("a").unwrap().unwrap();
+        assert_eq!(row.text, "local");
+    }
+
+    #[test]
+    fn firestore_ingest_inserts_new_id() {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        let n = db
+            .ingest_firestore_entries(&[(
+                "x".to_string(),
+                "from cloud".to_string(),
+                "2025-03-10T08:30:00.000Z".to_string(),
+            )])
+            .unwrap();
+        assert_eq!(n, 1);
+        let row = db.get_entry_by_id("x").unwrap().unwrap();
+        assert_eq!(row.text, "from cloud");
+    }
+
+    #[test]
+    fn firestore_ingest_skips_desktop_deleted_id() {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        db.create_entry("meow", "cat", "2025-01-01T12:00:00Z").unwrap();
+        db.delete_entry("meow").unwrap();
+        assert!(db.get_entry_by_id("meow").unwrap().is_none());
+        let n = db
+            .ingest_firestore_entries(&[(
+                "meow".to_string(),
+                "still in cloud".to_string(),
+                "2025-02-01T12:00:00Z".to_string(),
+            )])
+            .unwrap();
+        assert_eq!(n, 0);
+        assert!(db.get_entry_by_id("meow").unwrap().is_none());
+    }
+
+    #[test]
+    fn create_entry_clears_firestore_ingest_suppression() {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        db.create_entry("r", "one", "2025-01-01T12:00:00Z").unwrap();
+        db.delete_entry("r").unwrap();
+        db.create_entry("r", "two", "2025-01-02T12:00:00Z").unwrap();
+        let n = db
+            .ingest_firestore_entries(&[(
+                "r".to_string(),
+                "from cloud".to_string(),
+                "2025-03-01T12:00:00Z".to_string(),
+            )])
+            .unwrap();
+        assert_eq!(n, 0);
+        let row = db.get_entry_by_id("r").unwrap().unwrap();
+        assert_eq!(row.text, "two");
+    }
+
+    #[test]
     fn basic_ranking_stronger_match_first() {
         let db = db_with_entries(&[
             ("once", "design review notes"),
@@ -526,6 +697,47 @@ mod tests {
             "entry with more term matches should rank higher"
         );
         assert_eq!(ids[1], "once");
+    }
+
+    #[test]
+    fn sync_tombstone_outbox_coalesces_same_entry_id() {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        db.enqueue_sync_tombstone("same").unwrap();
+        db.enqueue_sync_tombstone("same").unwrap();
+        let ids = db.list_sync_tombstone_outbox().unwrap();
+        assert_eq!(ids, vec!["same".to_string()]);
+    }
+
+    #[test]
+    fn delete_local_entries_for_sync_clears_suppression() {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        db.create_entry("gone", "x", "2025-01-01T12:00:00Z").unwrap();
+        db.delete_entry("gone").unwrap();
+        assert!(db.get_entry_by_id("gone").unwrap().is_none());
+        let n = db
+            .ingest_firestore_entries(&[(
+                "gone".to_string(),
+                "cloud".to_string(),
+                "2025-02-01T12:00:00Z".to_string(),
+            )])
+            .unwrap();
+        assert_eq!(n, 0);
+        let removed = db
+            .delete_local_entries_for_sync(&["gone".to_string()])
+            .unwrap();
+        assert_eq!(removed, 0);
+        let n2 = db
+            .ingest_firestore_entries(&[(
+                "gone".to_string(),
+                "cloud".to_string(),
+                "2025-02-01T12:00:00Z".to_string(),
+            )])
+            .unwrap();
+        assert_eq!(n2, 1);
+        assert_eq!(
+            db.get_entry_by_id("gone").unwrap().unwrap().text,
+            "cloud"
+        );
     }
 
     #[test]
@@ -543,6 +755,41 @@ mod tests {
                 .as_deref(),
             Some("e1")
         );
+    }
+
+    #[test]
+    fn clear_firestore_ingest_suppression_allows_ingest_like_tombstone_success() {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        db.create_entry("t", "local", "2025-01-01T12:00:00Z").unwrap();
+        db.delete_entry("t").unwrap();
+        assert_eq!(
+            db.ingest_firestore_entries(&[(
+                "t".to_string(),
+                "remote".to_string(),
+                "2025-03-01T12:00:00Z".to_string(),
+            )])
+            .unwrap(),
+            0
+        );
+        db.clear_firestore_ingest_suppression("t").unwrap();
+        assert_eq!(
+            db.ingest_firestore_entries(&[(
+                "t".to_string(),
+                "remote".to_string(),
+                "2025-03-01T12:00:00Z".to_string(),
+            )])
+            .unwrap(),
+            1
+        );
+    }
+
+    #[test]
+    fn remove_sync_tombstone_outbox_is_idempotent() {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        db.enqueue_sync_tombstone("z").unwrap();
+        db.remove_sync_tombstone_outbox("z").unwrap();
+        db.remove_sync_tombstone_outbox("z").unwrap();
+        assert!(db.list_sync_tombstone_outbox().unwrap().is_empty());
     }
 
     #[test]

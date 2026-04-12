@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { TrayCapturePanel } from "./features/entries/TrayCapturePanel";
 import { IconVariantShowcase } from "./components/IconVariantShowcase";
+import { OAuthBridge } from "./components/OAuthBridge";
 import { setUmami } from "./lib/analytics";
 import "./index.css";
 
@@ -36,18 +37,36 @@ function Root() {
   return <App />;
 }
 
+/* Path-based route survives Firebase redirect better than only ?chinotto_oauth=1 (that query is often dropped). */
+function isOAuthBridgeEntry(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  const path = (window.location.pathname.replace(/\/$/, "") || "/").toLowerCase();
+  if (path === "/chinotto-oauth") {
+    return true;
+  }
+  return new URLSearchParams(window.location.search).get("chinotto_oauth") === "1";
+}
+
 function isTrayCaptureSurface(): boolean {
   if (typeof window === "undefined") return false;
   return window.location.hash === "#tray-capture";
 }
 
+const trayCapture = isTrayCaptureSurface();
+const oauthChild = isOAuthBridgeEntry();
+
+/* OAuth must not run under StrictMode: dev double-mount fires Firebase redirect twice and breaks auth. */
 createRoot(document.getElementById("root")!).render(
-  isTrayCaptureSurface() ? (
+  trayCapture ? (
     <StrictMode>
       <div className="tray-capture-root">
         <TrayCapturePanel />
       </div>
     </StrictMode>
+  ) : oauthChild ? (
+    <OAuthBridge />
   ) : (
     <StrictMode>
       <Root />

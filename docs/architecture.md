@@ -28,7 +28,8 @@ Rationale, layout, and coverage targets: **`docs/testing-strategy.md`**.
 
 ## Why SQLite
 
-- Local-first: no network, no auth, no sync in MVP. Entry content never leaves the device.
+- Local-first: SQLite remains the source of truth for capture and UI. Entry text is not sent to analytics.
+- **Optional Firestore sync:** When `VITE_FIREBASE_*` is set, the app can sign in with Apple (same Firebase project as mobile) and **pull + push** entries. **Desktop:** `docs/sync.md` (architecture, status, ops). **Wire contract:** `chinotto-mobile/docs/sync.md`. **Release QA:** `docs/sync-release-checklist.md`. No cloud requirement for core capture/search.
 - One file (e.g. in app data dir); easy to backup and inspect.
 - FTS5 gives good full-text search without extra services.
 - Boring, stable, and well-understood.
@@ -39,7 +40,9 @@ The product is “capture first, structure later.” The MVP avoids folders, pag
 
 ## Out of scope for MVP
 
-- Sync, collaboration, auth, cloud
+- Collaboration, multi-user
+- Chinotto-hosted accounts (optional Firebase device linking only when configured)
+- Cross-device **edit** sync (no conflict rules or merging remote `text` on the same id; create/delete when Firebase is configured — see `docs/sync.md`)
 - Pages, folders, documents, markdown editor
 - Tasks, kanban, templates
 - AI chat, embeddings

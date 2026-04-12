@@ -1,8 +1,16 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+  type AnimationEvent,
+} from "react";
 import { IntroScreen } from "@/components/IntroScreen";
 import { LogoTransition } from "@/components/LogoTransition";
 import { ChinottoLogo } from "@/components/ChinottoLogo";
 import { ChinottoCard } from "@/components/ChinottoCard";
+import { SyncModal } from "@/components/SyncModal";
 import { StreamShowcaseModal } from "@/components/StreamShowcaseModal";
 import { AnalyticsOptInModal } from "@/components/AnalyticsOptInModal";
 import { EntryInput, type EntryInputRef } from "./features/entries/EntryInput";
@@ -16,6 +24,7 @@ import { getSearchFeedback } from "./features/entries/searchOverlayFeedback";
 import { Button } from "@/components/ui/button";
 import {
   createEntry,
+  getEntry,
   restoreEntry,
   updateEntry,
   listEntries,
@@ -75,7 +84,14 @@ import { scrollJumpSectionIntoView } from "@/lib/scrollJumpSectionIntoView";
 import { useJumpContextAutoClear } from "@/lib/useJumpContextAutoClear";
 import { APP_VERSION } from "@/lib/appVersion";
 import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
+import {
+  notifyEntryDeletedForSync,
+  pushEntryUpsertToFirestore,
+  startDesktopFirestoreIngest,
+} from "@/lib/desktopFirestoreSync";
+import { isFirebaseSyncConfigured } from "@/lib/firebaseConfig";
 import { isThoughtDetailEditEnabled } from "@/lib/thoughtDetailEdit";
+import { useDesktopSyncHeaderCta } from "@/lib/useDesktopSyncHeaderCta";
 
 /** Voice capture is disabled in the main flow. Set to true to re-enable as an experimental feature. */
 const EXPERIMENTAL_VOICE_CAPTURE = false;
@@ -85,6 +101,22 @@ const FEEDBACK_EMAIL = "hello@chinotto.app";
 /** Tiny offset after intro→main handoff so empty onboarding stagger reads clearly. */
 const EMPTY_ONBOARDING_POST_INTRO_DELAY_MS = 750;
 const JUMP_CONTEXT_EXPANDED_MS = 3000;
+/** Coalesce rapid Firestore ingest callbacks so the stream does not stutter during backfill. */
+const DESKTOP_FIRESTORE_INGEST_DEBOUNCE_MS = 120;
+/** After closing Sync modal, wait for the dismiss transition before attaching ingest listeners. */
+const DESKTOP_FIRESTORE_INGEST_AFTER_SYNC_MODAL_MS = 200;
+
+/** Lets ChinottoCard (and similar) run their exit animation instead of unmounting from the parent. */
+function emitSyntheticEscapeKeydown(): void {
+  window.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      key: "Escape",
+      code: "Escape",
+      bubbles: true,
+      cancelable: true,
+    })
+  );
+}
 
 function isTypingInInput(): boolean {
   const el = document.activeElement;
@@ -149,10 +181,14 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchOverlayClosing, setSearchOverlayClosing] = useState(false);
   const [jumpPopoverOpen, setJumpPopoverOpen] = useState(false);
   const [jumpContextYmd, setJumpContextYmd] = useState<string | null>(null);
   const [jumpContextExpanded, setJumpContextExpanded] = useState(false);
   const [isChinottoCardOpen, setIsChinottoCardOpen] = useState(false);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const syncModalWasOpenForFirestoreIngestRef = useRef(false);
+  const desktopFirestoreIngestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isStreamShowcaseOpen, setIsStreamShowcaseOpen] = useState(false);
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
   const [, setIntroSettled] = useState(false);
@@ -186,6 +222,34 @@ export default function App() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const jumpToDateButtonRef = useRef<HTMLButtonElement>(null);
   const entryInputRef = useRef<EntryInputRef>(null);
+
+  const handleSearchCloseImmediate = useCallback(() => {
+    setSearchOverlayClosing(false);
+    setIsSearchOpen(false);
+    setSearch("");
+    requestAnimationFrame(() => {
+      entryInputRef.current?.focus();
+    });
+  }, []);
+
+  const handleSearchOverlayAnimationEnd = useCallback((e: AnimationEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return;
+    if (e.animationName !== "search-overlay-out") return;
+    setIsSearchOpen(false);
+    setSearchOverlayClosing(false);
+    setSearch("");
+    requestAnimationFrame(() => {
+      entryInputRef.current?.focus();
+    });
+  }, []);
+
+  const handleSearchClose = useCallback(() => {
+    if (!isSearchOpen || searchOverlayClosing) return;
+    setSearchOverlayClosing(true);
+  }, [isSearchOpen, searchOverlayClosing]);
+
+  const searchRef = useRef(search);
+  searchRef.current = search;
   const devDeleteAllThoughtsRef = useRef<(() => Promise<void>) | null>(null);
   const headerLogoRef = useRef<HTMLButtonElement>(null);
   const shownThisSessionRef = useRef(false);
@@ -261,6 +325,63 @@ export default function App() {
     const t = setTimeout(() => refresh(search), 120);
     return () => clearTimeout(t);
   }, [search, refresh]);
+
+  useEffect(() => {
+    if (!isFirebaseSyncConfigured()) {
+      return undefined;
+    }
+    if (isSyncModalOpen) {
+      syncModalWasOpenForFirestoreIngestRef.current = true;
+      return undefined;
+    }
+
+    const resumeAfterSyncModal = syncModalWasOpenForFirestoreIngestRef.current;
+    syncModalWasOpenForFirestoreIngestRef.current = false;
+
+    let cancelled = false;
+    let stopIngest: (() => void) | undefined;
+    let startTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const scheduleIngestRefresh = () => {
+      if (desktopFirestoreIngestDebounceRef.current) {
+        clearTimeout(desktopFirestoreIngestDebounceRef.current);
+      }
+      desktopFirestoreIngestDebounceRef.current = setTimeout(() => {
+        desktopFirestoreIngestDebounceRef.current = null;
+        if (!cancelled) {
+          void refresh(searchRef.current);
+        }
+      }, DESKTOP_FIRESTORE_INGEST_DEBOUNCE_MS);
+    };
+
+    const runStart = () => {
+      if (cancelled) {
+        return;
+      }
+      stopIngest = startDesktopFirestoreIngest(() => {
+        scheduleIngestRefresh();
+      });
+    };
+
+    if (resumeAfterSyncModal) {
+      startTimer = setTimeout(runStart, DESKTOP_FIRESTORE_INGEST_AFTER_SYNC_MODAL_MS);
+    } else {
+      runStart();
+    }
+
+    return () => {
+      cancelled = true;
+      if (startTimer !== undefined) {
+        clearTimeout(startTimer);
+      }
+      if (desktopFirestoreIngestDebounceRef.current) {
+        clearTimeout(desktopFirestoreIngestDebounceRef.current);
+        desktopFirestoreIngestDebounceRef.current = null;
+        void refresh(searchRef.current);
+      }
+      stopIngest?.();
+    };
+  }, [refresh, isSyncModalOpen]);
 
   const { pinnedEntries, streamEntries } = useMemo(() => {
     const pinnedEntries = pinnedIds
@@ -417,19 +538,42 @@ export default function App() {
     return () => clearTimeout(id);
   }, [introDismissed, introTransitioning]);
 
+  const chromeOverlayOpen = isChinottoCardOpen || isSyncModalOpen || isSearchOpen;
+
   useEffect(() => {
-    if (isChinottoCardOpen) {
-      document.documentElement.classList.add("chinotto-card-open");
-      document.body.classList.add("chinotto-card-open");
-    } else {
-      document.documentElement.classList.remove("chinotto-card-open");
-      document.body.classList.remove("chinotto-card-open");
-    }
-    return () => {
+    let raf0 = 0;
+    let raf1 = 0;
+    let cancelled = false;
+
+    const removeChromeClass = () => {
       document.documentElement.classList.remove("chinotto-card-open");
       document.body.classList.remove("chinotto-card-open");
     };
-  }, [isChinottoCardOpen]);
+
+    const scheduleRemove = () => {
+      raf0 = requestAnimationFrame(() => {
+        raf1 = requestAnimationFrame(() => {
+          if (!cancelled) {
+            removeChromeClass();
+          }
+        });
+      });
+    };
+
+    if (chromeOverlayOpen) {
+      document.documentElement.classList.add("chinotto-card-open");
+      document.body.classList.add("chinotto-card-open");
+    } else {
+      scheduleRemove();
+    }
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf0);
+      cancelAnimationFrame(raf1);
+      removeChromeClass();
+    };
+  }, [chromeOverlayOpen]);
 
   useEffect(() => {
     setDesktopIcon(getStoredIconVariantId()).catch(() => {});
@@ -600,11 +744,12 @@ export default function App() {
       if (isTypingInInput()) return;
       if (selectedEntry) setSelectedEntry(null);
       if (isSearchOpen) {
-        setIsSearchOpen(false);
-        setSearch("");
+        handleSearchClose();
       }
       if (jumpPopoverOpen) setJumpPopoverOpen(false);
-      if (isChinottoCardOpen) setIsChinottoCardOpen(false);
+      if (isChinottoCardOpen) {
+        emitSyntheticEscapeKeydown();
+      }
       clearJumpContext();
       requestAnimationFrame(() => {
         entryInputRef.current?.focus();
@@ -619,6 +764,7 @@ export default function App() {
     jumpPopoverOpen,
     isChinottoCardOpen,
     clearJumpContext,
+    handleSearchClose,
   ]);
 
   useEffect(() => {
@@ -704,6 +850,7 @@ export default function App() {
 
   useEffect(() => {
     if (isSearchOpen) {
+      setSearchOverlayClosing(false);
       searchInputRef.current?.focus();
     }
   }, [isSearchOpen]);
@@ -740,8 +887,11 @@ export default function App() {
       if (e.key === "n" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         if (selectedEntry) setSelectedEntry(null);
-        if (isSearchOpen) setIsSearchOpen(false);
-        entryInputRef.current?.focus();
+        if (isSearchOpen) {
+          handleSearchClose();
+        } else {
+          entryInputRef.current?.focus();
+        }
       }
       if (EXPERIMENTAL_VOICE_CAPTURE && (e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "v") {
         e.preventDefault();
@@ -769,6 +919,7 @@ export default function App() {
     isSearchOpen,
     jumpPopoverOpen,
     showJumpTrigger,
+    handleSearchClose,
   ]);
 
   const EPHEMERAL_WINDOW_MS = 15_000;
@@ -777,6 +928,9 @@ export default function App() {
   async function handleSubmit(text: string) {
     if (getDevSimulateNewUser()) return;
     const id = await createEntry(text);
+    void getEntry(id).then((row) => {
+      if (row) void pushEntryUpsertToFirestore(row);
+    });
     track({ event: "entry_created", text_length: text.length });
     if (streamEntries.length === 0) tryBeginEmptyOnboardingExit();
     setHasEverSavedThought();
@@ -812,14 +966,6 @@ export default function App() {
     }, 400);
     refresh(search);
     generateEmbedding(id);
-  }
-
-  function handleSearchClose() {
-    setIsSearchOpen(false);
-    setSearch("");
-    requestAnimationFrame(() => {
-      entryInputRef.current?.focus();
-    });
   }
 
   const handleJumpDatePick = useCallback(
@@ -944,14 +1090,18 @@ export default function App() {
         wasPinned: pinnedIds.includes(entry.id),
       });
       if (selectedEntry?.id === entry.id) setSelectedEntry(null);
-      deleteEntry(entry.id).catch(() => {
-        setDeletingIds((prev) => {
-          const next = new Set(prev);
-          next.delete(entry.id);
-          return next;
+      deleteEntry(entry.id)
+        .then(() => {
+          void notifyEntryDeletedForSync(entry.id).catch(() => {});
+        })
+        .catch(() => {
+          setDeletingIds((prev) => {
+            const next = new Set(prev);
+            next.delete(entry.id);
+            return next;
+          });
+          setLastDeletedEntry(null);
         });
-        setLastDeletedEntry(null);
-      });
     },
     [selectedEntry?.id, pinnedIds]
   );
@@ -1042,7 +1192,14 @@ export default function App() {
         const { entry, wasPinned } = lastDeletedEntry;
         restoreEntry(entry.id, entry.text, entry.created_at)
           .then((restoredId) => {
-            if (wasPinned) return pinEntry(restoredId);
+            const afterPin = wasPinned ? pinEntry(restoredId) : Promise.resolve();
+            return afterPin.then(() =>
+              pushEntryUpsertToFirestore({
+                id: restoredId,
+                text: entry.text,
+                created_at: entry.created_at,
+              })
+            );
           })
           .then(() => {
             setLastDeletedEntry(null);
@@ -1165,13 +1322,12 @@ export default function App() {
       setEphemeralEntryIds(new Set());
       setSettlingEntryIds(new Set());
       setHoveredEntryId(null);
-      setSearch("");
-      setIsSearchOpen(false);
+      handleSearchCloseImmediate();
       await refresh("");
     } catch (e) {
       void dialogMessage(String(e), { kind: "error", title: "Chinotto" });
     }
-  }, [refresh]);
+  }, [refresh, handleSearchCloseImmediate]);
 
   devDeleteAllThoughtsRef.current = handleDevDeleteAllThoughts;
 
@@ -1203,6 +1359,8 @@ export default function App() {
     introDismissed || (introTransitioning && emptyOnboardingIntroDelayReady);
 
   const canOpenStreamShowcase = introDismissed && hasEntriesInDb;
+
+  const syncHeaderCta = useDesktopSyncHeaderCta();
 
   return (
     <>
@@ -1247,46 +1405,66 @@ export default function App() {
                 </span>
               )}
             </div>
-            {import.meta.env.DEV && introDismissed && getDevSimulateNewUser() && (
-              <span
-                className="dev-simulate-banner text-xs text-[var(--muted)]"
-                aria-live="polite"
-              >
-                Simulating new user — data intact
-              </span>
-            )}
-            {import.meta.env.DEV && introDismissed && (
-              <>
-                <Button
+            <div className="app-header-end">
+              {introDismissed ? (
+                <button
                   type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="dev-preview-resurface text-[var(--muted)] hover:text-[var(--fg-dim)] text-xs"
-                  onClick={handleDevPreviewResurface}
-                  aria-label="Preview resurfaced overlay (dev)"
+                  className="app-header-sync"
+                  onClick={() => {
+                    track({ event: "sync_modal_opened", surface: "header" });
+                    setIsSyncModalOpen(true);
+                  }}
+                  aria-label={syncHeaderCta.ariaLabel}
                 >
-                  Preview resurface
-                </Button>
-                {entries.length > 0 ? (
+                  {syncHeaderCta.showDot ? (
+                    <span className="app-header-sync-dot" aria-hidden="true" />
+                  ) : null}
+                  {syncHeaderCta.label}
+                </button>
+              ) : null}
+              {import.meta.env.DEV && introDismissed && getDevSimulateNewUser() && (
+                <span
+                  className="dev-simulate-banner text-xs text-[var(--muted)]"
+                  aria-live="polite"
+                >
+                  Simulating new user — data intact
+                </span>
+              )}
+              {import.meta.env.DEV && introDismissed && (
+                <>
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="dev-delete-all-thoughts text-[var(--muted)] hover:text-[var(--fg-dim)] text-xs"
-                    onClick={() => void handleDevDeleteAllThoughts()}
-                    aria-label="Delete all thoughts from database (dev)"
+                    className="dev-preview-resurface text-[var(--muted)] hover:text-[var(--fg-dim)] text-xs"
+                    onClick={handleDevPreviewResurface}
+                    aria-label="Preview resurfaced overlay (dev)"
                   >
-                    Delete all thoughts
+                    Preview resurface
                   </Button>
-                ) : null}
-              </>
-            )}
+                  {entries.length > 0 ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="dev-delete-all-thoughts text-[var(--muted)] hover:text-[var(--fg-dim)] text-xs"
+                      onClick={() => void handleDevDeleteAllThoughts()}
+                      aria-label="Delete all thoughts from database (dev)"
+                    >
+                      Delete all thoughts
+                    </Button>
+                  ) : null}
+                </>
+              )}
+            </div>
           </header>
           {isSearchOpen && (
             <div
               className="search-overlay"
+              data-closing={searchOverlayClosing || undefined}
               role="dialog"
               aria-label="Search"
+              onAnimationEnd={handleSearchOverlayAnimationEnd}
               onClick={(e) => e.target === e.currentTarget && handleSearchClose()}
             >
               <div className="search-center search-reveal">
@@ -1300,8 +1478,10 @@ export default function App() {
                       track({ event: "search_used", result_count: entries.length });
                       const entry = entries[searchSelectedIndex] ?? entries[0];
                       handleOpenEntry(entry);
+                      handleSearchCloseImmediate();
+                    } else {
+                      handleSearchClose();
                     }
-                    handleSearchClose();
                   }}
                   onArrowUp={
                     entries.length > 0
@@ -1330,7 +1510,7 @@ export default function App() {
                       onSelectEntry={(entry) => {
                         track({ event: "search_used", result_count: entries.length });
                         handleOpenEntry(entry);
-                        handleSearchClose();
+                        handleSearchCloseImmediate();
                       }}
                     />
                   </>
@@ -1521,6 +1701,7 @@ export default function App() {
       {showAnalyticsModal && (
         <AnalyticsOptInModal onClose={() => setShowAnalyticsModal(false)} />
       )}
+      {isSyncModalOpen ? <SyncModal onClose={() => setIsSyncModalOpen(false)} /> : null}
       {isChinottoCardOpen && (
         <ChinottoCard
           onClose={() => setIsChinottoCardOpen(false)}

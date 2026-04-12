@@ -38,7 +38,7 @@
         "alwaysOnTop": true,
         "shadow": false,
         "focus": true,
-        "url": "index.html#tray-capture",
+        "url": "/#tray-capture",
         "titleBarStyle": "Transparent",
         "hiddenTitle": true,
         "backgroundColor": "#00000000"

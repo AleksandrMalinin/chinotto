@@ -1008,6 +1008,23 @@ body.welcome .app-bg {
   justify-content: center;
   background: rgba(10, 10, 14, 0.72);
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.search-overlay[data-closing] {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  animation: search-overlay-out 0.22s ease-in forwards;
+  pointer-events: none;
+}
+
+@keyframes search-overlay-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 .search-center {
@@ -1125,7 +1142,12 @@ body.welcome .app-bg {
 }
 
 .chinotto-card-overlay[data-closing] {
+  /* WebKit + backdrop-filter + opacity-out can flash black; drop blur for the exit only. */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   animation: chinotto-card-overlay-out 0.3s ease-in forwards;
+  /* Avoid an invisible full-screen layer blocking the main UI if exit animation flakes. */
+  pointer-events: none;
 }
 
 .chinotto-card-overlay[data-closing] .chinotto-card {
@@ -1156,6 +1178,8 @@ body.welcome .app-bg {
 }
 
 .stream-showcase-overlay[data-closing] {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   animation: chinotto-card-overlay-out 0.3s ease-in forwards;
 }
 
@@ -1853,6 +1877,570 @@ body.welcome .app-bg {
   line-height: 1.45;
   color: var(--landing-muted);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Sync modal: same shell as Settings; compact centered bridge (text + QR as one unit) */
+.chinotto-card.sync-modal-card {
+  max-height: min(85vh, calc(100vh - 2.5rem));
+  overflow-y: auto;
+}
+
+.chinotto-card-footer.sync-modal-footer {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  align-items: stretch;
+  opacity: 1;
+}
+
+.sync-modal-footer-hint {
+  margin: 0 auto;
+  max-width: 28rem;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: 0.03em;
+  text-align: center;
+  color: var(--landing-muted);
+  opacity: 0.55;
+}
+
+.sync-modal-head {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.sync-modal-head-start {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.sync-modal-head-disconnect {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0.2rem 0.35rem;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  color: rgba(255, 255, 255, 0.38);
+  transition: color 0.15s ease-out;
+}
+
+.sync-modal-head-disconnect:hover:not(:disabled),
+.sync-modal-head-disconnect:focus-visible:not(:disabled) {
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.sync-modal-head-disconnect:focus-visible:not(:disabled) {
+  outline: 1px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.sync-modal-head-disconnect:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sync-modal-bridge-shell {
+  /* Extra air under card title so the bridge doesn’t hug the header. */
+  margin-top: 1.875rem;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.sync-modal-bridge-body.chinotto-card-body {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0;
+  grid-template-columns: minmax(0, 17.25rem) minmax(10.5rem, 12.5rem);
+  column-gap: 1rem;
+  row-gap: 0.75rem;
+  /* Start-aligned rows; QR column centers in the row so its visual mass meets the left stack. */
+  align-items: start;
+}
+
+.sync-modal-col--copy {
+  align-self: start;
+}
+
+.sync-modal-col--copy-with-cta {
+  align-self: start;
+  width: 100%;
+  min-width: 0;
+  /* Stronger optical drop: align left stack with QR’s vertical mass (26px was easy to miss). */
+  padding-top: clamp(2.25rem, 5.5vw, 3.25rem);
+}
+
+/* Same gradient clip as `.stream-empty-title` / intro lines; size steps above 12px body. */
+.sync-modal-bridge-title {
+  margin: 0 0 0.45rem;
+  font-size: clamp(18px, 2.4vw, 20px);
+  font-weight: 600;
+  line-height: 1.35;
+  text-wrap: balance;
+  background: var(--chinotto-headline-text-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.sync-modal-bridge-title--room-below {
+  margin-bottom: 0.55rem;
+}
+
+.sync-modal-bridge-lead {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--landing-muted);
+}
+
+.sync-modal-bridge-lead--second {
+  margin: 0;
+  opacity: 0.78;
+}
+
+.sync-modal-copy-swap {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: calc(12px * 1.35 * 2);
+}
+
+/* Signed-in, waiting for iPhone: clearer rhythm between status line and follow-up. */
+.sync-modal-copy-swap--status-pair {
+  gap: 0.5rem;
+}
+
+.sync-modal-copy-swap--status-pair .sync-modal-bridge-lead--status {
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0.012em;
+  color: rgba(228, 228, 233, 0.9);
+}
+
+.sync-modal-copy-swap--status-pair .sync-modal-bridge-lead--second {
+  margin: 0;
+  opacity: 0.62;
+  line-height: 1.45;
+}
+
+.sync-modal-bridge-lead--status {
+  font-weight: 600;
+  line-height: 1.35;
+  color: rgba(240, 240, 246, 0.96);
+}
+
+/* Bypass reads as part of the instruction block; spacer keeps height after tap so layout doesn’t jump. */
+.sync-modal-copy-footnote {
+  margin-top: 0.35rem;
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.sync-modal-copy-footnote-spacer {
+  display: block;
+  width: 100%;
+  min-height: calc(10px * 1.35);
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.sync-modal-bridge-hint {
+  margin: 0.55rem 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--landing-muted);
+}
+
+.sync-modal-col--qr {
+  align-self: center;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.sync-modal-qr-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 200px;
+  margin: 0;
+}
+
+.sync-modal-qr-wrap--compact {
+  max-width: 168px;
+}
+
+@keyframes sync-modal-dot-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.sync-modal-sync-dot {
+  display: inline-block;
+  margin-right: 0.35em;
+  font-size: 0.72em;
+  line-height: 1;
+  vertical-align: 0.08em;
+  color: var(--landing-foreground);
+  animation: sync-modal-dot-pulse 2.6s ease-in-out infinite;
+}
+
+.sync-modal-post-cta {
+  margin-top: 0.5rem;
+  min-height: 2.35rem;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sync-modal-post-cta--left {
+  justify-content: center;
+}
+
+.sync-modal-post-cta .sync-modal-sync-on {
+  margin: 0;
+}
+
+.sync-modal-sync-on {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  color: var(--landing-foreground);
+  text-align: center;
+  transition: opacity 200ms ease-out;
+}
+
+.sync-modal-sync-on--hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sync-modal-sync-on--hidden .sync-modal-sync-dot {
+  animation: none;
+}
+
+.sync-modal-sync-on--visible {
+  opacity: 1;
+}
+
+.sync-modal-qr-frame {
+  width: 100%;
+  max-width: 200px;
+  padding: 11px;
+  border-radius: 10px;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.sync-modal-qr-wrap--compact .sync-modal-qr-frame {
+  max-width: 168px;
+  padding: 9px;
+}
+
+@media (max-width: 560px) {
+  .sync-modal-bridge-shell {
+    margin-top: 1rem;
+  }
+
+  .sync-modal-bridge-body.chinotto-card-body {
+    width: 100%;
+    grid-template-columns: 1fr;
+    row-gap: 1rem;
+    justify-items: stretch;
+  }
+
+  .sync-modal-col--copy,
+  .sync-modal-col--copy-with-cta {
+    text-align: center;
+    padding-top: 0;
+  }
+
+  .sync-modal-col--qr {
+    align-self: stretch;
+  }
+
+  .sync-modal-copy-footnote {
+    justify-content: center;
+  }
+
+  .sync-modal-bypass {
+    text-align: center;
+  }
+
+  .sync-modal-connect-slot--left {
+    align-items: center;
+    max-width: none;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .sync-modal-connect-slot--left .sync-modal-connect-apple {
+    max-width: min(20rem, 100%);
+  }
+
+  .sync-modal-post-cta--left {
+    justify-content: center;
+  }
+
+  .sync-modal-qr-wrap {
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+.sync-modal-phone-slot {
+  margin: 0.75rem 0 0;
+  width: 100%;
+  min-height: 2.75em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.sync-modal-phone-slot--compact {
+  margin-top: 0.7rem;
+  min-height: 2.25em;
+}
+
+.sync-modal-open-phone {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+  color: rgba(155, 159, 169, 0.52);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: rgba(155, 159, 169, 0.28);
+  max-width: 100%;
+}
+
+.sync-modal-open-phone:hover,
+.sync-modal-open-phone:focus-visible {
+  color: rgba(200, 202, 212, 0.88);
+  text-decoration-color: rgba(155, 159, 169, 0.45);
+}
+
+.sync-modal-open-phone-static {
+  margin: 0;
+  padding: 0;
+  max-width: 100%;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+  color: rgba(155, 159, 169, 0.52);
+  text-align: center;
+}
+
+.sync-modal-bridge-warn {
+  margin: 0.75rem 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(232, 232, 240, 0.82);
+}
+
+.sync-modal-waiting {
+  margin: 0.65rem 0 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--landing-muted);
+  text-align: center;
+}
+
+.sync-modal-connect-slot {
+  margin: 0.75rem 0 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+.sync-modal-connect-slot--left {
+  align-items: center;
+  margin-top: 1.05rem;
+  max-width: none;
+  width: 100%;
+}
+
+/* Signed in + sync active: no Apple row — drop phantom button rail so “Sync is on” sits under the lead copy. */
+.sync-modal-connect-slot--left.sync-modal-connect-slot--sync-ready {
+  margin-top: 0.35rem;
+}
+
+.sync-modal-connect-slot--sync-ready .sync-modal-connect-apple-slot-spacer {
+  min-height: 0;
+  max-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.sync-modal-connect-slot--sync-ready .sync-modal-post-cta {
+  margin-top: 0.25rem;
+  min-height: 0;
+}
+
+.sync-modal-connect-slot--left .sync-modal-connect-apple {
+  width: fit-content;
+  max-width: min(20rem, 100%);
+  box-sizing: border-box;
+}
+
+/* Keeps column height when Apple CTA is hidden (already signed in). */
+.sync-modal-connect-apple-slot-spacer {
+  box-sizing: border-box;
+  align-self: center;
+  width: 100%;
+  max-width: min(20rem, 100%);
+  min-height: calc(0.42rem * 2 + 14px * 1.35);
+  flex-shrink: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.sync-modal-connect-apple {
+  margin: 0;
+  padding: 0.42rem 1rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: #050508;
+  background: rgba(236, 236, 242, 0.97);
+  opacity: 1;
+  transition: opacity 200ms ease-out, filter 200ms ease-out;
+}
+
+.sync-modal-connect-apple--dimmed:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.sync-modal-connect-apple--busy:disabled {
+  opacity: 0.72;
+  cursor: wait;
+}
+
+.sync-modal-connect-apple:hover:not(:disabled),
+.sync-modal-connect-apple:focus-visible:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+/* Edge-case link: quieter than “Open on your phone” and body. */
+.sync-modal-bypass {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+  color: rgba(155, 159, 169, 0.38);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: rgba(155, 159, 169, 0.18);
+  max-width: 100%;
+  text-align: left;
+  text-wrap: balance;
+}
+
+.sync-modal-bypass:hover {
+  color: rgba(155, 159, 169, 0.62);
+  text-decoration-color: rgba(155, 159, 169, 0.32);
+}
+
+.sync-modal-bypass:focus-visible {
+  color: rgba(155, 159, 169, 0.62);
+  text-decoration-color: rgba(155, 159, 169, 0.32);
+  outline: 1px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.app-header-end {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.5rem;
+}
+
+.app-header-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--fg-dim);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color var(--transition), border-color var(--transition), background var(--transition);
+}
+
+/** Match mobile `SyncHeaderStatus` dot (lavender, ~7px). */
+.app-header-sync-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: rgba(148, 156, 212, 0.58);
+  box-shadow: 0 0 5px rgba(165, 172, 225, 0.45);
+}
+
+.app-header-sync:hover,
+.app-header-sync:focus-visible {
+  color: var(--fg);
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.app-header-sync:focus-visible {
+  outline: 1px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 /* Voice capture overlay – minimal centered prompt */

@@ -30,6 +30,20 @@ Canonical list: **`AnalyticsEvent`** in `src/lib/analytics.ts`.
 | `jump_to_date_calendar_opened` | (none)    | User opens the jump-to-date calendar popover |
 | `jump_to_date_completed` | `days_ago` (number) | User picks a date and scroll succeeds (local-calendar days before today; no date string) |
 | `jump_to_date_back_to_now` | (none)        | User clicks “Back to now” after a jump |
+| `sync_modal_opened`   | `surface` (optional): `header` \| `settings` \| `deeplink` (desktop); mobile also `screenshot` \| `dev_menu` | User opens Enable sync |
+| `sync_apple_continue_clicked` | (none)        | Desktop: user taps Continue with Apple (sync modal) |
+| `sync_gate_bypass_clicked` | (none)           | Desktop: “Already finished on your iPhone?” |
+| `sync_mobile_link_copy_clicked` | (none)       | Desktop: copy / open universal link for phone |
+| `sync_disconnect_clicked` | (none)            | Desktop: Disconnect this Mac |
+| `sync_oauth_completed` | (none)               | Desktop: Firebase sign-in with Apple succeeded |
+| `sync_oauth_failed` | `reason`: `credential` \| `oauth_bridge` \| `timeout` \| `window` \| `start` | Desktop: OAuth flow failed (no error text) |
+| `sync_paywall_shown` | (none)                 | Mobile: paywall step visible (signed out, no entitlement) |
+| `sync_plus_continue_clicked` | `package_kind`: `monthly` \| `yearly` \| `lifetime` | Mobile: user taps Continue on paid sync step |
+| `sync_purchase_outcome` | `outcome`; optional `failure_kind` for `failed` | Mobile: RevenueCat purchase flow result |
+| `sync_restore_tapped` | (none)                 | Mobile: Restore purchases |
+| `sync_restore_outcome` | `outcome`             | Mobile: after restore — entitlement vs none vs error |
+| `sync_apple_mobile_sign_in_outcome` | `outcome` | Mobile: Sign in with Apple in Enable sync sheet |
+| `sync_stop_sync_clicked` | (none)             | Mobile: user stops sync / signs out from sheet |
 
 **On every event**, Umami `data` also includes `ts` (ISO timestamp) and `app_version` (semver string from `package.json` at build time) so you can segment by release. No other properties beyond the table above and those two. No free-form strings that could contain user content.
 
@@ -57,6 +71,8 @@ Canonical list: **`AnalyticsEvent`** in `src/lib/analytics.ts`.
 | `jump_to_date_calendar_opened` | When `JumpToDatePopover` opens (`open` becomes true). |
 | `jump_to_date_completed` | After `jump_anchor_for_local_date` returns an id, before scroll; `days_ago` via `jumpDateDaysAgoMetric(ymd)`. |
 | `jump_to_date_back_to_now` | Start of `handleJumpBackToNow` in `App.tsx`. |
+| `sync_modal_opened`        | Desktop: header (`surface: header`). Mobile: `CaptureScreen` when opening the sheet (surfaces: header, settings, deeplink, screenshot, dev_menu). |
+| Sync / paywall (see table above) | `SyncModal.tsx`, `useAppleSyncOAuth.ts`, mobile `useEnableSyncController.ts`, `CaptureScreen` |
 
 All calls must be fire-and-forget; never block the UI or depend on analytics for app logic.
 
