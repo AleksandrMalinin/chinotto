@@ -2,10 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { User } from "firebase/auth";
 
 import { isFirebaseSyncConfigured } from "./firebaseConfig";
-import {
-  subscribeChinottoUserSyncAccess,
-  subscribeSyncAuth,
-} from "./desktopFirestoreSync";
+import { subscribeSyncAuth } from "./desktopFirestoreSync";
+import { useChinottoSyncProfileAccess } from "./useChinottoSyncProfileAccess";
 
 export type DesktopSyncHeaderCta = {
   label: string;
@@ -76,8 +74,6 @@ export function useDesktopSyncHeaderCta(): DesktopSyncHeaderCta {
   const [firebaseConfigured] = useState(() => isFirebaseSyncConfigured());
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
-  const [profileActive, setProfileActive] = useState(false);
-  const [profileLoading, setProfileLoading] = useState(false);
 
   useEffect(() => {
     if (!firebaseConfigured) {
@@ -90,22 +86,12 @@ export function useDesktopSyncHeaderCta(): DesktopSyncHeaderCta {
     });
   }, [firebaseConfigured]);
 
-  useEffect(() => {
-    if (!firebaseConfigured) {
-      return;
-    }
-    const u = authUser;
-    if (u == null || u.isAnonymous) {
-      setProfileLoading(false);
-      setProfileActive(false);
-      return undefined;
-    }
-    setProfileLoading(true);
-    return subscribeChinottoUserSyncAccess(u.uid, (active) => {
-      setProfileActive(active);
-      setProfileLoading(false);
-    });
-  }, [firebaseConfigured, authUser?.uid, authUser?.isAnonymous]);
+  const syncUid =
+    firebaseConfigured && authUser && !authUser.isAnonymous ? authUser.uid : null;
+  const { profileActive, profileLoading } = useChinottoSyncProfileAccess(
+    firebaseConfigured,
+    syncUid
+  );
 
   return useMemo(
     () =>

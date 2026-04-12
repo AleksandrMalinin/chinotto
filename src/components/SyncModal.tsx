@@ -10,12 +10,10 @@ import {
 import QRCode from "react-qr-code";
 import { ChinottoLogo } from "@/components/ChinottoLogo";
 import { isFirebaseSyncConfigured } from "@/lib/firebaseConfig";
-import {
-  subscribeChinottoUserSyncAccess,
-  subscribeDesktopSyncGateSession,
-} from "@/lib/desktopFirestoreSync";
+import { subscribeDesktopSyncGateSession } from "@/lib/desktopFirestoreSync";
 import { track } from "@/lib/analytics";
 import { useAppleSyncOAuth } from "@/lib/useAppleSyncOAuth";
+import { useChinottoSyncProfileAccess } from "@/lib/useChinottoSyncProfileAccess";
 
 type Props = {
   onClose: () => void;
@@ -57,10 +55,31 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
     user,
   } = useAppleSyncOAuth({ active: firebaseConfigured });
 
-  const [profileLoading, setProfileLoading] = useState(false);
-  const [profileActive, setProfileActive] = useState(false);
   /** Firestore returned permission-denied for sync modal reads (rules must allow gate + users/{uid}). */
   const [firestoreRulesBlocked, setFirestoreRulesBlocked] = useState(false);
+
+  const profileAccessOptions = useMemo(
+    () => ({
+      onPermissionDenied: () => setFirestoreRulesBlocked(true),
+      onReadSucceeded: () => setFirestoreRulesBlocked(false),
+    }),
+    []
+  );
+
+  const syncUid =
+    firebaseConfigured && stable && user != null && !user.isAnonymous ? user.uid : null;
+
+  const { profileActive, profileLoading } = useChinottoSyncProfileAccess(
+    firebaseConfigured,
+    syncUid,
+    profileAccessOptions
+  );
+
+  useEffect(() => {
+    if (syncUid == null) {
+      setFirestoreRulesBlocked(false);
+    }
+  }, [syncUid]);
 
   useEffect(() => {
     if (!firebaseConfigured) {
@@ -73,28 +92,6 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
       onReadSucceeded: () => setFirestoreRulesBlocked(false),
     });
   }, [firebaseConfigured, sessionId]);
-
-  useEffect(() => {
-    if (!firebaseConfigured || !stable || user == null || user.isAnonymous) {
-      setProfileLoading(false);
-      setProfileActive(false);
-      setFirestoreRulesBlocked(false);
-      return undefined;
-    }
-    setProfileLoading(true);
-    const uid = user.uid;
-    return subscribeChinottoUserSyncAccess(
-      uid,
-      (active) => {
-        setProfileActive(active);
-        setProfileLoading(false);
-      },
-      {
-        onPermissionDenied: () => setFirestoreRulesBlocked(true),
-        onReadSucceeded: () => setFirestoreRulesBlocked(false),
-      }
-    );
-  }, [firebaseConfigured, stable, user?.uid, user?.isAnonymous]);
 
   /**
    * Left column copy + CTA (3 states, single block — no stacking):
