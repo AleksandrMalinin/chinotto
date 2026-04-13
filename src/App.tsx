@@ -1239,12 +1239,10 @@ export default function App() {
                   }}
                   aria-label="Preview welcome screen. Your timeline stays on the main screen."
                 >
-                  Chinotto <span className="app-header-beta" aria-hidden="true">β</span>
+                  Chinotto
                 </button>
               ) : (
-                <span className="app-header-name">
-                  Chinotto <span className="app-header-beta" aria-hidden="true">β</span>
-                </span>
+                <span className="app-header-name">Chinotto</span>
               )}
             </div>
             {import.meta.env.DEV && introDismissed && getDevSimulateNewUser() && (

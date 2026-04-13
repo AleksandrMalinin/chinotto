@@ -35,7 +35,7 @@
   --landing-border-subtle: rgba(18, 18, 26, 0.9);
   --landing-card-border: rgba(120, 130, 200, 0.15);
 
-  /* Intro, empty-stream title, header hover — shared clip target for nested β */
+  /* Intro, empty-stream title, header title hover */
   --chinotto-headline-text-gradient: linear-gradient(
     102deg,
     rgba(255, 255, 255, 0.96) 0%,
@@ -608,14 +608,6 @@ body.chinotto-card-open {
 /* Pale label when preview is unavailable; exclude button so gradient + transparent text win. */
 .app-header-name:not(.app-header-name-btn) {
   color: var(--fg-dim);
-}
-
-.app-header-beta {
-  font-size: 0.65em;
-  opacity: 0.52;
-  font-weight: 500;
-  margin-left: 0.12em;
-  vertical-align: baseline;
 }
 
 .app-header-logo {
@@ -1310,17 +1302,6 @@ body.welcome .app-bg {
   background-clip: text;
   color: transparent;
   -webkit-text-fill-color: transparent;
-}
-
-/* Nested β needs its own clipped gradient; transparent fill on parent hides it otherwise. */
-.app-header-name-btn:hover .app-header-beta,
-.app-header-name-btn:focus-visible .app-header-beta {
-  background: var(--chinotto-headline-text-gradient);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-  opacity: 0.52;
 }
 
 .app-header-name-btn:focus-visible {
