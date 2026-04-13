@@ -29,7 +29,12 @@ export type AnalyticsEvent =
   | { event: "thought_trail_opened" }
   | { event: "jump_to_date_calendar_opened" }
   | { event: "jump_to_date_completed"; days_ago: number }
-  | { event: "jump_to_date_back_to_now" };
+  | { event: "jump_to_date_back_to_now" }
+  | {
+      event: "entry_text_saved";
+      source: "detail" | "stream";
+      text_length: number;
+    };
 
 type QueuedEvent = AnalyticsEvent & { ts: string };
 
@@ -117,6 +122,7 @@ function eventToData(payload: QueuedEvent): Record<string, string | number> {
     data.result_count = payload.result_count;
   if ("age_days" in payload) data.age_days = payload.age_days;
   if ("days_ago" in payload) data.days_ago = payload.days_ago;
+  if ("source" in payload) data.source = payload.source;
   return data;
 }
 

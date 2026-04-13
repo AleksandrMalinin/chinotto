@@ -886,6 +886,11 @@ export default function App() {
         .then(() => {
           if (detailDraftsRef.current.get(entryId) === latest) {
             detailDraftsRef.current.delete(entryId);
+            track({
+              event: "entry_text_saved",
+              source: "detail",
+              text_length: latest.length,
+            });
           }
         })
         .catch(() => {});
@@ -976,6 +981,11 @@ export default function App() {
         ephemeralTimersRef.current.delete(entryId);
       }
       updateEntry(entryId, text).then(() => {
+        track({
+          event: "entry_text_saved",
+          source: "stream",
+          text_length: text.length,
+        });
         setEntries((prev) =>
           prev.map((e) => (e.id === entryId ? { ...e, text } : e))
         );
