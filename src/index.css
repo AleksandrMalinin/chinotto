@@ -2813,11 +2813,22 @@ body.welcome .app-bg {
 
 .entry-detail-time {
   display: block;
+  margin: 0 0 1rem;
   font-size: 13px;
   font-weight: 400;
+  line-height: 1.4;
   letter-spacing: 0.02em;
   color: var(--meta-fg);
-  margin-bottom: 1rem;
+}
+
+@keyframes entry-detail-caret-pulse {
+  0%,
+  100% {
+    caret-color: rgba(228, 228, 233, 0.65);
+  }
+  50% {
+    caret-color: rgba(255, 255, 255, 0.92);
+  }
 }
 
 .entry-detail-text {
@@ -2842,6 +2853,7 @@ body.welcome .app-bg {
   font-weight: 400;
   line-height: 1.5;
   color: rgba(255, 255, 255, 0.9);
+  caret-color: rgba(228, 228, 233, 0.75);
   white-space: pre-wrap;
   word-break: keep-all;
   overflow-wrap: normal;
@@ -2853,6 +2865,10 @@ body.welcome .app-bg {
   resize: none;
   overflow: hidden;
   outline: none;
+}
+
+.entry-detail-editable.entry-detail-editable--caret-pulse {
+  animation: entry-detail-caret-pulse 0.5s ease-in-out 2;
 }
 
 .entry-detail-trail {
