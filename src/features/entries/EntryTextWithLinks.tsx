@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { parseTextWithUrls } from "@/lib/urlInText";
-import { isThoughtDetailEditEnabled } from "@/lib/thoughtDetailEdit";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
 type Props = {
@@ -49,15 +48,6 @@ export function EntryTextWithLinks({ text, variant }: Props) {
         <span className="entry-detail-text-inner">{content}</span>
         {singleHostname && <span className="entry-domain-badge">{singleHostname}</span>}
       </div>
-    );
-  }
-
-  if (!isThoughtDetailEditEnabled()) {
-    return (
-      <>
-        <p className="entry-row-text">{content}</p>
-        {singleHostname && <span className="entry-domain-badge">{singleHostname}</span>}
-      </>
     );
   }
 
