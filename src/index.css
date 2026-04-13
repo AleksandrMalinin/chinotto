@@ -1394,10 +1394,6 @@ body.welcome .app-bg {
   grid-template-columns: repeat(3, 1fr);
 }
 
-.chinotto-card-col--right .chinotto-card-shortcuts-list {
-  gap: 0.8125rem 2.25rem;
-}
-
 @media (max-width: 560px) {
   .chinotto-card-body {
     grid-template-columns: 1fr;
@@ -1421,6 +1417,11 @@ body.welcome .app-bg {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--landing-border);
+}
+
+/* Same lead as `.chinotto-card-section-desc` margin-bottom: section with no desc (e.g. SHORTCUTS). */
+.chinotto-card-section-title:not(:has(+ .chinotto-card-section-desc)) {
+  margin-bottom: 0.625rem;
 }
 
 .chinotto-card-section-desc {
@@ -1493,9 +1494,9 @@ body.welcome .app-bg {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.625rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
 }
 
 .chinotto-card-shortcut {
@@ -1504,6 +1505,7 @@ body.welcome .app-bg {
   gap: 0.625rem;
   font-size: 12px;
   color: var(--landing-muted);
+  white-space: nowrap;
 }
 
 .chinotto-card-kbd {
@@ -1517,9 +1519,11 @@ body.welcome .app-bg {
   background: rgba(10, 10, 14, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 4px;
+  white-space: nowrap;
 }
 
 .chinotto-card-shortcut-action {
+  flex-shrink: 0;
   color: var(--landing-foreground-strong);
 }
 
