@@ -41,7 +41,7 @@ npm run tauri dev
 
 - **Capture** — open the app and start typing
 - **Stream** — entries appear in reverse chronological order
-- **Detail** — open an entry to read or edit
+- **Detail** — open an entry to continue the thought
 - **Search** — full-text search across entries
 - **Jump to date** — small calendar to scroll the stream to a remembered day (same stream, not a filtered mode)
 
