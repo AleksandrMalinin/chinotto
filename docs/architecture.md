@@ -29,7 +29,7 @@ Rationale, layout, and coverage targets: **`docs/testing-strategy.md`**.
 ## Why SQLite
 
 - Local-first: SQLite remains the source of truth for capture and UI. Entry text is not sent to analytics.
-- **Optional Firestore sync:** When `VITE_FIREBASE_*` is set, the app can sign in with Apple (same Firebase project as mobile) and **pull + push** entries. **Desktop:** `docs/sync.md` (architecture, status, ops). **Wire contract:** `chinotto-mobile/docs/sync.md`. **Release QA:** `docs/sync-release-checklist.md`. No cloud requirement for core capture/search.
+- **Optional Firestore sync:** When `VITE_FIREBASE_*` is set, the app can sign in with Apple (same Firebase project as mobile) and **pull + push** entries. **Desktop:** `docs/sync.md` (architecture, status, ops). **Wire contract:** `chinotto-mobile/docs/sync/sync.md`. **Release QA:** `docs/sync-release-checklist.md`. No cloud requirement for core capture/search.
 - One file (e.g. in app data dir); easy to backup and inspect.
 - FTS5 gives good full-text search without extra services.
 - Boring, stable, and well-understood.

@@ -1,8 +1,8 @@
 # Firestore sync — architecture, status, and operations
 
-**Repo:** `chinotto-app` (this file). **Release QA:** [sync-release-checklist.md](./sync-release-checklist.md) (mirror in `chinotto-mobile/docs/`).
+**Repo:** `chinotto-app` (this file). **Release QA:** [sync-release-checklist.md](./sync-release-checklist.md) (mirror: `chinotto-mobile/docs/sync/sync-release-checklist.md`).
 
-**Normative wire contract (cross-repo):** `chinotto-mobile/docs/sync.md` — paths, field shapes, §8 tombstones, §4 module map. **Unlock / Enable sync UX:** `chinotto-mobile/docs/sync/cross-device-sync-unlock-flow.md`. When mobile’s contract changes, update this file’s **§ Cross-platform parity** and **§ Changelog**.
+**Normative wire contract (cross-repo):** `chinotto-mobile/docs/sync/sync.md` — paths, field shapes, §8 tombstones, §4 module map. **Unlock / Enable sync UX:** `chinotto-mobile/docs/sync/cross-device-sync-unlock-flow.md`. When mobile’s contract changes, update this file’s **§ Cross-platform parity** and **§ Changelog**.
 
 ---
 
@@ -20,10 +20,10 @@
 
 | Area | State |
 |------|--------|
-| **Phase 2** | **Shipped** on desktop when `VITE_FIREBASE_*` is set and the user signs in with Apple (non-anonymous). **Create** + **tombstone delete** across devices. **Text edits:** desktop merges `text` + `updatedAt` to Firestore after local save; **mobile** must apply remote `text` changes to existing SQLite rows (see `chinotto-mobile/docs/sync.md`). |
+| **Phase 2** | **Shipped** on desktop when `VITE_FIREBASE_*` is set and the user signs in with Apple (non-anonymous). **Create** + **tombstone delete** across devices. **Text edits:** desktop merges `text` + `updatedAt` to Firestore after local save; **mobile** must apply remote `text` changes to existing SQLite rows (see `chinotto-mobile/docs/sync/sync.md`). |
 | **Optional** | Core capture/search work **without** Firebase. |
 | **Parity** | Desktop matches mobile on live **500** / tombstone **1000**, **post–sign-in backfill** (~20k actives), suppression + outbox, `createdAt` ingest shapes. |
-| **Mobile** | Assumed shipped for the same Phase 2; see `chinotto-mobile/docs/sync.md`. |
+| **Mobile** | Assumed shipped for the same Phase 2; see `chinotto-mobile/docs/sync/sync.md`. |
 
 ---
 
