@@ -20,7 +20,7 @@
 
 | Area | State |
 |------|--------|
-| **Phase 2** | **Shipped** on desktop when `VITE_FIREBASE_*` is set and the user signs in with Apple (non-anonymous). **Create** + **tombstone delete** across devices; **edit** not synced. |
+| **Phase 2** | **Shipped** on desktop when `VITE_FIREBASE_*` is set and the user signs in with Apple (non-anonymous). **Create** + **tombstone delete** across devices. **Text edits:** desktop merges `text` + `updatedAt` to Firestore after local save; **mobile** must apply remote `text` changes to existing SQLite rows (see `chinotto-mobile/docs/sync.md`). |
 | **Optional** | Core capture/search work **without** Firebase. |
 | **Parity** | Desktop matches mobile on live **500** / tombstone **1000**, **post–sign-in backfill** (~20k actives), suppression + outbox, `createdAt` ingest shapes. |
 | **Mobile** | Assumed shipped for the same Phase 2; see `chinotto-mobile/docs/sync.md`. |
@@ -36,7 +36,7 @@ Applies to **both** apps for the **same Firebase Auth `uid`**.
 | **Create** | Shared entry `id`; Firestore path `users/{uid}/entries/{entryId}`. |
 | **Delete** | Field **`deletedAt`**: **`Timestamp`**, written with **`serverTimestamp()`** on tombstone flush. **Absent** / **`null`** = active. **Physical** local `DELETE` when a remote tombstone applies. |
 
-**Out of scope:** cross-device **edit** sync and conflict resolution. Revisit only if usage warrants.
+**Out of scope:** **conflict resolution** when the same thought is edited on two devices before sync settles; **desktop Firestore ingest** still only **inserts** new ids (it does not overwrite local `text` from remote for an existing row). Revisit if full bidirectional merge-on-id is required.
 
 ### Delete ordering
 
@@ -63,8 +63,9 @@ Tombstone listener query: `deletedAt != null` + **`orderBy('deletedAt','desc')`*
 | `src/lib/firebaseConfig.ts` | `VITE_FIREBASE_*` gate. |
 | `src/lib/firestoreTombstone.ts` | `isFirestoreDocumentTombstoned` (+ tests). |
 | `src/lib/desktopFirestoreSync.ts` | Auth, **backfill** (`getDocs`, `startAfter`, ≤40×500), live ingest + tombstone listeners, forced tombstone `getDocs` (sign-in, each ingest snapshot, ~12s poll), `lastTombstoneQueryDocIds`, push + tombstone flush; `subscribeDesktopSyncGateSession`, `subscribeChinottoUserSyncAccess` for sync modal gating. |
+| `src/lib/syncSavedEntryTextToRemote.ts` | After local `update_entry`: `getEntry` → `pushEntryUpsertToFirestore` + `generate_embedding`. |
 | `src/features/entries/entryApi.ts` | `invoke` wrappers; **`ingestFirestoreEntries`**; **`deleteLocalEntriesForSync`** → `{ entryIds }`. |
-| `src/App.tsx` | `startDesktopFirestoreIngest`, push after create/restore, `notifyEntryDeletedForSync` on delete. |
+| `src/App.tsx` | `startDesktopFirestoreIngest`, push after create/restore, `syncSavedEntryTextToRemote` after local text save (detail + stream late edit + unmount flush), `notifyEntryDeletedForSync` on delete. |
 | `src/features/entries/TrayCapturePanel.tsx` | Push after `createEntry` when sync on (menu bar surface). |
 | `SyncModal.tsx`, `useAppleSyncOAuth.ts`, `OAuthBridge.tsx`, `main.tsx` | OAuth / UX. |
 
@@ -74,7 +75,7 @@ Tombstone listener query: `deletedAt != null` + **`orderBy('deletedAt','desc')`*
 |-------|------|
 | `sync_tombstone_outbox` | Coalesced tombstone queue. |
 | `firestore_ingest_suppressed_ids` | Bridge after local delete until flush. |
-| `ingest_firestore_entries` | `INSERT OR IGNORE`; RFC3339 `created_at`; skips suppressed ids. |
+| `ingest_firestore_entries` | `INSERT OR IGNORE` with `updated_at` (= `created_at` for new rows); RFC3339 `created_at`; skips suppressed ids. |
 | `get_entry` | Load row after create for Firestore push. |
 | `delete_local_entries_for_sync` | Physical delete + clear suppression per id. |
 
@@ -186,7 +187,7 @@ Use the **same** Firebase Web app as mobile (`EXPO_PUBLIC_*` → `VITE_*`).
 |-------|--------|
 | Backfill cap | ~**20k** newest actives by `createdAt`; extend pagination if needed. |
 | Tombstone window | **1000** newest tombstones by `deletedAt`. |
-| Edit sync | Not implemented. |
+| Edit sync | Desktop **pushes** `text` + `updatedAt` after local save; mobile **apply** path is separate; ingest insert-only on desktop. |
 | Read cost | Backfill + forced tombstone reads per sign-in / snapshot; tradeoff for correctness and WKWebView reliability. |
 
 ---
@@ -195,6 +196,7 @@ Use the **same** Firebase Web app as mobile (`EXPO_PUBLIC_*` → `VITE_*`).
 
 | Date | Change |
 |------|--------|
+| 2026-04-13 | **Desktop:** After `update_entry` (detail debounce, unmount flush, stream late edit): `getEntry` → Firestore merge with `updatedAt: serverTimestamp()`; `generate_embedding` refresh. **Rust:** Firestore ingest `INSERT` includes `updated_at`. **Wire:** optional `updatedAt` on entry docs for mobile ordering. |
 | 2026-04-02 | **Docs:** Canonical **Enable sync / unlock** flow — `chinotto-mobile/docs/sync/cross-device-sync-unlock-flow.md` (desktop `SyncModal` states, `ds` gate, `chinottoSyncAccess`). |
 | 2026-03-29 | **Docs:** Merged `sync-deletion-v2.md`, `sync-v2-as-built.md`, `sync-mobile-parity-and-followups.md`, and `firestore-sync.md` into this file. Release QA lives only in `sync-release-checklist.md`. |
 

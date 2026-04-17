@@ -168,7 +168,7 @@ impl Db {
                 continue;
             }
             let n = conn.execute(
-                "INSERT OR IGNORE INTO entries (id, text, created_at) VALUES (?1, ?2, ?3)",
+                "INSERT OR IGNORE INTO entries (id, text, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)",
                 [id.as_str(), trimmed, created_at.as_str()],
             )?;
             if n > 0 {

@@ -342,6 +342,7 @@ export async function pushEntryUpsertToFirestore(entry: FirestoreEntryPush): Pro
       {
         text: trimmed,
         createdAt: Timestamp.fromMillis(ms),
+        updatedAt: serverTimestamp(),
         deletedAt: deleteField(),
       },
       { merge: true }

@@ -91,6 +91,7 @@ import {
 } from "@/lib/desktopFirestoreSync";
 import { isFirebaseSyncConfigured } from "@/lib/firebaseConfig";
 import { isThoughtDetailEditEnabled } from "@/lib/thoughtDetailEdit";
+import { syncSavedEntryTextToRemote } from "@/lib/syncSavedEntryTextToRemote";
 import { useDesktopSyncHeaderCta } from "@/lib/useDesktopSyncHeaderCta";
 
 /** Voice capture is disabled in the main flow. Set to true to re-enable as an experimental feature. */
@@ -1043,6 +1044,7 @@ export default function App() {
           if (detailDraftsRef.current.get(entryId) === latest) {
             detailDraftsRef.current.delete(entryId);
           }
+          syncSavedEntryTextToRemote(entryId);
         })
         .catch(() => {});
     }, 300);
@@ -1136,6 +1138,7 @@ export default function App() {
         ephemeralTimersRef.current.delete(entryId);
       }
       updateEntry(entryId, text).then(() => {
+        syncSavedEntryTextToRemote(entryId);
         setEntries((prev) =>
           prev.map((e) => (e.id === entryId ? { ...e, text } : e))
         );
@@ -1275,7 +1278,11 @@ export default function App() {
       detailSaveTimersRef.current.forEach((t) => clearTimeout(t));
       detailSaveTimersRef.current.clear();
       detailDraftsRef.current.forEach((text, entryId) => {
-        updateEntry(entryId, text).catch(() => {});
+        updateEntry(entryId, text)
+          .then(() => {
+            syncSavedEntryTextToRemote(entryId);
+          })
+          .catch(() => {});
       });
       detailDraftsRef.current.clear();
     };
