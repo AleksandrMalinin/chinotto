@@ -90,7 +90,6 @@ import {
   startDesktopFirestoreIngest,
 } from "@/lib/desktopFirestoreSync";
 import { isFirebaseSyncConfigured } from "@/lib/firebaseConfig";
-import { isThoughtDetailEditEnabled } from "@/lib/thoughtDetailEdit";
 import { syncSavedEntryTextToRemote } from "@/lib/syncSavedEntryTextToRemote";
 import { useDesktopSyncHeaderCta } from "@/lib/useDesktopSyncHeaderCta";
 
@@ -168,8 +167,6 @@ function devMockResurfaced(): { entry: Entry; reason: string } {
     reason: "From 3 days ago.",
   };
 }
-
-const THOUGHT_DETAIL_EDIT = isThoughtDetailEditEnabled();
 
 export default function App() {
   const appUpdater = useAppUpdater();
@@ -270,7 +267,7 @@ export default function App() {
 
   useEffect(() => {
     const root = document.getElementById("root");
-    root?.classList.toggle("thought-detail-edit-enabled", THOUGHT_DETAIL_EDIT);
+    root?.classList.add("thought-detail-edit-enabled");
     return () => {
       root?.classList.remove("thought-detail-edit-enabled");
     };
@@ -1022,13 +1019,6 @@ export default function App() {
     setSelectedEntry(entry);
   }, []);
 
-  const handleCloseEntryReadOnly = useCallback(() => {
-    setSelectedEntry(null);
-    requestAnimationFrame(() => {
-      entryInputRef.current?.focus();
-    });
-  }, []);
-
   const handleEntryDetailTextChange = useCallback((entryId: string, text: string) => {
     setEntries((prev) => prev.map((e) => (e.id === entryId ? { ...e, text } : e)));
     setSelectedEntry((prev) => (prev && prev.id === entryId ? { ...prev, text } : prev));
@@ -1043,6 +1033,11 @@ export default function App() {
         .then(() => {
           if (detailDraftsRef.current.get(entryId) === latest) {
             detailDraftsRef.current.delete(entryId);
+            track({
+              event: "entry_text_saved",
+              source: "detail",
+              text_length: latest.length,
+            });
           }
           syncSavedEntryTextToRemote(entryId);
         })
@@ -1139,6 +1134,11 @@ export default function App() {
       }
       updateEntry(entryId, text).then(() => {
         syncSavedEntryTextToRemote(entryId);
+        track({
+          event: "entry_text_saved",
+          source: "stream",
+          text_length: text.length,
+        });
         setEntries((prev) =>
           prev.map((e) => (e.id === entryId ? { ...e, text } : e))
         );
@@ -1404,12 +1404,10 @@ export default function App() {
                   }}
                   aria-label="Preview welcome screen. Your timeline stays on the main screen."
                 >
-                  Chinotto <span className="app-header-beta" aria-hidden="true">β</span>
+                  Chinotto
                 </button>
               ) : (
-                <span className="app-header-name">
-                  Chinotto <span className="app-header-beta" aria-hidden="true">β</span>
-                </span>
+                <span className="app-header-name">Chinotto</span>
               )}
             </div>
             <div className="app-header-end">
@@ -1595,11 +1593,9 @@ export default function App() {
       ) : selectedEntry ? (
         <EntryDetail
           entry={selectedEntry}
-          onBack={THOUGHT_DETAIL_EDIT ? handleCloseEntryDetail : handleCloseEntryReadOnly}
+          onBack={handleCloseEntryDetail}
           onSelectEntry={handleOpenEntry}
-          {...(THOUGHT_DETAIL_EDIT
-            ? { onEntryTextChange: handleEntryDetailTextChange }
-            : {})}
+          onEntryTextChange={handleEntryDetailTextChange}
         />
       ) : (
         <>

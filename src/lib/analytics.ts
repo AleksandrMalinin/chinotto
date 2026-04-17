@@ -33,6 +33,11 @@ export type AnalyticsEvent =
   | { event: "jump_to_date_calendar_opened" }
   | { event: "jump_to_date_completed"; days_ago: number }
   | { event: "jump_to_date_back_to_now" }
+  | {
+      event: "entry_text_saved";
+      source: "detail" | "stream";
+      text_length: number;
+    }
   | { event: "sync_apple_continue_clicked" }
   | { event: "sync_gate_bypass_clicked" }
   | { event: "sync_mobile_link_copy_clicked" }
@@ -143,6 +148,7 @@ function eventToData(payload: QueuedEvent): Record<string, string | number> {
   if ("failure_kind" in payload && payload.failure_kind !== undefined)
     data.failure_kind = payload.failure_kind;
   if ("reason" in payload) data.reason = payload.reason;
+  if ("source" in payload) data.source = payload.source;
   return data;
 }
 

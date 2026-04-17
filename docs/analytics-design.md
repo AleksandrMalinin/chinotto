@@ -30,6 +30,7 @@ Canonical list: **`AnalyticsEvent`** in `src/lib/analytics.ts`.
 | `jump_to_date_calendar_opened` | (none)    | User opens the jump-to-date calendar popover |
 | `jump_to_date_completed` | `days_ago` (number) | User picks a date and scroll succeeds (local-calendar days before today; no date string) |
 | `jump_to_date_back_to_now` | (none)        | User clicks “Back to now” after a jump |
+| `entry_text_saved`    | `source` (`"detail"` \| `"stream"`), `text_length` (number) | Persisted text edit succeeds (detail debounced save or stream inline save) |
 | `sync_modal_opened`   | `surface` (optional): `header` \| `settings` \| `deeplink` (desktop); mobile also `screenshot` \| `dev_menu` | User opens Enable sync |
 | `sync_apple_continue_clicked` | (none)        | Desktop: user taps Continue with Apple (sync modal) |
 | `sync_gate_bypass_clicked` | (none)           | Desktop: “Already finished on your iPhone?” |
@@ -71,6 +72,7 @@ Canonical list: **`AnalyticsEvent`** in `src/lib/analytics.ts`.
 | `jump_to_date_calendar_opened` | When `JumpToDatePopover` opens (`open` becomes true). |
 | `jump_to_date_completed` | After `jump_anchor_for_local_date` returns an id, before scroll; `days_ago` via `jumpDateDaysAgoMetric(ymd)`. |
 | `jump_to_date_back_to_now` | Start of `handleJumpBackToNow` in `App.tsx`. |
+| `entry_text_saved`      | After `updateEntry` succeeds: `source: "detail"` when the debounced detail draft matched the saved body; `source: "stream"` in `handleEntryUpdate` after stream inline edit. |
 | `sync_modal_opened`        | Desktop: header (`surface: header`). Mobile: `CaptureScreen` when opening the sheet (surfaces: header, settings, deeplink, screenshot, dev_menu). |
 | Sync / paywall (see table above) | `SyncModal.tsx`, `useAppleSyncOAuth.ts`, mobile `useEnableSyncController.ts`, `CaptureScreen` |
 

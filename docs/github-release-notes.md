@@ -4,6 +4,15 @@ These sections feed the **GitHub Release** description in CI (see `.github/workf
 
 Add **`## vX.Y.Z`** before you push tag **`vX.Y.Z`**.
 
+## v1.3.0
+
+* **Thought detail editing:** in-detail text editing on by default; debounced `update_entry` from `App.tsx`; continuation line break handling in `EntryDetail.tsx` (`beforeinput` / `setRangeText`); back-only exit from detail when editing
+* **Persistence:** `entries.updated_at` column + migration in `src-tauri/src/db/mod.rs` / `schema.sql`; `update_entry_text` sets `text`, `updated_at`, and `edit_count`
+* **Stream UI:** single-line row preview with ellipsis; domain badge omitted in stream row variant where applicable (`src/index.css`, `EntryStream.tsx`)
+* **Analytics:** `entry_text_saved` with `source` (`detail` \| `stream`) and `text_length` after successful saves (`src/lib/analytics.ts`, `App.tsx`, `docs/analytics-design.md`)
+* **Product chrome:** removed beta symbol from header (`App.tsx`, `src/index.css`)
+* **Tests:** `update_entry_text` coverage in `src-tauri/src/db/mod.rs`
+
 ## v1.2.0
 
 * **Menu bar tray polish:** improved capture popover stability by debouncing hide on focus loss and keeping main stream refresh behavior reliable after tray saves (`src/features/entries/TrayCapturePanel.tsx`, `src/App.tsx`)

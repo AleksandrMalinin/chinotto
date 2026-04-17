@@ -35,7 +35,7 @@
   --landing-border-subtle: rgba(18, 18, 26, 0.9);
   --landing-card-border: rgba(120, 130, 200, 0.15);
 
-  /* Intro, empty-stream title, header hover — shared clip target for nested β */
+  /* Intro, empty-stream title, header title hover */
   --chinotto-headline-text-gradient: linear-gradient(
     102deg,
     rgba(255, 255, 255, 0.96) 0%,
@@ -608,14 +608,6 @@ body.chinotto-card-open {
 /* Pale label when preview is unavailable; exclude button so gradient + transparent text win. */
 .app-header-name:not(.app-header-name-btn) {
   color: var(--fg-dim);
-}
-
-.app-header-beta {
-  font-size: 0.65em;
-  opacity: 0.52;
-  font-weight: 500;
-  margin-left: 0.12em;
-  vertical-align: baseline;
 }
 
 .app-header-logo {
@@ -1336,17 +1328,6 @@ body.welcome .app-bg {
   -webkit-text-fill-color: transparent;
 }
 
-/* Nested β needs its own clipped gradient; transparent fill on parent hides it otherwise. */
-.app-header-name-btn:hover .app-header-beta,
-.app-header-name-btn:focus-visible .app-header-beta {
-  background: var(--chinotto-headline-text-gradient);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-  opacity: 0.52;
-}
-
 .app-header-name-btn:focus-visible {
   outline: 1px solid var(--border-focus);
   outline-offset: 2px;
@@ -1437,10 +1418,6 @@ body.welcome .app-bg {
   grid-template-columns: repeat(3, 1fr);
 }
 
-.chinotto-card-col--right .chinotto-card-shortcuts-list {
-  gap: 0.8125rem 2.25rem;
-}
-
 @media (max-width: 560px) {
   .chinotto-card-body {
     grid-template-columns: 1fr;
@@ -1464,6 +1441,11 @@ body.welcome .app-bg {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--landing-border);
+}
+
+/* Same lead as `.chinotto-card-section-desc` margin-bottom: section with no desc (e.g. SHORTCUTS). */
+.chinotto-card-section-title:not(:has(+ .chinotto-card-section-desc)) {
+  margin-bottom: 0.625rem;
 }
 
 .chinotto-card-section-desc {
@@ -1536,9 +1518,9 @@ body.welcome .app-bg {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.625rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
 }
 
 .chinotto-card-shortcut {
@@ -1547,6 +1529,7 @@ body.welcome .app-bg {
   gap: 0.625rem;
   font-size: 12px;
   color: var(--landing-muted);
+  white-space: nowrap;
 }
 
 .chinotto-card-kbd {
@@ -1560,9 +1543,11 @@ body.welcome .app-bg {
   background: rgba(10, 10, 14, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 4px;
+  white-space: nowrap;
 }
 
 .chinotto-card-shortcut-action {
+  flex-shrink: 0;
   color: var(--landing-foreground-strong);
 }
 
@@ -3401,11 +3386,22 @@ body.welcome .app-bg {
 
 .entry-detail-time {
   display: block;
+  margin: 0 0 1rem;
   font-size: 13px;
   font-weight: 400;
+  line-height: 1.4;
   letter-spacing: 0.02em;
   color: var(--meta-fg);
-  margin-bottom: 1rem;
+}
+
+@keyframes entry-detail-caret-pulse {
+  0%,
+  100% {
+    caret-color: rgba(228, 228, 233, 0.65);
+  }
+  50% {
+    caret-color: rgba(255, 255, 255, 0.92);
+  }
 }
 
 .entry-detail-text {
@@ -3430,6 +3426,7 @@ body.welcome .app-bg {
   font-weight: 400;
   line-height: 1.5;
   color: rgba(255, 255, 255, 0.9);
+  caret-color: rgba(228, 228, 233, 0.75);
   white-space: pre-wrap;
   word-break: keep-all;
   overflow-wrap: normal;
@@ -3441,6 +3438,10 @@ body.welcome .app-bg {
   resize: none;
   overflow: hidden;
   outline: none;
+}
+
+.entry-detail-editable.entry-detail-editable--caret-pulse {
+  animation: entry-detail-caret-pulse 0.5s ease-in-out 2;
 }
 
 .entry-detail-trail {

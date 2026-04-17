@@ -793,6 +793,21 @@ mod tests {
     }
 
     #[test]
+    fn update_entry_text_changes_body_and_increments_edit_count() {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        db.create_entry("e1", "original", "2025-01-01T12:00:00Z")
+            .unwrap();
+        let before = db.list_entries().unwrap();
+        assert_eq!(before[0].text, "original");
+        assert_eq!(before[0].edit_count, 0);
+
+        db.update_entry_text("e1", "revised body").unwrap();
+        let after = db.list_entries().unwrap();
+        assert_eq!(after[0].text, "revised body");
+        assert_eq!(after[0].edit_count, 1);
+    }
+
+    #[test]
     fn local_entry_dates_in_month_drops_day_after_last_delete() {
         let db = Db::open(PathBuf::from(":memory:")).unwrap();
         db.create_entry("a", "one", "2025-03-24T08:00:00Z").unwrap();

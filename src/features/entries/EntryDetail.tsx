@@ -25,6 +25,8 @@ function truncate(text: string, maxLen: number): string {
   return text.slice(0, maxLen).trimEnd() + "…";
 }
 
+const CARET_PULSE_ANIM_MS = 1200;
+
 function relativeToCurrent(
   currentIso: string,
   otherIso: string,
@@ -51,6 +53,38 @@ export function EntryDetail({ entry, onBack, onSelectEntry, onEntryTextChange }:
   useEffect(() => {
     hasInsertedContinuationBreakRef.current = false;
   }, [entry.id]);
+
+  useEffect(() => {
+    if (!editable) return;
+    let pulseClearTimer: ReturnType<typeof setTimeout> | null = null;
+    let innerRaf = 0;
+    const outerRaf = requestAnimationFrame(() => {
+      innerRaf = requestAnimationFrame(() => {
+        innerRaf = 0;
+        const el = textRef.current;
+        if (!el) return;
+        el.classList.remove("entry-detail-editable--caret-pulse");
+        void el.offsetWidth;
+        el.classList.add("entry-detail-editable--caret-pulse");
+        pulseClearTimer = setTimeout(() => {
+          el.classList.remove("entry-detail-editable--caret-pulse");
+          pulseClearTimer = null;
+        }, CARET_PULSE_ANIM_MS);
+        el.focus({ preventScroll: true });
+        const len = el.value.length;
+        try {
+          el.setSelectionRange(len, len);
+        } catch {
+          /* ignore */
+        }
+      });
+    });
+    return () => {
+      cancelAnimationFrame(outerRaf);
+      if (innerRaf) cancelAnimationFrame(innerRaf);
+      if (pulseClearTimer) clearTimeout(pulseClearTimer);
+    };
+  }, [entry.id, editable]);
 
   useEffect(() => {
     if (!editable) return;
@@ -127,7 +161,9 @@ export function EntryDetail({ entry, onBack, onSelectEntry, onEntryTextChange }:
           aria-label="Thought text"
           value={entry.text}
           rows={1}
-          onFocus={moveCaretToEnd}
+          onFocus={() => {
+            moveCaretToEnd();
+          }}
           onClick={(e) => {
             if (e.currentTarget !== document.activeElement) {
               moveCaretToEnd();

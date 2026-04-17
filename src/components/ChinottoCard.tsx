@@ -220,6 +220,9 @@ export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Pr
             <div className="chinotto-card-col chinotto-card-col--right">
               <section className="chinotto-card-section" aria-labelledby="chinotto-card-shortcuts-title">
                 <h2 id="chinotto-card-shortcuts-title" className="chinotto-card-section-title">SHORTCUTS</h2>
+                <p className="chinotto-card-section-desc">
+                  These shortcuts apply when the main window is focused. Quick capture uses a global shortcut.
+                </p>
                 <ul className="chinotto-card-shortcuts-list">
                   {SHORTCUTS.map(({ keys, action, keyHint }) => (
                     <li key={`${keys}-${action}`} className="chinotto-card-shortcut">
