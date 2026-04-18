@@ -4,6 +4,7 @@ import { Pin, X } from "lucide-react";
 import { StreamFlowPanel } from "@/components/StreamFlowPanel";
 import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
 import type { Entry } from "../../types/entry";
+import { streamPreviewFirstLine } from "@/lib/streamPreviewFirstLine";
 import { EntryTextWithLinks } from "./EntryTextWithLinks";
 
 const HIGHLIGHT_START = "\u0001";
@@ -313,6 +314,7 @@ const EntryRow = memo(function EntryRow({
     entry.highlighted != null &&
     entry.highlighted.length > 0;
   const content = useHighlight ? toHighlightHtml(entry.highlighted!) : entry.text;
+  const streamPreviewText = streamPreviewFirstLine(entry.text);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (isEditable) return;
@@ -393,7 +395,7 @@ const EntryRow = memo(function EntryRow({
           </p>
         ) : (
           <div id={`entry-${entry.id}`} className="entry-row-text-wrap">
-            <EntryTextWithLinks text={entry.text} variant="stream" />
+            <EntryTextWithLinks text={streamPreviewText} variant="stream" />
           </div>
         )}
         {onEntryDelete && (
