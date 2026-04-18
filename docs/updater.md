@@ -72,7 +72,7 @@ If `APPLE_CONNECT_P8` / `APPLE_API_KEY` / `APPLE_API_ISSUER` are omitted, CI sti
 
 On push of tag `v*`, the workflow builds `--target aarch64-apple-darwin`, uploads bundles, signatures, and **`latest.json`** (via `tauri-action`, `uploadUpdaterJson` default).
 
-When **Developer ID** + **App Store Connect API** secrets are set, a follow-up step runs **`xcrun stapler staple`** on the aarch64 DMG and re-uploads it to the same release (so `stapler validate` passes on the downloaded disk image, not only on `Chinotto.app`). If those secrets are omitted, staple is skipped.
+The **notarization ticket is stapled to `Chinotto.app`** inside the DMG; the **`.dmg` file itself** is usually **not** a separate notarized submission, so **`xcrun stapler staple` on the DMG** has no CloudKit record and fails (`Record not found`). That is expected; Gatekeeper still validates the **app** when the user runs it.
 
 ## Website download (direct DMG)
 
