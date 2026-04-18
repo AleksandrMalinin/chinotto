@@ -1,5 +1,7 @@
 <svg width="1024" height="1024" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Opaque base (rounded so volume/desktop icons still look soft if Finder applies a weaker mask than .app). -->
+  <!-- Sharp full-bleed rect: SVG rounded rect leaves the four bbox corners transparent; Finder mats those to white on desktop/DMG. -->
+  <rect width="80" height="80" fill="#0a0a0e"/>
+  <!-- Visual outer radius (same fill; sits on opaque base). -->
   <rect width="80" height="80" rx="22" fill="#0a0a0e"/>
   <!-- ~82% scale about center: safe-area padding per Apple app icon templates (unchanged motif). -->
   <g transform="translate(40 40) scale(0.82) translate(-40 -40)">
