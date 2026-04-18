@@ -72,6 +72,7 @@ Do not propose or implement features that contradict the above. When in doubt, p
 
 - **In-code:** Comment only when the “why” or contract is not obvious from the code. No comments that restate what the code does. No TODOs without an owner or next step if they are long-lived.
 - **Repo docs:** `docs/` holds product and architecture. Update `docs/architecture.md` when the stack or high-level design changes; update `docs/product-spec.md` when scope or constraints change. Keep README aligned with run instructions and MVP scope.
+- **Release version bumps:** Follow `docs/release-process.md`: same semver in `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and **`src-tauri/Info.plist`** (`CFBundleShortVersionString`, `CFBundleVersion`).
 - **AGENTS.md and commit-convention:** Treat these as binding. Do not water them down or add generic “best practices” that duplicate them. When changing them, preserve strictness and practicality.
 
 ---
