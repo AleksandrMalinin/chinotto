@@ -7,9 +7,10 @@ Add **`## vX.Y.Z`** before you push tag **`vX.Y.Z`**.
 ## v1.3.1
 
 * **Main window:** desktop `setup` ensures `main` is unminimized, visible, and focused after launch (`src-tauri/src/lib.rs`) — restores expected visibility after in-app updater relaunch on macOS
+* **Updater / macOS:** Tauri feature `process-relaunch-dangerous-allow-symlink-macos` in `src-tauri/Cargo.toml` — default relaunch guard skips spawning when cached executable paths include symlink ancestors (in-app “Restart” after update could exit without reopening); see `docs/updater.md`
 * **Empty onboarding / showcase:** `StreamFlowPanel` visuals clipped to panel bounds (`overflow: hidden`), softer blurred blobs and glass, tuned SVG stroke gradient stops (`src/index.css`, `src/components/StreamFlowPanel.tsx`); slightly reduced showcase card glow (`--chinotto-glow-*` under `.stream-showcase-overlay`)
 * **Dev-only:** preview empty-stream onboarding without deleting data — `src/lib/devPreviewEmptyStream.ts`, `refresh()` short-circuit when flag set; Developer menu + header control in `App.tsx` (stripped in production builds)
-* **Icons / bundle:** `icon.svg` outer base `rect` uses `rx` so raster corners stay soft when Finder draws the **mounted DMG** icon (weaker masking than `.app`); `scripts/flatten_icon_png.py` composites edges onto `#0a0a0e` but saves **opaque RGBA** so `sips` outputs stay **RGBA** (Tauri compile-time icon check rejects RGB-only); regenerated `icon.icns`, `macos/AppIcon.appiconset`, and flat PNGs via `scripts/generate-macos-app-icons.sh`; `docs/app-icon.md` updated
+* **Icons / bundle:** `icon.svg` — sharp full-bleed `#0a0a0e` rect under the rounded outer rect (SVG rounded rect alone leaves bbox corners transparent; Finder mats those to white on desktop/DMG); `scripts/flatten_icon_png.py` composites onto `#0a0a0e` as opaque RGBA so `sips` stays RGBA for Tauri’s icon check; regenerated `icon.icns`, `macos/AppIcon.appiconset`, and PNGs via `scripts/generate-macos-app-icons.sh`; `docs/app-icon.md` aligned
 
 ## v1.3.0
 
