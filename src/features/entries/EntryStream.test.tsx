@@ -70,4 +70,16 @@ describe("EntryStream non-empty", () => {
     render(<EntryStream entries={[entry]} />);
     expect(screen.getByText("Hello stream")).toBeInTheDocument();
   });
+
+  it("shows only first line in stream preview when entry has multiple lines", () => {
+    const entry: Entry = {
+      id: "e-multi",
+      text: "Enjoy yourself — it's later than you think\nMeow\nCool",
+      created_at: new Date().toISOString(),
+    };
+    render(<EntryStream entries={[entry]} />);
+    expect(screen.getByText(/Enjoy yourself/)).toBeInTheDocument();
+    expect(screen.queryByText(/Meow/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Cool/)).not.toBeInTheDocument();
+  });
 });
