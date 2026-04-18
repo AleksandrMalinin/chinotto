@@ -1,8 +1,10 @@
 # App icon (Apple platforms)
 
-Chinotto’s **bundle** icon (Dock, Launchpad, Finder, `.app`) comes from `src-tauri/icons/` (see `tauri.conf.json` → `bundle.icon`). The **canonical vector** is `src-tauri/icons/icon.svg`: a **sharp** full-bleed `#0a0a0e` `rect` (so the 80×80 viewBox has no transparent corner wedges), then a same-fill `rect` with **rounded outer corners** (`rx`) for the visible plate, then the usual ~82% scaled group (inner card + motif). A plain rounded `rect` alone would leave the four bbox corners transparent; raster export then shows a **white** matte in those corners on Desktop or a **mounted DMG** when Finder composites. Opaque full canvas plus the same **flatten** step in `generate-macos-app-icons.sh` keeps rasters consistent; the Dock still clips to the system **squircle**.
+Chinotto’s **bundle** icon (Dock, Launchpad, Finder, `.app`) comes from `src-tauri/icons/` (see `tauri.conf.json` → `bundle.icon`). The **canonical vector** is `src-tauri/icons/icon.svg`: artwork is clipped to an **outer rounded plate** (`clipPath` + `rx=22` in the 80×80 viewBox) so opaque pixels follow that curve—not a sharp square filled edge-to-edge. Nested inside is the usual ~82% scaled group (inner card + motif).
 
-The **DMG** window uses `dmg-background.png` (`tauri.conf.json` → `bundle.macOS.dmg.background`). Use a **light** surface so captions stay readable. Regenerate with `python3 scripts/generate-dmg-background.py`. After **any** `icon.svg` edit, run `./scripts/generate-macos-app-icons.sh` so `icon_1024.png`, `icon.icns`, and app set rasters stay in sync. **`scripts/flatten_icon_png.py`** composites edge pixels onto `#0a0a0e` but saves **opaque RGBA** so every `sips`-derived PNG stays **RGBA** (Tauri’s compile-time icon check rejects **RGB-only** PNGs).
+`qlmanage` renders SVG onto **white**, so corners become opaque white unless post-processed. **`scripts/flatten_icon_png.py`** applies the same outer radius as geometry (`rx = 22/80` of the raster edge) as an alpha mask, then mats only **semi-transparent** edge pixels onto `#0a0a0e`; corner pixels outside the plate stay **transparent** (RGBA). Dock and Finder still apply the system **squircle** on top.
+
+The **DMG** window uses `dmg-background.png` (`tauri.conf.json` → `bundle.macOS.dmg.background`). Use a **light** surface so captions stay readable. Regenerate with `python3 scripts/generate-dmg-background.py`. After **any** `icon.svg` edit, run `./scripts/generate-macos-app-icons.sh` so `icon_1024.png`, `icon.icns`, and app set rasters stay in sync.
 
 ## Authoritative sources
 

@@ -10,7 +10,7 @@ Add **`## vX.Y.Z`** before you push tag **`vX.Y.Z`**.
 * **Updater / macOS:** Tauri feature `process-relaunch-dangerous-allow-symlink-macos` in `src-tauri/Cargo.toml` — default relaunch guard skips spawning when cached executable paths include symlink ancestors (in-app “Restart” after update could exit without reopening); see `docs/updater.md`
 * **Empty onboarding / showcase:** `StreamFlowPanel` visuals clipped to panel bounds (`overflow: hidden`), softer blurred blobs and glass, tuned SVG stroke gradient stops (`src/index.css`, `src/components/StreamFlowPanel.tsx`); slightly reduced showcase card glow (`--chinotto-glow-*` under `.stream-showcase-overlay`)
 * **Dev-only:** preview empty-stream onboarding without deleting data — `src/lib/devPreviewEmptyStream.ts`, `refresh()` short-circuit when flag set; Developer menu + header control in `App.tsx` (stripped in production builds)
-* **Icons / bundle:** `icon.svg` — sharp full-bleed `#0a0a0e` rect under the rounded outer rect (SVG rounded rect alone leaves bbox corners transparent; Finder mats those to white on desktop/DMG); `scripts/flatten_icon_png.py` composites onto `#0a0a0e` as opaque RGBA so `sips` stays RGBA for Tauri’s icon check; regenerated `icon.icns`, `macos/AppIcon.appiconset`, and PNGs via `scripts/generate-macos-app-icons.sh`; `docs/app-icon.md` aligned
+* **Icons / bundle:** `icon.svg` uses `clipPath` for the outer rounded plate (`rx=22`) so the raster is not a solid square tile; `scripts/flatten_icon_png.py` masks `qlmanage` white corners with the same plate radius and mates fringe onto `#0a0a0e`; regenerated `icon.icns`, `macos/AppIcon.appiconset`, and PNGs via `scripts/generate-macos-app-icons.sh`; `docs/app-icon.md` updated
 
 ## v1.3.0
 
