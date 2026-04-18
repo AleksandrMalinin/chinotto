@@ -792,6 +792,14 @@ pub fn run() {
             }
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             tray_capture::setup(app)?;
+            // After in-app update (`install` + `relaunch`), macOS can restore the main window
+            // minimized or behind other apps; force a visible, focused main window on startup.
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            if let Some(main) = app.handle().get_webview_window("main") {
+                let _ = main.unminimize();
+                let _ = main.show();
+                let _ = main.set_focus();
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
