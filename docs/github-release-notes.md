@@ -4,6 +4,12 @@ These sections feed the **GitHub Release** description in CI (see `.github/workf
 
 Add **`## vX.Y.Z`** before you push tag **`vX.Y.Z`**.
 
+## v1.3.1
+
+* **Main window:** desktop `setup` ensures `main` is unminimized, visible, and focused after launch (`src-tauri/src/lib.rs`) — restores expected visibility after in-app updater relaunch on macOS
+* **Empty onboarding / showcase:** `StreamFlowPanel` visuals clipped to panel bounds (`overflow: hidden`), softer blurred blobs and glass, tuned SVG stroke gradient stops (`src/index.css`, `src/components/StreamFlowPanel.tsx`); slightly reduced showcase card glow (`--chinotto-glow-*` under `.stream-showcase-overlay`)
+* **Dev-only:** preview empty-stream onboarding without deleting data — `src/lib/devPreviewEmptyStream.ts`, `refresh()` short-circuit when flag set; Developer menu + header control in `App.tsx` (stripped in production builds)
+
 ## v1.3.0
 
 * **Thought detail editing:** in-detail text editing on by default; debounced `update_entry` from `App.tsx`; continuation line break handling in `EntryDetail.tsx` (`beforeinput` / `setRangeText`); back-only exit from detail when editing
