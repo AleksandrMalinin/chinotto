@@ -143,6 +143,40 @@ jobs:
           prerelease: false
           args: --target aarch64-apple-darwin
 
+      # Ticket on the disk image (offline Gatekeeper); requires the same Apple secrets as notarization.
+      - name: Staple DMG and refresh release asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${APPLE_API_KEY_PATH:-}" ] || [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
+            echo "::notice::Skipping DMG staple (Apple signing + App Store Connect API secrets not both configured)."
+            exit 0
+          fi
+          TAG="${{ steps.rel.outputs.tag }}"
+          _dmgs=()
+          while IFS= read -r f; do
+            [[ -n "$f" ]] && _dmgs+=("$f")
+          done < <(find src-tauri/target -name 'Chinotto_*_aarch64.dmg' -type f)
+          if [ "${#_dmgs[@]}" -eq 0 ]; then
+            echo "::error::No Chinotto_*_aarch64.dmg under src-tauri/target"
+            exit 1
+          fi
+          DMG="${_dmgs[0]}"
+          latest=0
+          for f in "${_dmgs[@]}"; do
+            m=$(stat -f %m "$f")
+            if [ "$m" -gt "$latest" ]; then
+              latest=$m
+              DMG=$f
+            fi
+          done
+          echo "Stapling: $DMG"
+          xcrun stapler staple "$DMG"
+          xcrun stapler validate "$DMG"
+          echo "Re-uploading stapled DMG to release $TAG"
+          gh release upload "$TAG" "$DMG" --clobber
+
       # Stable filename so website / docs can use .../releases/latest/download/Chinotto_macOS_aarch64.dmg
       - name: Upload stable DMG name for direct download
         env:

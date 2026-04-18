@@ -72,6 +72,8 @@ If `APPLE_CONNECT_P8` / `APPLE_API_KEY` / `APPLE_API_ISSUER` are omitted, CI sti
 
 On push of tag `v*`, the workflow builds `--target aarch64-apple-darwin`, uploads bundles, signatures, and **`latest.json`** (via `tauri-action`, `uploadUpdaterJson` default).
 
+When **Developer ID** + **App Store Connect API** secrets are set, a follow-up step runs **`xcrun stapler staple`** on the aarch64 DMG and re-uploads it to the same release (so `stapler validate` passes on the downloaded disk image, not only on `Chinotto.app`). If those secrets are omitted, staple is skipped.
+
 ## Website download (direct DMG)
 
 GitHub’s `…/releases/latest` page does not start a download by itself. The workflow also uploads a **fixed asset name** (copy of the versioned DMG) so you can link straight to the file:
