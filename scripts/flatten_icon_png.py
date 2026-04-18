@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Flatten RGBA icon PNG onto #0a0a0e and save as opaque RGB (removes alpha channel).
+"""Flatten RGBA icon PNG onto #0a0a0e and save as opaque RGBA (alpha=255 everywhere).
 
+Tauri embed checks require RGBA PNGs for bundle icons; opaque RGB is rejected.
 qlmanage can leave semi-transparent edge pixels that Finder mats to white on DMG.
 Run after qlmanage in generate-macos-app-icons.sh when Pillow is installed:
   pip3 install pillow
@@ -29,9 +30,9 @@ def main() -> None:
     path = Path(sys.argv[1]).resolve()
     im = Image.open(path).convert("RGBA")
     base = Image.new("RGBA", im.size, (*BG, 255))
-    out = Image.alpha_composite(base, im).convert("RGB")
+    out = Image.alpha_composite(base, im)
     out.save(path, "PNG", optimize=True)
-    print(f"Flattened alpha → RGB: {path}")
+    print(f"Flattened alpha → opaque RGBA: {path}")
 
 
 if __name__ == "__main__":

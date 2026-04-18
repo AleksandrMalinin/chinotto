@@ -2,7 +2,7 @@
 
 Chinotto’s **bundle** icon (Dock, Launchpad, Finder, `.app`) comes from `src-tauri/icons/` (see `tauri.conf.json` → `bundle.icon`). The **canonical vector** is `src-tauri/icons/icon.svg`: an **opaque** full-canvas `#0a0a0e` plate with **rounded outer corners** (`rx` on the base `rect`), then the usual ~82% scaled group (rounded card + motif). The outer curve avoids razor-sharp bitmap corners when Finder draws a **mounted DMG volume** on the Desktop (volume icons do not always get the same squircle masking as `.app`). Opaque fill still avoids **transparent** margins that Finder composites with a **white** matte on disk images; the inset graphic is unchanged, and the Dock still clips to the system **squircle**.
 
-The **DMG** window uses `dmg-background.png` (`tauri.conf.json` → `bundle.macOS.dmg.background`). Use a **light** surface so captions stay readable. Regenerate with `python3 scripts/generate-dmg-background.py`. After **any** `icon.svg` edit, run `./scripts/generate-macos-app-icons.sh` so `icon_1024.png`, `icon.icns`, and app set rasters stay in sync.
+The **DMG** window uses `dmg-background.png` (`tauri.conf.json` → `bundle.macOS.dmg.background`). Use a **light** surface so captions stay readable. Regenerate with `python3 scripts/generate-dmg-background.py`. After **any** `icon.svg` edit, run `./scripts/generate-macos-app-icons.sh` so `icon_1024.png`, `icon.icns`, and app set rasters stay in sync. **`scripts/flatten_icon_png.py`** composites edge pixels onto `#0a0a0e` but saves **opaque RGBA** so every `sips`-derived PNG stays **RGBA** (Tauri’s compile-time icon check rejects **RGB-only** PNGs).
 
 ## Authoritative sources
 
