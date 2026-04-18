@@ -82,6 +82,12 @@ GitHub’s `…/releases/latest` page does not start a download by itself. The w
 
 That URL tracks **latest** and triggers a browser download. If you fork the repo, replace the owner/name segment. The first release built **after** this upload step exists will create the asset; older releases won’t have it until you re-run the workflow for that tag or ship a new version.
 
+## macOS: “Restart” after update closes the app but does not reopen
+
+Tauri caches the executable path at startup and uses it for `relaunch`. On macOS, if **any parent directory in that path is a symlink**, the default security check fails: relaunch skips spawning a new process and the app simply exits—manual launch works because you start the bundle from Finder again.
+
+Chinotto enables Tauri’s **`process-relaunch-dangerous-allow-symlink-macos`** feature so restart works when the resolved path contains symlinks (common with shortcuts, some `/Applications` setups, iCloud‑mirrored folders, etc.). Trade‑off is slightly weaker symlink‑based hardening around relaunch; acceptable for this local‑first desktop app.
+
 ## Users on older builds
 
 Releases **before v0.2.1** do not include the updater. Users must install **v0.2.1 or later** once from GitHub Releases (or another channel). After that, newer versions (including **1.0.0+**) can be applied from the in-app nudge when a release is published.
