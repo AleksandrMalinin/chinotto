@@ -6,6 +6,7 @@ Add **`## vX.Y.Z`** before you push tag **`vX.Y.Z`**.
 
 ## v1.3.1
 
+* **Desktop lifecycle:** closing `main` via window chrome calls `prevent_close()` and hides the window (`src-tauri/src/lib.rs`) — process keeps running so tray capture stays available; Dock reopen (`RunEvent::Reopen`) and global capture shortcut recreate or focus `main` via `ensure_main_window_focus`
 * **Main window:** desktop `setup` ensures `main` is unminimized, visible, and focused after launch (`src-tauri/src/lib.rs`) — restores expected visibility after in-app updater relaunch on macOS
 * **Updater / macOS:** Tauri feature `process-relaunch-dangerous-allow-symlink-macos` in `src-tauri/Cargo.toml` — default relaunch guard skips spawning when cached executable paths include symlink ancestors (in-app “Restart” after update could exit without reopening); see `docs/updater.md`
 * **Empty onboarding / showcase:** `StreamFlowPanel` visuals clipped to panel bounds (`overflow: hidden`), softer blurred blobs and glass, tuned SVG stroke gradient stops (`src/index.css`, `src/components/StreamFlowPanel.tsx`); slightly reduced showcase card glow (`--chinotto-glow-*` under `.stream-showcase-overlay`)
