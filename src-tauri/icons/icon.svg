@@ -1,6 +1,6 @@
 <svg width="1024" height="1024" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Opaque square base: removes transparent margin so Finder/DMG does not add a white matte. Same fill as the card; Dock/Launchpad still apply the system squircle mask. -->
-  <rect width="80" height="80" fill="#0a0a0e"/>
+  <!-- Opaque base (rounded so volume/desktop icons still look soft if Finder applies a weaker mask than .app). -->
+  <rect width="80" height="80" rx="22" fill="#0a0a0e"/>
   <!-- ~82% scale about center: safe-area padding per Apple app icon templates (unchanged motif). -->
   <g transform="translate(40 40) scale(0.82) translate(-40 -40)">
     <rect width="80" height="80" rx="14" fill="#0a0a0e"/>
