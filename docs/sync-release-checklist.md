@@ -46,7 +46,7 @@
 |------|:------:|-------|-------|
 | Firestore **rules** allow owning user read/write on `users/{uid}/entries/{entryId}` including **`deletedAt`** | ☐ | Both | |
 | **Composite index** for tombstone query exists | ☐ | Both | Error URL from console if missing |
-| **Apple** provider on; **authorized domains** complete | ☐ | Both | Desktop dev: `localhost`, `127.0.0.1` |
+| **Apple** provider on; **authorized domains** complete | ☐ | Both | **Dev desktop:** `localhost`, `127.0.0.1` (Vite + OAuth bridge). **Packaged desktop:** native Sign in with Apple — Firebase project must include an **Apple** app with bundle id **`app.chinotto`** (see `docs/sync.md` § OAuth / Configuration). |
 | Desktop **release** build has **`VITE_FIREBASE_*`** set | ☐ | Desktop | CI / notarization pipeline |
 | Same **Firebase project** + same **Auth uid** for one user on Mac + phone | ☐ | Both | |
 
