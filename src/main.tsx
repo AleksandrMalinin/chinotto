@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { TrayCapturePanel } from "./features/entries/TrayCapturePanel";
 import { IconVariantShowcase } from "./components/IconVariantShowcase";
+import { HostingDesktopOnly } from "./components/HostingDesktopOnly";
 import { OAuthBridge } from "./components/OAuthBridge";
 import { setUmami } from "./lib/analytics";
 import "./index.css";
@@ -54,8 +55,39 @@ function isTrayCaptureSurface(): boolean {
   return window.location.hash === "#tray-capture";
 }
 
-const trayCapture = isTrayCaptureSurface();
+function isTauriShell(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+/** Hosts where we deploy the SPA for desktop OAuth only; root should not load the full app in a browser tab. */
+function isOauthBridgePublicHost(hostname: string): boolean {
+  if (hostname.endsWith(".web.app") || hostname.endsWith(".firebaseapp.com")) {
+    return true;
+  }
+  const bridge = import.meta.env.VITE_OAUTH_BRIDGE_ORIGIN?.trim();
+  if (!bridge) {
+    return false;
+  }
+  try {
+    const u = new URL(bridge.replace(/\/+$/, ""));
+    return u.hostname === hostname;
+  } catch {
+    return false;
+  }
+}
+
+function shouldRenderHostingDesktopOnlyGate(): boolean {
+  if (typeof window === "undefined" || isTauriShell()) {
+    return false;
+  }
+  /* Do not rely on import.meta.env.PROD alone: some CI / predeploy paths have left users with a
+   * production bundle where the flag did not gate; hostname + absence of Tauri is sufficient. */
+  return isOauthBridgePublicHost(window.location.hostname);
+}
+
+const trayCapture = isTrayCaptureSurface() && isTauriShell();
 const oauthChild = isOAuthBridgeEntry();
+const hostingDesktopOnlyGate = shouldRenderHostingDesktopOnlyGate() && !oauthChild;
 
 /* OAuth must not run under StrictMode: dev double-mount fires Firebase redirect twice and breaks auth. */
 createRoot(document.getElementById("root")!).render(
@@ -67,6 +99,8 @@ createRoot(document.getElementById("root")!).render(
     </StrictMode>
   ) : oauthChild ? (
     <OAuthBridge />
+  ) : hostingDesktopOnlyGate ? (
+    <HostingDesktopOnly />
   ) : (
     <StrictMode>
       <Root />

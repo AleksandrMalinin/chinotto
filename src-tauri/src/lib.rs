@@ -8,6 +8,9 @@ mod recall;
 mod thought_trail;
 
 #[cfg(target_os = "macos")]
+mod native_apple_sign_in;
+
+#[cfg(target_os = "macos")]
 mod speech;
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -91,6 +94,30 @@ const IMPORTANCE_BOOST_WEIGHT: f64 = 0.08;
 
 fn importance_boost(importance: f64) -> f64 {
     1.0 + IMPORTANCE_BOOST_WEIGHT * importance
+}
+
+/// Native Sign in with Apple → Firebase `OAuthProvider.credentialFromJSON` (`idToken` + unhashed `nonce`).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeAppleSignInResult {
+    pub id_token: String,
+    pub raw_nonce: String,
+}
+
+#[tauri::command]
+async fn native_apple_sign_in(app: tauri::AppHandle) -> Result<NativeAppleSignInResult, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let app = app.clone();
+        tauri::async_runtime::spawn_blocking(move || native_apple_sign_in::run(&app))
+            .await
+            .map_err(|e| e.to_string())?
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        Err("Native Sign in with Apple is only available on macOS.".to_string())
+    }
 }
 
 #[derive(serde::Deserialize)]
@@ -913,6 +940,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            native_apple_sign_in,
             oauth_dev_bridge::start_oauth_dev_bridge_listener,
             ingest_firestore_entries,
             enqueue_sync_tombstone,

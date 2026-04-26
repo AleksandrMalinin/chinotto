@@ -25,7 +25,6 @@ import {
   userMessageRedirectIncomplete,
   userMessageRedirectTimeout,
   userMessageSyncNotConfigured,
-  userMessageTauriOAuthPopupOnly,
 } from "@/lib/oauthDiagnostics";
 import type { FirebaseApp } from "firebase/app";
 import { getApp, getApps, initializeApp } from "firebase/app";
@@ -138,6 +137,26 @@ function isBrowserDevOauthBridge(): boolean {
   return getDevBridgeSession() != null;
 }
 
+/** OAuth in the auxiliary webview on https (Firebase Hosting), not `tauri://localhost`. */
+function isHostedOauthBridgePage(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  const h = window.location.hostname;
+  if (h.endsWith(".web.app") || h.endsWith(".firebaseapp.com")) {
+    return true;
+  }
+  const bridge = import.meta.env.VITE_OAUTH_BRIDGE_ORIGIN?.trim();
+  if (!bridge) {
+    return false;
+  }
+  try {
+    return new URL(bridge.replace(/\/+$/, "")).hostname === h;
+  } catch {
+    return false;
+  }
+}
+
 /** Safari dev-bridge: plain DOM after `replaceChildren`; flex centers copy horizontally and vertically. */
 function showDevBridgeSafariPage(message: string): void {
   try {
@@ -211,6 +230,8 @@ async function oauthBridgeEmitError(
 
 const AUTH_READY_BEFORE_REDIRECT_MS = 10_000;
 const GET_REDIRECT_RESULT_TIMEOUT_MS = 18_000;
+/** Safari dev-bridge only: `signInWithPopup` can hang indefinitely in some embedded WebViews without a race. */
+const SIGN_IN_WITH_POPUP_TIMEOUT_MS = 120_000;
 
 function rejectAfter(ms: number, message: string): Promise<never> {
   return new Promise((_, reject) => {
@@ -249,6 +270,43 @@ async function getRedirectResultOrTimeout(auth: Auth) {
       clearTimeout(timeoutId);
     }
   }
+}
+
+/**
+ * After `signInWithRedirect` from Apple, hosted https + WKWebView sometimes returns null once while
+ * Firebase is still applying the URL; short delayed retries avoid looping back to “Tap Continue”.
+ */
+async function getRedirectResultOrTimeoutWithHostedRetries(auth: Auth): Promise<Awaited<
+  ReturnType<typeof getRedirectResult>
+> | null> {
+  const first = await getRedirectResultOrTimeout(auth);
+  if (first != null) {
+    return first;
+  }
+  if (!isHostedOauthBridgePage() || !isTauriOAuthWebview()) {
+    return null;
+  }
+  logOAuthDiagnostic("popup_redirect", "getRedirectResult_hosted_retry_schedule", {
+    message: "first getRedirectResult null on hosted Tauri webview",
+  });
+  for (const delayMs of [200, 600, 1200]) {
+    await new Promise((r) => setTimeout(r, delayMs));
+    const next = await getRedirectResult(auth, browserPopupRedirectResolver).catch((e: unknown) => {
+      const { code } = parseFirebaseAuthError(e);
+      if (code === "auth/no-auth-event") {
+        return null;
+      }
+      logOAuthUnknownError("getRedirectResult_hosted_retry", e);
+      return null;
+    });
+    if (next != null) {
+      logOAuthDiagnostic("popup_redirect", "getRedirectResult_hosted_retry_hit", {
+        extra: { delayMs },
+      });
+      return next;
+    }
+  }
+  return null;
 }
 
 /**
@@ -312,7 +370,21 @@ export function OAuthBridge() {
     syncDevBridgeSessionFromUrl();
     const nonce = readNonce();
     if (!nonce) {
-      setStatus("Missing session. Close this window and try again from Chinotto.");
+      const hosted =
+        typeof window !== "undefined" &&
+        (window.location.hostname.endsWith(".web.app") ||
+          window.location.hostname.endsWith(".firebaseapp.com"));
+      setStatus(
+        hosted
+          ? "This URL is only started from the Chinotto Mac app (Continue with Apple). Opening it here in the browser has no session—that is expected. Use Chinotto to sign in, or open the site root / to check the app build."
+          : "Missing session. Close this window and try again from Chinotto."
+      );
+      if (hosted) {
+        logOAuthDiagnostic("config", "oauth_bridge_no_nonce_hosting", {
+          message: "direct browser hit or nonce stripped after redirect",
+          extra: { pathname: window.location.pathname, search: window.location.search.slice(0, 120) },
+        });
+      }
       return;
     }
 
@@ -443,8 +515,31 @@ export function OAuthBridge() {
         if (cancelled) {
           return;
         }
+        /* Tauri auxiliary webview (hosted https or `tauri://`): popup often completes Face ID but never
+         * resolves the JS promise; same-window redirect + getRedirectResult (+ hosted retries) is the path. */
+        if (isTauriOAuthWebview()) {
+          setStatus("Redirecting to Apple…");
+          logOAuthDiagnostic("popup_redirect", "tauri_oauth_redirect_first", {
+            message: isHostedOauthBridgePage()
+              ? "tauri webview on Firebase Hosting"
+              : "skip signInWithPopup in auxiliary Tauri asset webview",
+          });
+          try {
+            sessionStorage.setItem(FIREBASE_REDIRECT_PENDING_KEY, "1");
+          } catch {
+            /* ignore */
+          }
+          await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
+          return "redirected";
+        }
         try {
-          const popupResult = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
+          const popupResult = await Promise.race([
+            signInWithPopup(auth, provider, browserPopupRedirectResolver),
+            rejectAfter(
+              SIGN_IN_WITH_POPUP_TIMEOUT_MS,
+              "Sign in with Apple timed out. Close this window and try again from Chinotto."
+            ),
+          ]);
           if (cancelled) {
             return;
           }
@@ -457,14 +552,6 @@ export function OAuthBridge() {
             code === "auth/popup-blocked" ||
             code === "auth/operation-not-supported-in-this-environment"
           ) {
-            if (isTauriOAuthWebview()) {
-              logOAuthDiagnostic("popup_redirect", "redirect_fallback_skipped_tauri_webview", {
-                code: code || undefined,
-                message:
-                  "signInWithRedirect loses sessionStorage in WKWebView; user must use signInWithPopup after a tap",
-              });
-              throw new Error(userMessageTauriOAuthPopupOnly());
-            }
             try {
               sessionStorage.setItem(FIREBASE_REDIRECT_PENDING_KEY, "1");
             } catch {
@@ -486,7 +573,7 @@ export function OAuthBridge() {
 
       setStatus(browserDevBridge ? "Checking for a completed sign-in…" : "Completing sign-in…");
       try {
-        const redirectBackResult = await getRedirectResultOrTimeout(auth);
+        const redirectBackResult = await getRedirectResultOrTimeoutWithHostedRetries(auth);
         if (cancelled) {
           return;
         }
@@ -516,7 +603,17 @@ export function OAuthBridge() {
           return;
         }
         if (redirectAlreadyStarted && !browserDevBridge) {
-          if (isTauriOAuthWebview()) {
+          /* `tauri://` webview: redirect + getRedirectResult is flaky; hosted https: stale flag is
+           * usually WKWebView losing redirect state — clear and fall through to Tap Continue / popup path. */
+          if (isTauriOAuthWebview() && isHostedOauthBridgePage()) {
+            logOAuthDiagnostic("stale_session", "hosted_tauri_clear_stale_redirect_pending", {
+              extra: {
+                origin: typeof window !== "undefined" ? window.location.origin : "",
+                note: "getRedirectResult null with pending flag; do not use asset-webview recovery copy",
+              },
+            });
+            clearOAuthPending();
+          } else if (isTauriOAuthWebview()) {
             logOAuthDiagnostic("stale_session", "redirect_pending_recover_tauri_popup_only", {
               extra: {
                 origin: typeof window !== "undefined" ? window.location.origin : "",
@@ -529,26 +626,27 @@ export function OAuthBridge() {
             );
             setShowContinueButton(true);
             return;
+          } else {
+            logOAuthDiagnostic("stale_session", "redirect_pending_but_no_redirect_result", {
+              extra: {
+                origin: typeof window !== "undefined" ? window.location.origin : "",
+                browserDevBridge: false,
+                note: "getRedirectResult returned null; chinotto_oauth_firebase_redirect_pending was set",
+              },
+            });
+            clearOAuthPending();
+            try {
+              localStorage.removeItem(NONCE_STORAGE_KEY);
+              sessionStorage.removeItem(SESSION_NONCE_KEY);
+            } catch {
+              /* ignore */
+            }
+            await oauthBridgeEmitError(oauthNonce, userMessageRedirectIncomplete(false), {
+              category: "stale_session",
+              detailMessage: "redirect_pending_but_no_redirect_result",
+            });
+            return;
           }
-          logOAuthDiagnostic("stale_session", "redirect_pending_but_no_redirect_result", {
-            extra: {
-              origin: typeof window !== "undefined" ? window.location.origin : "",
-              browserDevBridge: false,
-              note: "getRedirectResult returned null; chinotto_oauth_firebase_redirect_pending was set",
-            },
-          });
-          clearOAuthPending();
-          try {
-            localStorage.removeItem(NONCE_STORAGE_KEY);
-            sessionStorage.removeItem(SESSION_NONCE_KEY);
-          } catch {
-            /* ignore */
-          }
-          await oauthBridgeEmitError(oauthNonce, userMessageRedirectIncomplete(false), {
-            category: "stale_session",
-            detailMessage: "redirect_pending_but_no_redirect_result",
-          });
-          return;
         }
 
         if (browserDevBridge) {

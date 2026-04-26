@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chinotto — Continue with Apple</title>
+<style>
+body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#0a0a0e;color:#e4e4e9;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1.5rem;box-sizing:border-box}
+button{background:#fff;color:#0a0a0e;border:none;padding:0.75rem 1.25rem;border-radius:8px;font-size:16px;cursor:pointer;font-weight:500}
+button:disabled{opacity:0.5;cursor:default}
+#msg{max-width:28rem;text-align:center;line-height:1.5;font-size:15px;margin-top:1rem}
+</style>
+</head>
+<body>
+<div id="root"><p id="status">Starting…</p></div>
+<p id="msg" hidden></p>
+<script src="https://www.gstatic.com/firebasejs/11.10.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.10.0/firebase-auth-compat.js"></script>
+<script>
+(function () {
+  var cfg = JSON.parse(atob("{{CFG_B64}}"));
+  var NONCE = cfg.nonce;
+  var POST_SECRET = cfg.postSecret;
+  var statusEl = document.getElementById("status");
+  var msgEl = document.getElementById("msg");
+  var root = document.getElementById("root");
+
+  function setStatus(t) {
+    statusEl.textContent = t;
+  }
+  function showFinal(msg) {
+    root.replaceChildren();
+    msgEl.hidden = false;
+    msgEl.textContent = msg;
+    root.appendChild(msgEl);
+  }
+
+  function credToJson(cred) {
+    if (cred && typeof cred.toJSON === "function") return cred.toJSON();
+    return {
+      providerId: cred.providerId,
+      signInMethod: cred.signInMethod,
+      idToken: cred.idToken,
+      accessToken: cred.accessToken,
+    };
+  }
+
+  function postBridge(credential) {
+    return fetch("/chinotto-oauth-bridge", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Chinotto-OAuth-Secret": POST_SECRET,
+      },
+      body: JSON.stringify({ nonce: NONCE, credential: credential }),
+    });
+  }
+
+  function finishWithResult(result) {
+    var cred = result.credential;
+    if (!cred) {
+      showFinal("Apple sign-in did not return a credential. Try again.");
+      return;
+    }
+    var cj = credToJson(cred);
+    if (!cj.idToken) {
+      showFinal("Apple sign-in did not return an ID token. Try again.");
+      return;
+    }
+    setStatus("Returning to Chinotto…");
+    postBridge(cj)
+      .then(function (r) {
+        if (!r.ok) {
+          showFinal("Could not hand sign-in back to Chinotto. Quit the app and try again.");
+          return;
+        }
+        showFinal("Signed in. Close this tab and return to Chinotto.");
+      })
+      .catch(function () {
+        showFinal("Could not hand sign-in back to Chinotto. Quit the app and try again.");
+      });
+  }
+
+  try {
+    firebase.initializeApp(cfg.firebase);
+  } catch (e) {
+    console.error("[Chinotto OAuth loopback]", e);
+    showFinal("Could not start sign-in. Check the app build and Firebase env.");
+    return;
+  }
+  var auth = firebase.auth();
+  var provider = new firebase.auth.OAuthProvider("apple.com");
+
+  /* Safari on http://127.0.0.1: signInWithPopup often never resolves (stuck on "Opening Apple…").
+   * Same-window redirect is reliable here. */
+  function startRedirect() {
+    setStatus("Redirecting to Apple…");
+    return auth.signInWithRedirect(provider);
+  }
+
+  auth
+    .getRedirectResult()
+    .then(function (result) {
+      if (result && result.user) {
+        finishWithResult(result);
+        return;
+      }
+      setStatus("Tap the button to sign in with Apple.");
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = "Continue with Apple";
+      btn.onclick = function () {
+        btn.disabled = true;
+        startRedirect().catch(function (err) {
+          console.error("[Chinotto OAuth loopback]", err);
+          var m = err && err.message ? String(err.message) : String(err);
+          showFinal("Sign-in failed: " + m);
+        });
+      };
+      root.appendChild(btn);
+    })
+    .catch(function (err) {
+      console.error("[Chinotto OAuth loopback]", err);
+      var m = err && err.message ? String(err.message) : String(err);
+      showFinal("Sign-in error: " + m);
+    });
+})();
+</script>
+</body>
+</html>

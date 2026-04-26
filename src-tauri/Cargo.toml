@@ -48,10 +48,12 @@ cocoa = "0.26"
 objc = "0.2"
 objc2 = "0.6"
 objc2-app-kit = "0.3"
+objc2-authentication-services = "0.3"
 objc2-speech = { version = "0.3", features = ["block2", "objc2-avf-audio"] }
 objc2-avf-audio = { version = "0.3", features = ["default", "block2"] }
 objc2-foundation = "0.3"
 block2 = "0.6"
+sha2 = "0.10"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "2"

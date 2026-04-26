@@ -44,6 +44,7 @@ Do not propose or implement features that contradict the above. When in doubt, p
 - **Do not invent product scope.** Do not add features (e.g. tags, folders, AI chat, sync) unless the user explicitly asks. If the user’s request conflicts with product constraints, state the conflict and ask.
 - **Prefer the smallest change.** Fix or add what’s asked. Avoid “while I’m here” refactors or scope creep. Refactors are separate from feature work unless the user asks for both.
 - **Leave the codebase buildable and runnable.** Do not leave broken imports, commented-out code that should be removed, or half-finished work. If something is intentionally incomplete (e.g. stub), say so in the change or a short comment.
+- **Local macOS .app after bundle-affecting edits.** When work touches `src/` or `src-tauri/` in ways that affect the packaged app, run `npm run build:macos-app` and copy the resulting `Chinotto.app` to `builds/Chinotto-local.app` (overwrite), so the user always has an up-to-date local bundle without a separate “please rebuild” step—unless they asked not to run a build.
 
 ---
 

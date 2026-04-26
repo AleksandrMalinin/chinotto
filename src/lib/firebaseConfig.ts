@@ -23,3 +23,17 @@ export function getFirebaseWebOptions() {
     appId: import.meta.env.VITE_FIREBASE_APP_ID?.trim(),
   };
 }
+
+/**
+ * Packaged desktop: OAuth runs in a WebviewWindow. Firebase Auth rejects `tauri://localhost`
+ * even when `localhost` / `tauri.localhost` are in Authorized domains. Load the same SPA from
+ * Firebase Hosting (https) instead. Optional `VITE_OAUTH_BRIDGE_ORIGIN` when Hosting uses a custom domain.
+ */
+export function getOauthBridgeWebviewUrl(nonce: string): string {
+  const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID!.trim();
+  const override = import.meta.env.VITE_OAUTH_BRIDGE_ORIGIN?.trim();
+  const base = (override || `https://${projectId}.web.app`).replace(/\/+$/, "");
+  const u = new URL(`${base}/chinotto-oauth`);
+  u.searchParams.set("nonce", nonce);
+  return u.toString();
+}

@@ -15,7 +15,7 @@ Capture first. Revisit later.</string>
   <key>CFBundleShortVersionString</key>
   <string>2.0.0</string>
   <key>CFBundleVersion</key>
-  <string>2.0.3</string>
+  <string>2.0.4</string>
   <key>NSSpeechRecognitionUsageDescription</key>
   <string>Chinotto uses speech recognition so you can capture thoughts by voice.</string>
   <key>NSMicrophoneUsageDescription</key>
@@ -24,5 +24,7 @@ Capture first. Revisit later.</string>
   <string>public.app-category.productivity</string>
   <key>LSMinimumSystemVersion</key>
   <string>12.0</string>
+  <key>LSRequiresCarbon</key>
+  <false/>
 </dict>
 </plist>

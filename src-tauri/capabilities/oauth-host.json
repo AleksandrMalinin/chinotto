@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "oauth-host",
+  "description": "Allow the chinotto-oauth window to load the SPA from Firebase Hosting so Firebase Auth sees an https authorized origin (macOS packaged webview is otherwise tauri://localhost).",
+  "windows": ["chinotto-oauth"],
+  "remote": {
+    "urls": [
+      "https://chinotto.web.app/*",
+      "https://chinotto.firebaseapp.com/*"
+    ]
+  },
+  "permissions": ["core:event:default", "core:webview:allow-webview-close"]
+}
