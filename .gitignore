@@ -24,9 +24,13 @@ src-tauri/.fastembed_cache/
 .DS_Store
 Thumbs.db
 
+# Local store / installer output (not committed)
+builds/
+
 # Apple API key and release env (never commit)
 *.p8
 scripts/apple-release-env.sh
+scripts/mas-testflight-env.sh
 src-tauri/updater.key
 src-tauri/updater.key.pub
 
