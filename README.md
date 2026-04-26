@@ -21,7 +21,15 @@ Export them anytime.
 
 Prerequisites: Node.js, Rust, and system dependencies for [Tauri 2](https://v2.tauri.app/start/prerequisites/).
 
-**macOS distribution** (Developer ID sign + notarize): `./scripts/build-release-macos.sh` (local notes in `docs/release-macos.md` if you keep a copy; see [Tauri macOS signing](https://v2.tauri.app/distribute/sign/macos/)).
+**macOS builds**
+
+| Goal | Command / script |
+|------|-------------------|
+| Local dev | `npm run tauri dev` |
+| Ad-hoc `.app` (opens from disk; **no** native Sign in with Apple) | `npm run build:macos-app` → runs `scripts/sign-macos.sh` |
+| Team-signed `.app` + **`builds/Chinotto-native.app`** (native SIWA; needs Xcode provisioning profiles for `app.chinotto`) | `npm run build:macos-app:native` → `scripts/codesign-macos-dev.sh` |
+| **TestFlight / Mac App Store** `.pkg` | `scripts/build-mas-testflight.sh` after `scripts/mas-testflight-env.sh` — see **`docs/macos-testflight.md`** |
+| Developer ID + notarize (outside store) | `./scripts/build-release-macos.sh` — see [Tauri macOS signing](https://v2.tauri.app/distribute/sign/macos/) and `docs/release-macos.md` if you keep it |
 
 ```bash
 npm install
