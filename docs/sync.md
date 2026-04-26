@@ -135,7 +135,7 @@ Command **`delete_local_entries_for_sync`** expects **top-level** `entryIds` (ca
 | `VITE_FIREBASE_STORAGE_BUCKET` | Optional |
 | `VITE_FIREBASE_MESSAGING_SENDER_ID` | Optional |
 
-Use the **same** Firebase Web app as mobile (`EXPO_PUBLIC_*` → `VITE_*`).
+Use the **same** Firebase **project** as mobile (`EXPO_PUBLIC_*` → `VITE_*` for the web client config). In **Project settings → Your apps**, register **two** Apple apps if you ship both: **`com.chinotto.mobile`** (Expo) and **`app.chinotto`** (desktop Tauri / Mac App Store). Native Sign in with Apple on Mac sends an ID token whose JWT **`aud`** is **`app.chinotto`**; Firebase rejects **`auth/invalid-credential`** (audience mismatch) until that bundle id exists in the project.
 
 ### QR bridge → mobile (always)
 
@@ -144,12 +144,17 @@ Use the **same** Firebase Web app as mobile (`EXPO_PUBLIC_*` → `VITE_*`).
 - **Constant:** `CHINOTTO_SYNC_MOBILE_UNIVERSAL_LINK` in `src/components/SyncModal.tsx` — change there if the host/path changes (desktop still appends `ds`).  
 - **Fallback:** “Open on your phone” copies the full URL (including `ds`); if clipboard fails, the same control becomes **Couldn’t copy — try again**.
 
-### OAuth and dev (this Mac, when Firebase is configured)
+### OAuth (this Mac, when Firebase is configured)
 
 - **Sync modal:** QR + Firestore gate; **Continue with Apple** is enabled only after mobile confirms unlock (`sync_desktop_sessions` or user taps **Already finished on your iPhone?**). **Sync is on** requires `users/{uid}.chinottoSyncAccess.active === true` from mobile (same field the modal polls via `getDocFromServer`).  
-- **Path:** `/chinotto-oauth` (path-based routing survives redirects better than query-only).  
-- **Dev:** Add **`localhost`** / **`127.0.0.1`** to Firebase **Authorized domains**.  
-- **`init.json`:** `https://{authDomain}/__/firebase/init.json` — **404** means deploy Hosting once (`firebase deploy --only hosting`).
+- **Packaged desktop (release / TestFlight / Mac App Store):** **`native_apple_sign_in`** (Tauri) runs **Sign in with Apple** in-process; the Apple **ID token** + raw **nonce** are passed to **`signInWithAppleCredential`** (Firebase JS). No Safari loopback. Signing and entitlements: **`docs/macos-testflight.md`** and **`Chinotto.mas.entitlements`** for store builds; local team-signed **`npm run build:macos-app:native`** uses **`scripts/codesign-macos-dev.sh`** (embeds a **Mac App Development** provisioning profile for **`app.chinotto`** from Xcode’s cache when possible).  
+- **Dev (`npm run tauri dev`):** **`openUrl`** to **`http://localhost:5173/chinotto-oauth?…`** (Vite **`OAuthBridge`**), then a short-lived **`127.0.0.1`** listener in the app receives the credential via **`start_oauth_dev_bridge_listener`**. **Path:** `/chinotto-oauth` (path-based routing survives redirects better than query-only).  
+- **Firebase → Authentication → Settings → Authorized domains:** include **`localhost`** and **`127.0.0.1`** for the **dev** browser + loopback bridge.  
+- **`init.json`:** `https://{authDomain}/__/firebase/init.json` — **404** usually means wrong **`authDomain`** / project; it is not served from this repo’s Hosting root.
+
+### Firebase Hosting (optional)
+
+Deploy with **`npm run deploy:hosting`** when you want **`https://<projectId>.web.app/`** (Mac-app-only landing) or other static pages. Packaged **Continue with Apple** does not load **`/chinotto-oauth`** from Hosting. The React **`OAuthBridge`** route is for **dev (Vite)** and for opening that URL in a normal browser. **`src-tauri/capabilities/oauth-host.json`** remains for hosted / webview flows if you use them.
 
 ---
 
@@ -173,6 +178,9 @@ Use the **same** Firebase Web app as mobile (`EXPO_PUBLIC_*` → `VITE_*`).
 |---------|----------------|
 | **404** `init.json` | Deploy Firebase Hosting. |
 | **400** `createAuthUri` | API key / Apple provider / authorized domains. |
+| **`auth/unauthorized-domain`** | Usually **dev**: OAuth ran on a host not listed under **Authorized domains** — add **`localhost`** / **`127.0.0.1`**. If you run Firebase inside **`tauri://`**, use the **Vite + localhost** dev flow instead. |
+| **`auth/invalid-credential`** — audience **`app.chinotto`** | Firebase project is missing an **Apple** app registration with bundle id **`app.chinotto`** (see **§ Configuration**). Add it in Console, wait a minute, retry. |
+| **“Could not start this step”** / **Touch ID** then failure on packaged Mac | Entitlements / signing / provisioning (native SIWA), or Firebase audience — see **`docs/macos-testflight.md`**, **`scripts/codesign-macos-dev.sh`**, and the row above. |
 | Blank OAuth | `VITE_FIREBASE_APP_ID`, `authDomain`. |
 | **`tombstone snapshot error` / `tombstone getDocs failed`** | Missing Firestore **composite index** (link in error). |
 | **`tombstone apply failed`** | IPC: use **`entryIds`** at top level — see **§ Desktop IPC**. |
@@ -196,6 +204,7 @@ Use the **same** Firebase Web app as mobile (`EXPO_PUBLIC_*` → `VITE_*`).
 
 | Date | Change |
 |------|--------|
+| 2026-04-26 | **Desktop OAuth:** Packaged **Continue with Apple** uses **native** Sign in with Apple (`native_apple_sign_in`) + Firebase; register **`app.chinotto`** in Firebase alongside **`com.chinotto.mobile`**. **Dev** still uses Vite **`/chinotto-oauth`** + **`127.0.0.1`** bridge. |
 | 2026-04-13 | **Desktop:** After `update_entry` (detail debounce, unmount flush, stream late edit): `getEntry` → Firestore merge with `updatedAt: serverTimestamp()`; `generate_embedding` refresh. **Rust:** Firestore ingest `INSERT` includes `updated_at`. **Wire:** optional `updatedAt` on entry docs for mobile ordering. |
 | 2026-04-02 | **Docs:** Canonical **Enable sync / unlock** flow — `chinotto-mobile/docs/sync/cross-device-sync-unlock-flow.md` (desktop `SyncModal` states, `ds` gate, `chinottoSyncAccess`). |
 | 2026-03-29 | **Docs:** Merged `sync-deletion-v2.md`, `sync-v2-as-built.md`, `sync-mobile-parity-and-followups.md`, and `firestore-sync.md` into this file. Release QA lives only in `sync-release-checklist.md`. |
