@@ -169,6 +169,13 @@ export function userMessageFromFirebasePopupOrRedirect(
   if (category === "config") {
     return "Sign-in failed due to configuration or an invalid request. Check Firebase sync settings and authorized domains; details are in the console.";
   }
+  if (code === "auth/unauthorized-domain") {
+    return [
+      "Sign-in failed: Firebase rejected the page origin.",
+      "Add the host under Authentication → Settings → Authorized domains (dev: localhost, 127.0.0.1). Hosted /chinotto-oauth: deploy to Firebase Hosting (https://<projectId>.web.app/…) — see docs/sync.md.",
+      OAUTH_RECOVERY_CONSOLE,
+    ].join(" ");
+  }
   if (code) {
     return `Sign-in failed (${code}). ${OAUTH_RECOVERY_QUIT} ${OAUTH_RECOVERY_CONSOLE}`;
   }
@@ -188,6 +195,16 @@ export function userMessageFromCredentialApplyError(e: unknown): string {
   }
   if (category === "network") {
     return "Could not reach Firebase to complete sign-in. Check your connection and try again.";
+  }
+  if (
+    code === "auth/invalid-credential" &&
+    /audience|expected audience/i.test(message)
+  ) {
+    return [
+      "Firebase rejected the Apple token: native macOS sign-in sends audience app.chinotto.",
+      "In Firebase Console open this project → Project settings → Your apps → Add app → Apple (or iOS+) and set Bundle ID to app.chinotto. Save, wait a minute, quit Chinotto fully, try again.",
+      OAUTH_RECOVERY_CONSOLE,
+    ].join(" ");
   }
   if (code === "auth/argument-error" || code === "auth/invalid-credential") {
     return [
