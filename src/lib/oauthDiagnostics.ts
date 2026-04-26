@@ -1,6 +1,6 @@
 /**
- * Apple / Firebase OAuth diagnostics: structured console logs for debugging;
- * short, calm copy for the UI (details stay in logs).
+ * Apple / Firebase OAuth: structured `console.warn` for debugging; short UI copy only.
+ * Details and Firebase codes stay in logs (`logOAuthDiagnostic` / `logOAuthUnknownError`).
  */
 
 export const OAUTH_LOG_PREFIX = "[Chinotto OAuth]";
@@ -111,40 +111,43 @@ export function logOAuthUnknownError(context: string, e: unknown): ParsedAuthErr
 export const OAUTH_RECOVERY_QUIT =
   "Quit Chinotto completely, then try Continue with Apple again.";
 
+/** Long Safari hint — only appended in dev (browser OAuth). */
 export const OAUTH_RECOVERY_SAFARI_DATA =
   "If it still fails: Safari → Settings → Privacy → Manage Website Data — remove entries for your Firebase domain (*.firebaseapp.com), apple.com, and localhost (or clear related data), then retry.";
 
-export const OAUTH_RECOVERY_CONSOLE =
-  "More detail in the browser console (search for [Chinotto OAuth]).";
+function safariHintIfDev(): string {
+  return import.meta.env.DEV ? ` ${OAUTH_RECOVERY_SAFARI_DATA}` : "";
+}
 
 export function userMessageRedirectIncomplete(browserDevBridge: boolean): string {
   if (browserDevBridge) {
     return [
-      "Sign-in did not finish in the browser after you returned from Apple. Safari sometimes loses login state for this step.",
+      "Sign-in did not finish in the browser after you returned from Apple.",
       OAUTH_RECOVERY_QUIT,
-      OAUTH_RECOVERY_SAFARI_DATA,
-      OAUTH_RECOVERY_CONSOLE,
-    ].join(" ");
+      safariHintIfDev(),
+    ]
+      .join(" ")
+      .trim();
   }
   return [
     "Sign-in did not finish in the sign-in window.",
     OAUTH_RECOVERY_QUIT,
-    "If it keeps failing, clear website data for Firebase and Apple for this device, then try again.",
-    OAUTH_RECOVERY_CONSOLE,
-  ].join(" ");
+    import.meta.env.DEV
+      ? "If it keeps failing, clear website data for Firebase and Apple on this device, then try again."
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 export function userMessageRedirectTimeout(): string {
-  return [
-    "Sign-in timed out waiting for the browser to finish.",
-    OAUTH_RECOVERY_QUIT,
-    OAUTH_RECOVERY_SAFARI_DATA,
-    OAUTH_RECOVERY_CONSOLE,
-  ].join(" ");
+  return ["Sign-in timed out waiting for the browser to finish.", OAUTH_RECOVERY_QUIT, safariHintIfDev()]
+    .join(" ")
+    .trim();
 }
 
 export function userMessageAuthNotReady(): string {
-  return "Sign-in could not start (Firebase Auth was not ready). Close the sign-in window, quit Chinotto fully, and try again.";
+  return "Sign-in could not start. Close the sign-in window, quit Chinotto fully, and try again.";
 }
 
 export function userMessageFromFirebasePopupOrRedirect(
@@ -167,19 +170,25 @@ export function userMessageFromFirebasePopupOrRedirect(
     return "Network error during sign-in. Check your connection, then try again.";
   }
   if (category === "config") {
-    return "Sign-in failed due to configuration or an invalid request. Check Firebase sync settings and authorized domains; details are in the console.";
+    return import.meta.env.DEV
+      ? "Sign-in failed (Firebase configuration or authorized domains). See console for the error code."
+      : "Sign-in could not be completed. Check your connection and try again.";
   }
   if (code === "auth/unauthorized-domain") {
-    return [
-      "Sign-in failed: Firebase rejected the page origin.",
-      "Add the host under Authentication → Settings → Authorized domains (dev: localhost, 127.0.0.1). Hosted /chinotto-oauth: deploy to Firebase Hosting (https://<projectId>.web.app/…) — see docs/sync.md.",
-      OAUTH_RECOVERY_CONSOLE,
-    ].join(" ");
+    return import.meta.env.DEV
+      ? [
+          "Firebase rejected this page's domain.",
+          "Add localhost and 127.0.0.1 under Authentication → Settings → Authorized domains.",
+          "Hosted /chinotto-oauth: deploy to Firebase Hosting (https://<projectId>.web.app/…).",
+        ].join(" ")
+      : "Sign-in could not be completed for this app build. Try again later, or contact support if it persists.";
   }
   if (code) {
-    return `Sign-in failed (${code}). ${OAUTH_RECOVERY_QUIT} ${OAUTH_RECOVERY_CONSOLE}`;
+    return import.meta.env.DEV
+      ? `Sign-in failed (${code}). ${OAUTH_RECOVERY_QUIT}`
+      : `Sign-in failed. ${OAUTH_RECOVERY_QUIT}`;
   }
-  return `${message} ${OAUTH_RECOVERY_CONSOLE}`;
+  return import.meta.env.DEV ? `${message} ${OAUTH_RECOVERY_QUIT}` : `Sign-in failed. ${OAUTH_RECOVERY_QUIT}`;
 }
 
 export function userMessageFromCredentialApplyError(e: unknown): string {
@@ -200,35 +209,39 @@ export function userMessageFromCredentialApplyError(e: unknown): string {
     code === "auth/invalid-credential" &&
     /audience|expected audience/i.test(message)
   ) {
-    return [
-      "Firebase rejected the Apple token: native macOS sign-in sends audience app.chinotto.",
-      "In Firebase Console open this project → Project settings → Your apps → Add app → Apple (or iOS+) and set Bundle ID to app.chinotto. Save, wait a minute, quit Chinotto fully, try again.",
-      OAUTH_RECOVERY_CONSOLE,
-    ].join(" ");
+    return import.meta.env.DEV
+      ? "Firebase rejected the Apple token (audience must be app.chinotto). In Firebase → Project settings → Your apps, add an Apple app with that bundle ID, wait a minute, then try again."
+      : "Sign-in could not be verified for this Mac app. Try again in a moment; if it keeps failing, the project needs the Mac bundle id (app.chinotto) registered in Firebase.";
   }
   if (code === "auth/argument-error" || code === "auth/invalid-credential") {
     return [
-      "The sign-in session was incomplete or out of date.",
+      "Sign-in was interrupted or expired.",
       OAUTH_RECOVERY_QUIT,
-      OAUTH_RECOVERY_SAFARI_DATA,
-      OAUTH_RECOVERY_CONSOLE,
-    ].join(" ");
+      safariHintIfDev(),
+    ]
+      .join(" ")
+      .trim();
   }
   if (code === "auth/failed-precondition") {
     return [
-      "Sign-in could not complete because the Firebase session was in an unexpected state.",
+      "Sign-in could not complete because the session was in an unexpected state.",
       OAUTH_RECOVERY_QUIT,
-      OAUTH_RECOVERY_SAFARI_DATA,
-      OAUTH_RECOVERY_CONSOLE,
-    ].join(" ");
+      safariHintIfDev(),
+    ]
+      .join(" ")
+      .trim();
   }
   if (category === "config") {
-    return "Could not complete sign-in (configuration or token issue). Check the console for the error code.";
+    return import.meta.env.DEV
+      ? "Could not complete sign-in (configuration or token). See console for the error code."
+      : "Could not complete sign-in. Try again in a moment.";
   }
   if (code) {
-    return `Could not complete sign-in (${code}). ${OAUTH_RECOVERY_QUIT} ${OAUTH_RECOVERY_CONSOLE}`;
+    return import.meta.env.DEV
+      ? `Could not complete sign-in (${code}). ${OAUTH_RECOVERY_QUIT}`
+      : `Could not complete sign-in. ${OAUTH_RECOVERY_QUIT}`;
   }
-  return `${message} ${OAUTH_RECOVERY_CONSOLE}`;
+  return import.meta.env.DEV ? `${message} ${OAUTH_RECOVERY_QUIT}` : `Could not complete sign-in. ${OAUTH_RECOVERY_QUIT}`;
 }
 
 export function userMessageSyncNotConfigured(): string {
@@ -245,9 +258,9 @@ export function userMessageOAuthTimeoutMainWindow(devBrowserFlow: boolean): stri
     "Close the sign-in window or tab if it is still open, quit Chinotto fully, then try Continue with Apple again.",
   ];
   if (devBrowserFlow) {
-    parts.push(OAUTH_RECOVERY_SAFARI_DATA, OAUTH_RECOVERY_CONSOLE);
+    parts.push(safariHintIfDev().trim());
   }
-  return parts.join(" ");
+  return parts.filter(Boolean).join(" ");
 }
 
 /**
@@ -256,9 +269,8 @@ export function userMessageOAuthTimeoutMainWindow(devBrowserFlow: boolean): stri
  */
 export function userMessageTauriOAuthPopupOnly(): string {
   return [
-    "This window can’t complete Apple sign-in via a redirect (the system clears saved login state).",
-    "Tap Continue with Apple again so sign-in opens inside this window.",
+    "This window can’t complete Apple sign-in with a redirect.",
+    "Tap Continue with Apple again so sign-in runs inside this window.",
     "If nothing appears, quit Chinotto completely and try once more.",
-    OAUTH_RECOVERY_CONSOLE,
   ].join(" ");
 }

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   parseFirebaseAuthError,
   userMessageFromCredentialApplyError,
+  userMessageFromFirebasePopupOrRedirect,
   userMessageTauriOAuthPopupOnly,
 } from "./oauthDiagnostics";
 
@@ -10,6 +11,22 @@ describe("userMessageTauriOAuthPopupOnly", () => {
     const msg = userMessageTauriOAuthPopupOnly();
     expect(msg).toContain("redirect");
     expect(msg).toContain("Continue with Apple");
+  });
+});
+
+describe("userMessageFromFirebasePopupOrRedirect", () => {
+  it("maps auth/unauthorized-domain to Firebase authorized-domains hint", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const msg = userMessageFromFirebasePopupOrRedirect({
+        code: "auth/unauthorized-domain",
+        message: "x",
+      });
+      expect(msg).toContain("Firebase Hosting");
+      expect(msg).toContain("web.app");
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 });
 

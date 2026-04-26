@@ -3,7 +3,6 @@ import type { User } from "firebase/auth";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { isFirebaseSyncConfigured } from "@/lib/firebaseConfig";
 import {
   signInWithAppleCredential,
@@ -23,11 +22,68 @@ function isTauriShell(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
-const OAUTH_WINDOW_LABEL = "chinotto-oauth";
+/** Tauri / plugin failures are not always `Error` with `.message`. */
+function extractAppleSyncStartErrorText(e: unknown): string {
+  if (e == null) {
+    return "";
+  }
+  if (typeof e === "string") {
+    return e.trim();
+  }
+  if (e instanceof Error && e.message.trim()) {
+    return e.message.trim();
+  }
+  if (typeof e === "object" && "message" in e) {
+    const m = (e as { message: unknown }).message;
+    if (typeof m === "string" && m.trim()) {
+      return m.trim();
+    }
+  }
+  try {
+    const s = JSON.stringify(e);
+    if (s && s !== "{}" && s !== "null") {
+      return s.length > 400 ? `${s.slice(0, 400)}…` : s;
+    }
+  } catch {
+    /* ignore */
+  }
+  const s = String(e).trim();
+  return s.length > 400 ? `${s.slice(0, 400)}…` : s;
+}
+
+function messageFromAppleSyncStartFailure(
+  e: unknown,
+  phase?: "listener" | "browser"
+): string {
+  const raw = extractAppleSyncStartErrorText(e);
+  const prefix =
+    phase === "listener" ? "Local helper: " : phase === "browser" ? "Open browser: " : "";
+
+  if (import.meta.env.DEV) {
+    return raw ? `${prefix}${raw}` : `${prefix}(no error text — see console)`;
+  }
+
+  if (/Not allowed to open url/i.test(raw)) {
+    return "The app could not open the sign-in page. Rebuild from the latest sources or check security settings.";
+  }
+  if (/Permission denied|operation not permitted|Address already in use/i.test(raw)) {
+    return "Sign-in could not start (system blocked the local helper). Quit Chinotto fully and try again.";
+  }
+  if (raw) {
+    return "Could not start sign-in. Quit Chinotto fully and try again.";
+  }
+  return "Could not start sign-in. Quit Chinotto fully and try again.";
+}
+
 const OAUTH_TIMEOUT_MS = 4 * 60 * 1000;
 
 type OauthSuccessPayload = { nonce: string; credential: BridgedOAuthCredentialJson };
 type OauthErrorPayload = { nonce: string; message: string };
+
+type NativeAppleSignInResult = {
+  idToken: string;
+  rawNonce: string;
+};
 
 type UseAppleSyncOAuthOptions = {
   /** When false, auth subscription is inactive (saves work when modal is closed). */
@@ -35,7 +91,7 @@ type UseAppleSyncOAuthOptions = {
 };
 
 /**
- * Apple / Firebase device sync: auth state and opening the OAuth webview or dev browser tab.
+ * Apple / Firebase device sync: dev uses Vite + bridge; packaged macOS uses native `native_apple_sign_in` only (no Safari loopback).
  */
 export function useAppleSyncOAuth({ active }: UseAppleSyncOAuthOptions) {
   const [user, setUser] = useState<User | null>(null);
@@ -139,58 +195,62 @@ export function useAppleSyncOAuth({ active }: UseAppleSyncOAuthOptions) {
       });
       track({ event: "sync_oauth_failed", reason: "timeout" });
       setError(userMessageOAuthTimeoutMainWindow(import.meta.env.DEV));
-      void WebviewWindow.getByLabel(OAUTH_WINDOW_LABEL).then((w) => w?.close().catch(() => {}));
     }, OAUTH_TIMEOUT_MS);
 
     try {
-      const returnUrl = new URL(window.location.href);
-      returnUrl.pathname = "/chinotto-oauth";
-      returnUrl.search = "";
-      returnUrl.hash = "";
-      returnUrl.searchParams.set("nonce", nonce);
-
       if (import.meta.env.DEV) {
+        const returnUrl = new URL(window.location.href);
+        returnUrl.pathname = "/chinotto-oauth";
+        returnUrl.search = "";
+        returnUrl.hash = "";
+        returnUrl.searchParams.set("nonce", nonce);
         const bridgeSecret = crypto.randomUUID();
         const bridgePort = await invoke<number>("start_oauth_dev_bridge_listener", {
-          secret: bridgeSecret,
+          args: { secret: bridgeSecret },
         });
         returnUrl.searchParams.set("oauthDevBridge", "1");
         returnUrl.searchParams.set("oauthDevBridgePort", String(bridgePort));
         returnUrl.searchParams.set("oauthDevBridgeSecret", bridgeSecret);
         await openUrl(returnUrl.toString());
       } else {
-        const existing = await WebviewWindow.getByLabel(OAUTH_WINDOW_LABEL);
-        if (existing) {
-          await existing.close();
-        }
-        const oauthWin = new WebviewWindow(OAUTH_WINDOW_LABEL, {
-          url: returnUrl.toString(),
-          width: 480,
-          height: 720,
-          center: true,
-          title: "Continue with Apple",
-          resizable: true,
-        });
-        const unOnceErr = await oauthWin.once("tauri://error", (e) => {
+        try {
+          const out = await invoke<NativeAppleSignInResult>("native_apple_sign_in");
           cleanup();
-          track({ event: "sync_oauth_failed", reason: "window" });
-          const payload =
-            typeof e === "object" && e !== null && "payload" in e
-              ? String((e as { payload: unknown }).payload)
-              : "Could not open the Apple window.";
-          logOAuthDiagnostic("popup_redirect", "oauth_webview_failed_to_open", {
-            message: payload,
+          try {
+            localStorage.removeItem("chinotto_oauth_nonce");
+          } catch {
+            /* ignore */
+          }
+          await signInWithAppleCredential({
+            providerId: "apple.com",
+            signInMethod: "apple.com",
+            idToken: out.idToken,
+            nonce: out.rawNonce,
           });
-          setError("Could not open the Apple window. Quit Chinotto fully and try again.");
+          track({ event: "sync_oauth_completed" });
           setBusy(false);
-        });
-        unlisteners.push(unOnceErr);
+          return;
+        } catch (nativeErr) {
+          cleanup();
+          try {
+            localStorage.removeItem("chinotto_oauth_nonce");
+          } catch {
+            /* ignore */
+          }
+          track({ event: "sync_oauth_failed", reason: "start" });
+          logOAuthUnknownError("onContinueApple_native_apple_sign_in", nativeErr);
+          console.warn("[Chinotto sync oauth] native_apple_sign_in failed", nativeErr);
+          setError(messageFromAppleSyncStartFailure(nativeErr));
+          setBusy(false);
+          return;
+        }
       }
     } catch (e) {
       cleanup();
       track({ event: "sync_oauth_failed", reason: "start" });
       logOAuthUnknownError("onContinueApple", e);
-      setError("Could not start this step. Quit Chinotto fully and try again.");
+      console.warn("[Chinotto sync oauth] start failed", e);
+      setError(messageFromAppleSyncStartFailure(e));
       setBusy(false);
     }
   }, []);
