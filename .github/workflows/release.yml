@@ -143,6 +143,10 @@ jobs:
           prerelease: false
           args: --target aarch64-apple-darwin
 
+      # DMG staple omitted: Apple's stapler expects a notarization ticket for that exact .dmg file.
+      # Tauri's pipeline notarizes the app bundle (ticket stapled inside Chinotto.app); the DMG is built
+      # afterward and typically has no separate CloudKit ticket, so `stapler staple` on the DMG fails.
+
       # Stable filename so website / docs can use .../releases/latest/download/Chinotto_macOS_aarch64.dmg
       - name: Upload stable DMG name for direct download
         env:

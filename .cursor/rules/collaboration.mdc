@@ -1,0 +1,10 @@
+---
+description: Commits, scope, and confirmation before side-effect actions
+alwaysApply: true
+---
+
+# Collaboration
+
+- **Git commits:** Do not create commits unless the user explicitly asks (or the task wording is explicitly to commit).
+- **Scope:** Implement only what the stated task requires—no drive-by edits, extra files, or unrelated cleanup.
+- **Confirmation:** Before steps with repo or environment side effects (for example `.gitignore`, `git rm`, release/version bumps, running signing or publish scripts), check with the user unless the task clearly names that exact action.

@@ -58,9 +58,9 @@ export function StreamFlowPanel({
             y2="248"
             gradientUnits="userSpaceOnUse"
           >
-            <stop stopColor="rgba(180, 188, 255, 0.9)" />
-            <stop offset="0.42" stopColor="rgba(34, 200, 220, 0.55)" />
-            <stop offset="1" stopColor="rgba(255, 150, 90, 0.5)" />
+            <stop stopColor="rgba(180, 188, 255, 0.88)" />
+            <stop offset="0.42" stopColor="rgba(34, 200, 220, 0.56)" />
+            <stop offset="1" stopColor="rgba(255, 150, 90, 0.51)" />
           </linearGradient>
         </defs>
         <path

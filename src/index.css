@@ -1158,8 +1158,8 @@ body.welcome .app-bg {
 
 /* Optional welcome replay (header title); above settings overlay; main timeline unchanged underneath */
 .stream-showcase-overlay {
-  --chinotto-glow-violet: rgba(100, 110, 180, 0.14);
-  --chinotto-glow-blue: rgba(70, 100, 180, 0.085);
+  --chinotto-glow-violet: rgba(100, 110, 180, 0.135);
+  --chinotto-glow-blue: rgba(70, 100, 180, 0.078);
   position: fixed;
   inset: 0;
   z-index: 56;
@@ -3081,6 +3081,7 @@ body.welcome .app-bg {
   position: relative;
   border-radius: 22px;
   isolation: isolate;
+  overflow: hidden;
 }
 
 .stream-flow-panel--onboarding {
@@ -3148,7 +3149,7 @@ body.welcome .app-bg {
 
 .stream-flow-blobs {
   position: absolute;
-  inset: -12%;
+  inset: -6%;
   pointer-events: none;
   z-index: 0;
 }
@@ -3156,16 +3157,16 @@ body.welcome .app-bg {
 .stream-flow-blob {
   position: absolute;
   border-radius: 50%;
-  filter: blur(42px);
+  filter: blur(72px);
   mix-blend-mode: screen;
-  opacity: 0.85;
+  opacity: 0.87;
   animation: stream-flow-blob-drift var(--blob-dur, 22s) ease-in-out infinite alternate;
 }
 
 .stream-flow-blob--violet {
   width: 55%;
   height: 48%;
-  left: -5%;
+  left: -3%;
   top: 8%;
   background: rgba(124, 58, 237, 0.34);
   --blob-dur: 26s;
@@ -3174,9 +3175,9 @@ body.welcome .app-bg {
 .stream-flow-blob--cyan {
   width: 52%;
   height: 52%;
-  right: -8%;
+  right: -5%;
   top: 28%;
-  background: rgba(6, 182, 212, 0.28);
+  background: rgba(6, 182, 212, 0.29);
   --blob-dur: 19s;
   animation-delay: -4s;
 }
@@ -3185,8 +3186,8 @@ body.welcome .app-bg {
   width: 48%;
   height: 44%;
   left: 18%;
-  bottom: -6%;
-  background: rgba(249, 115, 22, 0.22);
+  bottom: -4%;
+  background: rgba(249, 115, 22, 0.24);
   --blob-dur: 24s;
   animation-delay: -9s;
 }
@@ -3207,15 +3208,15 @@ body.welcome .app-bg {
   border-radius: 22px;
   background: linear-gradient(
     145deg,
-    rgba(18, 18, 28, 0.55) 0%,
-    rgba(12, 14, 22, 0.35) 48%,
-    rgba(20, 22, 34, 0.5) 100%
+    rgba(18, 18, 28, 0.41) 0%,
+    rgba(12, 14, 22, 0.28) 48%,
+    rgba(20, 22, 34, 0.38) 100%
   );
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
-    0 0 40px -12px rgba(100, 110, 180, 0.2),
-    0 0 72px -28px rgba(70, 100, 180, 0.12),
-    0 20px 48px -20px rgba(0, 0, 0, 0.55);
+    0 0 0 1px rgba(255, 255, 255, 0.075) inset,
+    0 0 38px -11px rgba(100, 110, 180, 0.19),
+    0 0 62px -26px rgba(70, 100, 180, 0.115),
+    0 18px 40px -22px rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }

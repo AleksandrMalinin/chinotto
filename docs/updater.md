@@ -72,6 +72,8 @@ If `APPLE_CONNECT_P8` / `APPLE_API_KEY` / `APPLE_API_ISSUER` are omitted, CI sti
 
 On push of tag `v*`, the workflow builds `--target aarch64-apple-darwin`, uploads bundles, signatures, and **`latest.json`** (via `tauri-action`, `uploadUpdaterJson` default).
 
+The **notarization ticket is stapled to `Chinotto.app`** inside the DMG; the **`.dmg` file itself** is usually **not** a separate notarized submission, so **`xcrun stapler staple` on the DMG** has no CloudKit record and fails (`Record not found`). That is expected; Gatekeeper still validates the **app** when the user runs it.
+
 ## Website download (direct DMG)
 
 GitHub’s `…/releases/latest` page does not start a download by itself. The workflow also uploads a **fixed asset name** (copy of the versioned DMG) so you can link straight to the file:
@@ -79,6 +81,12 @@ GitHub’s `…/releases/latest` page does not start a download by itself. The w
 `https://github.com/AleksandrMalinin/chinotto/releases/latest/download/Chinotto_macOS_aarch64.dmg`
 
 That URL tracks **latest** and triggers a browser download. If you fork the repo, replace the owner/name segment. The first release built **after** this upload step exists will create the asset; older releases won’t have it until you re-run the workflow for that tag or ship a new version.
+
+## macOS: “Restart” after update closes the app but does not reopen
+
+Tauri caches the executable path at startup and uses it for `relaunch`. On macOS, if **any parent directory in that path is a symlink**, the default security check fails: relaunch skips spawning a new process and the app simply exits—manual launch works because you start the bundle from Finder again.
+
+Chinotto enables Tauri’s **`process-relaunch-dangerous-allow-symlink-macos`** feature so restart works when the resolved path contains symlinks (common with shortcuts, some `/Applications` setups, iCloud‑mirrored folders, etc.). Trade‑off is slightly weaker symlink‑based hardening around relaunch; acceptable for this local‑first desktop app.
 
 ## Users on older builds
 

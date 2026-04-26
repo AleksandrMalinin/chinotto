@@ -69,6 +69,10 @@ import {
   getDevSimulateNewUser,
   setDevSimulateNewUser,
 } from "@/lib/devSimulateNewUser";
+import {
+  getDevPreviewEmptyStream,
+  setDevPreviewEmptyStream,
+} from "@/lib/devPreviewEmptyStream";
 import { useAppUpdater } from "@/lib/appUpdater";
 import {
   hasEverSavedThought,
@@ -258,6 +262,10 @@ export default function App() {
   const detailDraftsRef = useRef<Map<string, string>>(new Map());
   const prevStreamLenRef = useRef(0);
   const emptyOnboardingExitStartedRef = useRef(false);
+  /** Mirrors `localStorage` so native menu labels update when toggling from the header without reload. */
+  const [devEmptyStreamPreview, setDevEmptyStreamPreview] = useState(
+    () => import.meta.env.DEV && getDevPreviewEmptyStream()
+  );
   const [logoEndRect, setLogoEndRect] = useState<{
     left: number;
     top: number;
@@ -293,7 +301,7 @@ export default function App() {
   }, []);
 
   const refresh = useCallback(async (query: string) => {
-    if (getDevSimulateNewUser()) {
+    if (getDevSimulateNewUser() || getDevPreviewEmptyStream()) {
       setEntries([]);
       setPinnedIds([]);
       setHasEntriesInDb(false);
@@ -658,7 +666,17 @@ export default function App() {
             window.location.reload();
           },
         });
-        const devMenuItems = [simNewUserItem];
+        const previewEmptyStreamItem = await MenuItem.new({
+          id: "dev_preview_empty_stream",
+          text: getDevPreviewEmptyStream()
+            ? "Stop Preview Empty Stream"
+            : "Preview Empty Stream",
+          action: () => {
+            setDevPreviewEmptyStream(!getDevPreviewEmptyStream());
+            window.location.reload();
+          },
+        });
+        const devMenuItems = [simNewUserItem, previewEmptyStreamItem];
         if (entries.length > 0) {
           devMenuItems.push(
             await MenuItem.new({
@@ -682,7 +700,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [entries.length]);
+  }, [entries.length, devEmptyStreamPreview]);
 
   useEffect(() => {
     invoke("create_backup_if_needed").catch(() => {});
@@ -1307,6 +1325,24 @@ export default function App() {
     });
   }, []);
 
+  const handleDevToggleEmptyStreamPreview = useCallback(() => {
+    if (!import.meta.env.DEV) return;
+    const next = !getDevPreviewEmptyStream();
+    setDevPreviewEmptyStream(next);
+    setDevEmptyStreamPreview(next);
+    if (next) {
+      setSelectedEntry(null);
+      setResurfaced(null);
+      setEmptyOnboardingDismissed(false);
+      setEmptyOnboardingExiting(false);
+      setEmptyOnboardingTypingAccent(false);
+      emptyOnboardingExitStartedRef.current = false;
+      prevStreamLenRef.current = 0;
+    }
+    const q = search.trim();
+    void refresh(q === "" ? "" : search);
+  }, [search, refresh]);
+
   const handleDevDeleteAllThoughts = useCallback(async () => {
     if (!import.meta.env.DEV) return;
     const ok = await dialogAsk(
@@ -1427,12 +1463,19 @@ export default function App() {
                   {syncHeaderCta.label}
                 </button>
               ) : null}
-              {import.meta.env.DEV && introDismissed && getDevSimulateNewUser() && (
+              {import.meta.env.DEV &&
+                introDismissed &&
+                (getDevSimulateNewUser() || devEmptyStreamPreview) && (
                 <span
                   className="dev-simulate-banner text-xs text-[var(--muted)]"
                   aria-live="polite"
                 >
-                  Simulating new user — data intact
+                  {[
+                    getDevSimulateNewUser() && "Simulating new user — data intact",
+                    devEmptyStreamPreview && "Previewing empty stream — data intact",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </span>
               )}
               {import.meta.env.DEV && introDismissed && (
@@ -1446,6 +1489,20 @@ export default function App() {
                     aria-label="Preview resurfaced overlay (dev)"
                   >
                     Preview resurface
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="dev-preview-empty-stream text-[var(--muted)] hover:text-[var(--fg-dim)] text-xs"
+                    onClick={handleDevToggleEmptyStreamPreview}
+                    aria-label={
+                      devEmptyStreamPreview
+                        ? "Stop previewing empty stream (dev)"
+                        : "Preview empty stream onboarding (dev)"
+                    }
+                  >
+                    {devEmptyStreamPreview ? "Stop empty stream" : "Preview empty stream"}
                   </Button>
                   {entries.length > 0 ? (
                     <Button

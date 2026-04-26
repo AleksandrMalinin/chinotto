@@ -788,6 +788,42 @@ const VOICE_SHORTCUT: &str = "CommandOrControl+Shift+V";
 const VOICE_HOLD: &str = "Alt+Space";
 const CAPTURE_SHORTCUT: &str = "CommandOrControl+Shift+K";
 
+/// Show `main` or recreate it from config if the webview was torn down.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+fn ensure_main_window_focus(app: &tauri::AppHandle) {
+    use tauri::WebviewWindowBuilder;
+
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.unminimize();
+        let _ = main.show();
+        let _ = main.set_focus();
+        return;
+    }
+    let Some(cfg) = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|w| w.label == "main")
+    else {
+        log::warn!("ensure_main_window_focus: missing main window config");
+        return;
+    };
+    match WebviewWindowBuilder::from_config(app, cfg) {
+        Ok(builder) => match builder.build() {
+            Ok(w) => {
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+            Err(e) => log::warn!("ensure_main_window_focus: failed to build main window: {e}"),
+        },
+        Err(e) => log::warn!("ensure_main_window_focus: invalid main window builder: {e}"),
+    }
+}
+
+#[cfg(any(target_os = "android", target_os = "ios"))]
+fn ensure_main_window_focus(_app: &tauri::AppHandle) {}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     use std::str::FromStr;
@@ -818,11 +854,7 @@ pub fn run() {
             };
 
             if matches!(event.state, ShortcutState::Pressed) && Some(id) == capture_shortcut_id {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.unminimize();
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
+                ensure_main_window_focus(app);
                 let _ = app.emit("chinotto-capture-shortcut", ());
             }
         };
@@ -870,6 +902,14 @@ pub fn run() {
             }
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             tray_capture::setup(app)?;
+            // After in-app update (`install` + `relaunch`), macOS can restore the main window
+            // minimized or behind other apps; force a visible, focused main window on startup.
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            if let Some(main) = app.handle().get_webview_window("main") {
+                let _ = main.unminimize();
+                let _ = main.show();
+                let _ = main.set_focus();
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -904,8 +944,30 @@ pub fn run() {
             create_backup_if_needed,
             set_app_icon,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            match &event {
+                tauri::RunEvent::WindowEvent { label, event: win_evt, .. }
+                    if label == "main" =>
+                {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = win_evt {
+                        api.prevent_close();
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.hide();
+                        }
+                    }
+                }
+                _ => {}
+            }
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = &event {
+                ensure_main_window_focus(app);
+            }
+            #[cfg(any(target_os = "android", target_os = "ios"))]
+            drop(event);
+        });
 }
 
 #[cfg(test)]
