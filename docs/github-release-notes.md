@@ -4,6 +4,17 @@ These sections feed the **GitHub Release** description in CI (see `.github/workf
 
 Add **`## vX.Y.Z`** before you push tag **`vX.Y.Z`**.
 
+## v2.0.0
+
+* **Sync (optional):** bidirectional Firestore sync with Chinotto mobile when `VITE_FIREBASE_*` is set — `src/lib/desktopFirestoreSync.ts`, `SyncModal.tsx`, `useAppleSyncOAuth.ts`, `firebaseConfig.ts`, SQLite tombstone outbox + ingest paths in `src-tauri/src/db/mod.rs` / `schema.sql`; contract in `docs/sync.md`
+* **Auth:** packaged macOS **Continue with Apple** via `native_apple_sign_in` (`src-tauri/src/native_apple_sign_in.rs`) + Firebase; dev OAuth loopback + `OAuthBridge`, `oauth_dev_bridge.rs`
+* **Sync UX:** desktop sync gate / header CTA (`useDesktopSyncHeaderCta.ts`), saved-entry text push after edits (`syncSavedEntryTextToRemote.ts`), session teardown on lost Firestore access (`invalidateFirebaseSyncAfterRemoteSessionLost`, `clear_sync_tombstone_outbox_all`)
+* **Firebase Hosting:** static landing + OAuth surface (`firebase.json`, `public/index.html`, `HostingDesktopOnly.tsx`)
+* **Distribution:** App Store listing URL `CHINOTTO_MAC_APP_STORE_URL` (`src/lib/chinottoLinks.ts`), README / AGENTS copy for end-user links
+* **Docs:** maintainer-only MAS/TestFlight runbook removed from public tree; README oriented for observers; `docs/sync.md` troubleshooting trimmed of internal script references
+* **macOS builds:** MAS merge entitlements helper and scripts (`scripts/build-mas-testflight.sh`, `Chinotto.mas.entitlements`, `tauri.mas-build.json`); codesign dev path (`scripts/codesign-macos-dev.sh`)
+* **Tooling:** `.cargo/config.toml` macOS deployment target 12.0; tray/popover and main-window behavior retained from 1.x
+
 ## v1.3.1
 
 * **Desktop lifecycle:** closing `main` via window chrome calls `prevent_close()` and hides the window (`src-tauri/src/lib.rs`) — process keeps running so tray capture stays available; Dock reopen (`RunEvent::Reopen`) and global capture shortcut recreate or focus `main` via `ensure_main_window_focus`
