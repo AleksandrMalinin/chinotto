@@ -19,7 +19,7 @@ This file defines how agents must behave when working in the Chinotto repository
 - A productivity suite, task manager, or project tool.
 - A notes app with folders, pages, or documents.
 - A markdown editor, kanban, or template system.
-- A sync/collab/cloud product (MVP has no auth, no sync, no cloud).
+- A sync/collab/cloud product as the default (optional Firebase pull sync may be configured; core capture/search stay local-first).
 - An AI-first product. AI may be used where it helps; the app must remain useful and understandable without it. No gimmicky or vague AI features that obscure core behavior.
 
 Do not propose or implement features that contradict the above. When in doubt, prefer the minimal interpretation.
@@ -44,6 +44,7 @@ Do not propose or implement features that contradict the above. When in doubt, p
 - **Do not invent product scope.** Do not add features (e.g. tags, folders, AI chat, sync) unless the user explicitly asks. If the user’s request conflicts with product constraints, state the conflict and ask.
 - **Prefer the smallest change.** Fix or add what’s asked. Avoid “while I’m here” refactors or scope creep. Refactors are separate from feature work unless the user asks for both.
 - **Leave the codebase buildable and runnable.** Do not leave broken imports, commented-out code that should be removed, or half-finished work. If something is intentionally incomplete (e.g. stub), say so in the change or a short comment.
+- **Local macOS .app after bundle-affecting edits.** When work touches `src/` or `src-tauri/` in ways that affect the packaged app, run `npm run build:macos-app` and copy the resulting `Chinotto.app` to `builds/Chinotto-local.app` (overwrite), so the user always has an up-to-date local bundle without a separate “please rebuild” step—unless they asked not to run a build.
 
 ---
 
@@ -62,7 +63,7 @@ Do not propose or implement features that contradict the above. When in doubt, p
 - **Scope creep.** No “and we could also…” unless the user asked for it. No adding docs, tests, or refactors “for completeness” unless that was the task.
 - **Vague or gimmicky AI.** No placeholders like “AI-powered search” or “smart suggestions” without a concrete design and acceptance that the app stays useful without them. No wording that sounds like marketing.
 - **Over-engineering.** No premature abstractions, no “framework” patterns, no layers that don’t yet have a concrete use. No generic “service” or “manager” classes unless they consolidate real duplication.
-- **Ignoring constraints.** No sync, auth, cloud, pages, folders, documents, tasks, kanban, or templates in MVP. No new runtimes or targets (e.g. mobile, web) unless explicitly requested.
+- **Ignoring constraints.** No mandatory cloud, no Chinotto accounts, no collaboration. Optional Firestore sync when env is set (`docs/sync.md`; contract `chinotto-mobile/docs/sync/sync.md`). No pages, folders, documents, tasks, kanban, or templates in MVP. No new runtimes or targets (e.g. mobile shell) unless explicitly requested.
 - **Breaking the contract.** Do not change Tauri command names, Entry shape, or frontend–backend invocation pattern without explicit requirement. Do not suggest commits that violate `docs/commit-convention.md`.
 - **Motivational or filler language.** In code comments, commits, and docs: no “awesome,” “nice,” “simple but powerful,” or similar. Be factual.
 
@@ -72,6 +73,7 @@ Do not propose or implement features that contradict the above. When in doubt, p
 
 - **In-code:** Comment only when the “why” or contract is not obvious from the code. No comments that restate what the code does. No TODOs without an owner or next step if they are long-lived.
 - **Repo docs:** `docs/` holds product and architecture. Update `docs/architecture.md` when the stack or high-level design changes; update `docs/product-spec.md` when scope or constraints change. Keep README aligned with run instructions and MVP scope.
+- **Public Mac App Store listing:** `https://apps.apple.com/us/app/chinotto/id6761345307` — `CHINOTTO_MAC_APP_STORE_URL` in `src/lib/chinottoLinks.ts` (native menu **Chinotto → View on Mac App Store…**, Firebase Hosting landing). Use when answering where users install the shipped desktop app (store path); GitHub DMG / dev builds remain separate per `docs/updater.md` and README.
 - **Release version bumps:** Follow `docs/release-process.md`: same semver in `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and **`src-tauri/Info.plist`** (`CFBundleShortVersionString`, `CFBundleVersion`).
 - **AGENTS.md and commit-convention:** Treat these as binding. Do not water them down or add generic “best practices” that duplicate them. When changing them, preserve strictness and practicality.
 

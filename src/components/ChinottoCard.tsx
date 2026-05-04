@@ -9,7 +9,6 @@ import { setDesktopIcon } from "@/lib/setDesktopIcon";
 import { isOptIn, setOptIn } from "@/lib/analytics";
 import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
 import { APP_VERSION } from "@/lib/appVersion";
-
 type ShortcutRow = {
   keys: string;
   action: string;
@@ -34,6 +33,8 @@ const SHORTCUTS: ShortcutRow[] = [
 ];
 
 const ICON_PREVIEW_SIZE = 36;
+/** Overlay exit is 0.3s — buffer when `animationend` does not fire (same idea as Sync modal). */
+const CHINOTTO_CARD_CLOSE_FALLBACK_MS = 450;
 
 type Props = {
   onClose: () => void;
@@ -56,6 +57,15 @@ export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Pr
   const [analyticsEnabled, setAnalyticsEnabled] = useState(isOptIn);
   const [showPrivacyDetails, setShowPrivacyDetails] = useState(false);
   const explainerRef = useRef<HTMLParagraphElement>(null);
+  const closeCommittedRef = useRef(false);
+
+  const finishClose = useCallback(() => {
+    if (closeCommittedRef.current) {
+      return;
+    }
+    closeCommittedRef.current = true;
+    onClose();
+  }, [onClose]);
 
   const handleAnalyticsToggle = () => {
     const next = !analyticsEnabled;
@@ -67,6 +77,16 @@ export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Pr
     if (isClosing) return;
     setIsClosing(true);
   }, [isClosing]);
+
+  useEffect(() => {
+    if (!isClosing) {
+      return undefined;
+    }
+    const id = window.setTimeout(() => {
+      finishClose();
+    }, CHINOTTO_CARD_CLOSE_FALLBACK_MS);
+    return () => clearTimeout(id);
+  }, [isClosing, finishClose]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -94,7 +114,13 @@ export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Pr
   };
 
   const handleAnimationEnd = (e: React.AnimationEvent) => {
-    if (e.animationName === "chinotto-card-overlay-out") onClose();
+    if (e.animationName !== "chinotto-card-overlay-out") {
+      return;
+    }
+    if (e.target !== e.currentTarget) {
+      return;
+    }
+    finishClose();
   };
 
   return (

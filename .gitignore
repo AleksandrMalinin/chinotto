@@ -12,6 +12,9 @@ src-tauri/target/
 src-tauri/gen/
 src-tauri/.fastembed_cache/
 
+# Firebase CLI (local cache; not project config)
+.firebase/
+
 # Env
 .env
 .env.local
@@ -21,9 +24,13 @@ src-tauri/.fastembed_cache/
 .DS_Store
 Thumbs.db
 
+# Local store / installer output (not committed)
+builds/
+
 # Apple API key and release env (never commit)
 *.p8
 scripts/apple-release-env.sh
+scripts/mas-testflight-env.sh
 src-tauri/updater.key
 src-tauri/updater.key.pub
 

@@ -1,10 +1,14 @@
 mod db;
 mod embeddings;
 mod keywords;
+mod oauth_dev_bridge;
 mod recall;
 
 #[cfg(test)]
 mod thought_trail;
+
+#[cfg(target_os = "macos")]
+mod native_apple_sign_in;
 
 #[cfg(target_os = "macos")]
 mod speech;
@@ -90,6 +94,88 @@ const IMPORTANCE_BOOST_WEIGHT: f64 = 0.08;
 
 fn importance_boost(importance: f64) -> f64 {
     1.0 + IMPORTANCE_BOOST_WEIGHT * importance
+}
+
+/// Native Sign in with Apple → Firebase `OAuthProvider.credentialFromJSON` (`idToken` + unhashed `nonce`).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeAppleSignInResult {
+    pub id_token: String,
+    pub raw_nonce: String,
+}
+
+#[tauri::command]
+async fn native_apple_sign_in(app: tauri::AppHandle) -> Result<NativeAppleSignInResult, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let app = app.clone();
+        tauri::async_runtime::spawn_blocking(move || native_apple_sign_in::run(&app))
+            .await
+            .map_err(|e| e.to_string())?
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        Err("Native Sign in with Apple is only available on macOS.".to_string())
+    }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FirestoreEntryIn {
+    id: String,
+    text: String,
+    created_at: String,
+}
+
+/// Ingest remote entries (Firestore pull). Idempotent per mobile sync.md: existing `id` skipped.
+#[tauri::command]
+fn ingest_firestore_entries(
+    db: tauri::State<Db>,
+    entries: Vec<FirestoreEntryIn>,
+) -> Result<u32, String> {
+    let batch: Vec<(String, String, String)> = entries
+        .into_iter()
+        .map(|e| (e.id, e.text, e.created_at))
+        .collect();
+    db.ingest_firestore_entries(&batch)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn enqueue_sync_tombstone(db: tauri::State<Db>, entry_id: String) -> Result<(), String> {
+    db.enqueue_sync_tombstone(&entry_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn list_sync_tombstone_outbox(db: tauri::State<Db>) -> Result<Vec<String>, String> {
+    db.list_sync_tombstone_outbox().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn remove_sync_tombstone_outbox(db: tauri::State<Db>, entry_id: String) -> Result<(), String> {
+    db.remove_sync_tombstone_outbox(&entry_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn clear_sync_tombstone_outbox_all(db: tauri::State<Db>) -> Result<(), String> {
+    db.clear_sync_tombstone_outbox_all().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn clear_firestore_ingest_suppression(db: tauri::State<Db>, entry_id: String) -> Result<(), String> {
+    db.clear_firestore_ingest_suppression(&entry_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_local_entries_for_sync(
+    db: tauri::State<Db>,
+    entry_ids: Vec<String>,
+) -> Result<u32, String> {
+    db.delete_local_entries_for_sync(&entry_ids)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -222,6 +308,30 @@ fn list_entries(db: tauri::State<Db>) -> Result<Vec<EntryPayload>, String> {
             }
         })
         .collect())
+}
+
+#[tauri::command]
+fn get_entry(db: tauri::State<Db>, entry_id: String) -> Result<Option<EntryPayload>, String> {
+    let row = db
+        .get_entry_by_id(&entry_id)
+        .map_err(|e| e.to_string())?;
+    Ok(match row {
+        None => None,
+        Some(r) => {
+            let limit = keywords::default_topic_limit();
+            let topics = extract_keywords(&r.text, limit);
+            Some(EntryPayload {
+                id: r.id,
+                text: r.text,
+                created_at: r.created_at,
+                topics: if topics.is_empty() {
+                    None
+                } else {
+                    Some(topics)
+                },
+            })
+        }
+    })
 }
 
 #[tauri::command]
@@ -835,10 +945,20 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            native_apple_sign_in,
+            oauth_dev_bridge::start_oauth_dev_bridge_listener,
+            ingest_firestore_entries,
+            enqueue_sync_tombstone,
+            list_sync_tombstone_outbox,
+            remove_sync_tombstone_outbox,
+            clear_sync_tombstone_outbox_all,
+            clear_firestore_ingest_suppression,
+            delete_local_entries_for_sync,
             create_entry,
             restore_entry,
             update_entry,
             list_entries,
+            get_entry,
             jump_dates_in_month,
             jump_anchor_for_local_date,
             search_entries,
