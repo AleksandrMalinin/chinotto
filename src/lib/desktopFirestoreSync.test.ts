@@ -2,6 +2,7 @@ import { Timestamp } from "firebase/firestore";
 import { describe, expect, it } from "vitest";
 import {
   isChinottoSyncAccessActiveInUserDoc,
+  isFirestoreSessionAccessLostError,
   normalizeFirestoreCreatedAtForIngest,
 } from "./desktopFirestoreSync";
 
@@ -42,6 +43,15 @@ describe("normalizeFirestoreCreatedAtForIngest", () => {
     expect(normalizeFirestoreCreatedAtForIngest("")).toBeNull();
     expect(normalizeFirestoreCreatedAtForIngest("   ")).toBeNull();
     expect(normalizeFirestoreCreatedAtForIngest({})).toBeNull();
+  });
+});
+
+describe("isFirestoreSessionAccessLostError", () => {
+  it("is true for permission-denied and unauthenticated Firestore-style errors", () => {
+    expect(isFirestoreSessionAccessLostError({ code: "permission-denied" })).toBe(true);
+    expect(isFirestoreSessionAccessLostError({ code: "unauthenticated" })).toBe(true);
+    expect(isFirestoreSessionAccessLostError({ code: "unavailable" })).toBe(false);
+    expect(isFirestoreSessionAccessLostError(null)).toBe(false);
   });
 });
 

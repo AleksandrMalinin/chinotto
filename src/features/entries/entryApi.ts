@@ -115,6 +115,11 @@ export async function removeSyncTombstoneOutbox(entryId: string): Promise<void> 
   return invoke("remove_sync_tombstone_outbox", { entryId });
 }
 
+/** After remote Firebase user / cloud path is invalid (account removed elsewhere). */
+export async function clearSyncTombstoneOutboxAll(): Promise<void> {
+  return invoke("clear_sync_tombstone_outbox_all");
+}
+
 export async function clearFirestoreIngestSuppression(entryId: string): Promise<void> {
   return invoke("clear_firestore_ingest_suppression", { entryId });
 }

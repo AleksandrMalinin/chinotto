@@ -31,6 +31,8 @@
 
 Applies to **both** apps for the **same Firebase Auth `uid`**.
 
+**Account deletion on any client:** When the Firebase Auth user is deleted (per mobile account-deletion flow), `users/{uid}` and `users/{uid}/entries/*` are removed for that uid. Other signed-in clients must not assume that path still exists: treat lost Firestore access as end of cloud session, keep local SQLite entries, clear local sync queues, and stay local-only until the user signs in again (see desktop `invalidateFirebaseSyncAfterRemoteSessionLost`).
+
 | In scope | Behavior |
 |----------|----------|
 | **Create** | Shared entry `id`; Firestore path `users/{uid}/entries/{entryId}`. |
@@ -64,7 +66,7 @@ Tombstone listener query: `deletedAt != null` + **`orderBy('deletedAt','desc')`*
 | `src/lib/firestoreTombstone.ts` | `isFirestoreDocumentTombstoned` (+ tests). |
 | `src/lib/desktopFirestoreSync.ts` | Auth, **backfill** (`getDocs`, `startAfter`, ≤40×500), live ingest + tombstone listeners, forced tombstone `getDocs` (sign-in, each ingest snapshot, ~12s poll), `lastTombstoneQueryDocIds`, push + tombstone flush; `subscribeDesktopSyncGateSession`, `subscribeChinottoUserSyncAccess` for sync modal gating. |
 | `src/lib/syncSavedEntryTextToRemote.ts` | After local `update_entry`: `getEntry` → `pushEntryUpsertToFirestore` + `generate_embedding`. |
-| `src/features/entries/entryApi.ts` | `invoke` wrappers; **`ingestFirestoreEntries`**; **`deleteLocalEntriesForSync`** → `{ entryIds }`. |
+| `src/features/entries/entryApi.ts` | `invoke` wrappers; **`ingestFirestoreEntries`**; **`deleteLocalEntriesForSync`** → `{ entryIds }`; **`clearSyncTombstoneOutboxAll`** after lost cloud session. |
 | `src/App.tsx` | `startDesktopFirestoreIngest`, push after create/restore, `syncSavedEntryTextToRemote` after local text save (detail + stream late edit + unmount flush), `notifyEntryDeletedForSync` on delete. |
 | `src/features/entries/TrayCapturePanel.tsx` | Push after `createEntry` when sync on (menu bar surface). |
 | `SyncModal.tsx`, `useAppleSyncOAuth.ts`, `OAuthBridge.tsx`, `main.tsx` | OAuth / UX. |
@@ -73,7 +75,7 @@ Tombstone listener query: `deletedAt != null` + **`orderBy('deletedAt','desc')`*
 
 | Piece | Role |
 |-------|------|
-| `sync_tombstone_outbox` | Coalesced tombstone queue. |
+| `sync_tombstone_outbox` | Coalesced tombstone queue; **`clear_sync_tombstone_outbox_all`** when Firebase session is invalidated. |
 | `firestore_ingest_suppressed_ids` | Bridge after local delete until flush. |
 | `ingest_firestore_entries` | `INSERT OR IGNORE` with `updated_at` (= `created_at` for new rows); RFC3339 `created_at`; skips suppressed ids. |
 | `get_entry` | Load row after create for Firestore push. |
@@ -204,6 +206,7 @@ Deploy with **`npm run deploy:hosting`** when you want **`https://<projectId>.we
 
 | Date | Change |
 |------|--------|
+| 2026-04-30 | **Desktop:** If the Firebase user / `users/{uid}` cloud path is invalid (e.g. account removed on mobile), ingest and profile listeners stop, tombstone outbox is cleared, and the client signs out of Firebase for local-only use without tight error retries. |
 | 2026-04-26 | **Desktop OAuth:** Packaged **Continue with Apple** uses **native** Sign in with Apple (`native_apple_sign_in`) + Firebase; register **`app.chinotto`** in Firebase alongside **`com.chinotto.mobile`**. **Dev** still uses Vite **`/chinotto-oauth`** + **`127.0.0.1`** bridge. |
 | 2026-04-13 | **Desktop:** After `update_entry` (detail debounce, unmount flush, stream late edit): `getEntry` → Firestore merge with `updatedAt: serverTimestamp()`; `generate_embedding` refresh. **Rust:** Firestore ingest `INSERT` includes `updated_at`. **Wire:** optional `updatedAt` on entry docs for mobile ordering. |
 | 2026-04-02 | **Docs:** Canonical **Enable sync / unlock** flow — `chinotto-mobile/docs/sync/cross-device-sync-unlock-flow.md` (desktop `SyncModal` states, `ds` gate, `chinottoSyncAccess`). |

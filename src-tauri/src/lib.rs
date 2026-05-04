@@ -159,6 +159,11 @@ fn remove_sync_tombstone_outbox(db: tauri::State<Db>, entry_id: String) -> Resul
 }
 
 #[tauri::command]
+fn clear_sync_tombstone_outbox_all(db: tauri::State<Db>) -> Result<(), String> {
+    db.clear_sync_tombstone_outbox_all().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn clear_firestore_ingest_suppression(db: tauri::State<Db>, entry_id: String) -> Result<(), String> {
     db.clear_firestore_ingest_suppression(&entry_id)
         .map_err(|e| e.to_string())
@@ -946,6 +951,7 @@ pub fn run() {
             enqueue_sync_tombstone,
             list_sync_tombstone_outbox,
             remove_sync_tombstone_outbox,
+            clear_sync_tombstone_outbox_all,
             clear_firestore_ingest_suppression,
             delete_local_entries_for_sync,
             create_entry,

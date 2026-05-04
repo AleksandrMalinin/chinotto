@@ -35,6 +35,7 @@ import {
 } from "firebase/firestore";
 import {
   clearFirestoreIngestSuppression,
+  clearSyncTombstoneOutboxAll,
   deleteLocalEntriesForSync,
   enqueueSyncTombstone,
   ingestFirestoreEntries,
@@ -86,6 +87,15 @@ function isFirestorePermissionDenied(e: unknown): boolean {
   if (e && typeof e === "object" && "code" in e) {
     const c = String((e as { code: string }).code);
     return c === "permission-denied";
+  }
+  return false;
+}
+
+/** Firestore rejected the request as this client (e.g. after Firebase Auth user was deleted elsewhere). */
+export function isFirestoreSessionAccessLostError(e: unknown): boolean {
+  if (e && typeof e === "object" && "code" in e) {
+    const c = String((e as { code: string }).code);
+    return c === "permission-denied" || c === "unauthenticated";
   }
   return false;
 }
@@ -220,7 +230,8 @@ function tombstoneQuery(coll: CollectionReference<DocumentData>) {
 async function runFirestoreIngestBackfill(
   coll: CollectionReference<DocumentData>,
   onIngested: () => void,
-  shouldAbort: () => boolean
+  shouldAbort: () => boolean,
+  onSessionAccessLost?: () => void
 ): Promise<void> {
   let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
   let insertedTotal = 0;
@@ -243,6 +254,9 @@ async function runFirestoreIngestBackfill(
       snap = await getDocs(q);
     } catch (e) {
       console.error("[chinotto sync] ingest backfill getDocs failed", e);
+      if (isFirestoreSessionAccessLostError(e)) {
+        onSessionAccessLost?.();
+      }
       return;
     }
     if (shouldAbort()) {
@@ -285,7 +299,7 @@ async function runFirestoreIngestBackfill(
 async function pullTombstonesFromServer(
   coll: CollectionReference<DocumentData>,
   onIngested: () => void,
-  options: { force?: boolean; minIntervalMs?: number } = {}
+  options: { force?: boolean; minIntervalMs?: number; onSessionAccessLost?: () => void } = {}
 ): Promise<void> {
   const force = options.force ?? false;
   const minMs = options.minIntervalMs ?? 2000;
@@ -304,6 +318,9 @@ async function pullTombstonesFromServer(
     }
   } catch (e) {
     console.error("[chinotto sync] tombstone getDocs failed", e);
+    if (isFirestoreSessionAccessLostError(e)) {
+      options.onSessionAccessLost?.();
+    }
   }
 }
 
@@ -348,6 +365,10 @@ export async function pushEntryUpsertToFirestore(entry: FirestoreEntryPush): Pro
       { merge: true }
     );
   } catch (e) {
+    if (isFirestoreSessionAccessLostError(e)) {
+      void invalidateFirebaseSyncAfterRemoteSessionLost("pushEntry");
+      return;
+    }
     if (import.meta.env.DEV) {
       console.warn("[chinotto sync] push entry failed", entry.id, e);
     }
@@ -376,6 +397,10 @@ export async function flushSyncTombstoneOutbox(): Promise<void> {
       await removeSyncTombstoneOutbox(entryId);
       await clearFirestoreIngestSuppression(entryId);
     } catch (e) {
+      if (isFirestoreSessionAccessLostError(e)) {
+        void invalidateFirebaseSyncAfterRemoteSessionLost("tombstoneFlush");
+        break;
+      }
       if (import.meta.env.DEV) {
         console.warn("[chinotto sync] tombstone flush failed, will retry", entryId, e);
       }
@@ -432,6 +457,7 @@ export function startDesktopFirestoreIngest(onIngested: () => void): () => void 
 
   const unsubAuth = onAuthStateChanged(auth, (user) => {
     detachFirestoreListeners();
+    detachIngestOnExternalSessionLoss = null;
     if (!user || user.isAnonymous) {
       return;
     }
@@ -446,6 +472,13 @@ export function startDesktopFirestoreIngest(onIngested: () => void): () => void 
       return;
     }
 
+    const handleIngestSessionAccessLost = () => {
+      detachFirestoreListeners();
+      detachIngestOnExternalSessionLoss = null;
+      void invalidateFirebaseSyncAfterRemoteSessionLost("ingest");
+    };
+    detachIngestOnExternalSessionLoss = detachFirestoreListeners;
+
     void (async () => {
       await flushSyncTombstoneOutbox();
       const stillSignedIn = () =>
@@ -456,17 +489,28 @@ export function startDesktopFirestoreIngest(onIngested: () => void): () => void 
       if (!stillSignedIn()) {
         return;
       }
-      await pullTombstonesFromServer(coll, onIngested, { force: true });
+      await pullTombstonesFromServer(coll, onIngested, {
+        force: true,
+        onSessionAccessLost: handleIngestSessionAccessLost,
+      });
       if (!stillSignedIn()) {
         return;
       }
-      await runFirestoreIngestBackfill(coll, onIngested, () => !stillSignedIn());
+      await runFirestoreIngestBackfill(
+        coll,
+        onIngested,
+        () => !stillSignedIn(),
+        handleIngestSessionAccessLost
+      );
       if (!stillSignedIn()) {
         return;
       }
 
       tombstonePollTimer = setInterval(() => {
-        void pullTombstonesFromServer(coll, onIngested, { force: true });
+        void pullTombstonesFromServer(coll, onIngested, {
+          force: true,
+          onSessionAccessLost: handleIngestSessionAccessLost,
+        });
       }, 12_000);
       const qIngest = query(coll, orderBy("createdAt", "desc"), limit(INGEST_PAGE_SIZE));
       unsubIngest = onSnapshot(
@@ -476,7 +520,10 @@ export function startDesktopFirestoreIngest(onIngested: () => void): () => void 
           // snapshot. Otherwise `pullTombstonesFromServer` can no-op (2s throttle) while `snap` is
           // still stale → we skip `lastTombstoneQueryDocIds` and re-insert a row Firestore already
           // tombstoned (mobile wrote `deletedAt`).
-          await pullTombstonesFromServer(coll, onIngested, { force: true });
+          await pullTombstonesFromServer(coll, onIngested, {
+            force: true,
+            onSessionAccessLost: handleIngestSessionAccessLost,
+          });
           const { tombstonedIds, activeRows } = partitionFirestoreSnapshotDocs(
             snap.docs as QueryDocumentSnapshot<DocumentData>[]
           );
@@ -505,6 +552,9 @@ export function startDesktopFirestoreIngest(onIngested: () => void): () => void 
         },
         (err) => {
           console.error("[chinotto sync] ingest snapshot error", err);
+          if (isFirestoreSessionAccessLostError(err)) {
+            handleIngestSessionAccessLost();
+          }
         }
       );
 
@@ -523,6 +573,9 @@ export function startDesktopFirestoreIngest(onIngested: () => void): () => void 
         },
         (err) => {
           console.error("[chinotto sync] tombstone snapshot error", err);
+          if (isFirestoreSessionAccessLostError(err)) {
+            handleIngestSessionAccessLost();
+          }
         }
       );
     })();
@@ -616,6 +669,42 @@ export async function signOutFirebaseSync(): Promise<void> {
   }
   const auth = getAuth(getOrInitApp());
   await signOut(auth);
+}
+
+let firebaseSyncInvalidation: Promise<void> | null = null;
+
+/**
+ * While Firestore ingest listeners are attached, `subscribeChinottoUserSyncAccess` can detach them when
+ * the cloud session is invalid (e.g. account deleted on mobile).
+ */
+let detachIngestOnExternalSessionLoss: (() => void) | null = null;
+
+/**
+ * Clears the local tombstone queue and signs out of Firebase so the app stays local-only without
+ * tight retries on a dead `users/{uid}` path (account removed on another client, revoked token, etc.).
+ */
+export function invalidateFirebaseSyncAfterRemoteSessionLost(source: string): Promise<void> {
+  if (firebaseSyncInvalidation) {
+    return firebaseSyncInvalidation;
+  }
+  firebaseSyncInvalidation = (async () => {
+    if (import.meta.env.DEV) {
+      console.warn(`[chinotto sync] ending cloud session (${source})`);
+    }
+    try {
+      await clearSyncTombstoneOutboxAll();
+    } catch (err) {
+      console.warn("[chinotto sync] clear tombstone outbox failed", err);
+    }
+    try {
+      await signOutFirebaseSync();
+    } catch (err) {
+      console.warn("[chinotto sync] signOut after invalid session failed", err);
+    }
+  })().finally(() => {
+    firebaseSyncInvalidation = null;
+  });
+  return firebaseSyncInvalidation;
 }
 
 export function subscribeSyncAuth(onChange: (user: User | null) => void): () => void {
@@ -727,6 +816,7 @@ export function subscribeChinottoUserSyncAccess(
     const db = getOrInitFirestore();
     const ref = doc(db, "users", uid);
     let stopped = false;
+    let snapshotUnsub: (() => void) | null = null;
     let loggedPermissionDenied = false;
     let lastActive = false;
     let lastEmittedToUi: boolean | null = null;
@@ -802,6 +892,34 @@ export function subscribeChinottoUserSyncAccess(
     };
 
     const applyError = (e: unknown) => {
+      if (isFirestoreSessionAccessLostError(e)) {
+        if (!loggedPermissionDenied) {
+          loggedPermissionDenied = true;
+          if (isFirestorePermissionDenied(e)) {
+            console.warn(
+              `[chinotto sync] user sync access: permission denied — ${FIRESTORE_RULES_SYNC_MODAL_HINT}`,
+              e
+            );
+          } else {
+            console.warn("[chinotto sync] user sync access: session no longer valid for Firestore.", e);
+          }
+        }
+        if (!stopped) {
+          stopped = true;
+          clearEmitFalsePending();
+          clearServerPoll();
+          if (snapshotUnsub != null) {
+            snapshotUnsub();
+            snapshotUnsub = null;
+          }
+          detachIngestOnExternalSessionLoss?.();
+          detachIngestOnExternalSessionLoss = null;
+          lastActive = false;
+          emitActiveToUi(false);
+          void invalidateFirebaseSyncAfterRemoteSessionLost("userSyncProfile");
+        }
+        return;
+      }
       if (isFirestorePermissionDenied(e)) {
         if (!loggedPermissionDenied) {
           loggedPermissionDenied = true;
@@ -835,15 +953,13 @@ export function subscribeChinottoUserSyncAccess(
         }
         applySnap(snap);
       } catch (e) {
-        if (isFirestorePermissionDenied(e)) {
+        if (isFirestoreSessionAccessLostError(e)) {
           applyError(e);
         } else {
           console.warn("[chinotto sync] user sync access: getDocFromServer refetch failed", e);
         }
       }
     };
-
-    let snapshotUnsub: (() => void) | null = null;
 
     const attachSnapshotListener = () => {
       if (snapshotUnsub != null) {

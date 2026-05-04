@@ -450,6 +450,13 @@ impl Db {
         Ok(())
     }
 
+    /// Clears pending Firestore tombstone writes when the cloud session is gone (e.g. account deleted elsewhere).
+    pub fn clear_sync_tombstone_outbox_all(&self) -> Result<(), rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        conn.execute("DELETE FROM sync_tombstone_outbox", [])?;
+        Ok(())
+    }
+
     pub fn clear_firestore_ingest_suppression(&self, entry_id: &str) -> Result<(), rusqlite::Error> {
         let conn = self.0.lock().unwrap();
         conn.execute(
@@ -789,6 +796,15 @@ mod tests {
         db.enqueue_sync_tombstone("z").unwrap();
         db.remove_sync_tombstone_outbox("z").unwrap();
         db.remove_sync_tombstone_outbox("z").unwrap();
+        assert!(db.list_sync_tombstone_outbox().unwrap().is_empty());
+    }
+
+    #[test]
+    fn clear_sync_tombstone_outbox_all_empties_queue() {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        db.enqueue_sync_tombstone("a").unwrap();
+        db.enqueue_sync_tombstone("b").unwrap();
+        db.clear_sync_tombstone_outbox_all().unwrap();
         assert!(db.list_sync_tombstone_outbox().unwrap().is_empty());
     }
 
