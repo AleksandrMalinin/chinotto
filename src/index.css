@@ -2028,7 +2028,7 @@ body.welcome .app-bg {
   color: rgba(240, 240, 246, 0.96);
 }
 
-/* Bypass reads as part of the instruction block; spacer keeps height after tap so layout doesn’t jump. */
+/* Bypass line; after tap, invisible duplicate keeps height (see sync-modal-bypass--layout-hold). */
 .sync-modal-copy-footnote {
   margin-top: 0.35rem;
   width: 100%;
@@ -2037,12 +2037,11 @@ body.welcome .app-bg {
   align-items: flex-start;
 }
 
-.sync-modal-copy-footnote-spacer {
-  display: block;
-  width: 100%;
-  min-height: calc(10px * 1.35);
+/* After bypass tap, invisible copy keeps the same line box as the link (no modal jump). */
+.sync-modal-bypass--layout-hold {
   visibility: hidden;
   pointer-events: none;
+  user-select: none;
 }
 
 .sync-modal-bridge-hint {

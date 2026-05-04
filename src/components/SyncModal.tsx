@@ -318,7 +318,12 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
                           Already finished on your iPhone?
                         </button>
                       ) : (
-                        <span className="sync-modal-copy-footnote-spacer" aria-hidden="true" />
+                        <span
+                          className="sync-modal-bypass sync-modal-bypass--layout-hold"
+                          aria-hidden="true"
+                        >
+                          Already finished on your iPhone?
+                        </span>
                       )}
                     </div>
                   ) : null}
