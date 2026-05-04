@@ -2347,7 +2347,7 @@ body.welcome .app-bg {
   filter: brightness(1.05);
 }
 
-/* Edge-case link: quieter than “Open on your phone” and body. */
+/* Bypass when the mobile QR gate does not apply (e.g. sync already on); still secondary to the lead. */
 .sync-modal-bypass {
   display: block;
   margin: 0;
@@ -2356,27 +2356,27 @@ body.welcome .app-bg {
   background: none;
   cursor: pointer;
   font: inherit;
-  font-size: 10px;
-  font-weight: 400;
-  line-height: 1.35;
-  letter-spacing: 0.02em;
-  color: rgba(155, 159, 169, 0.38);
+  font-size: 11px;
+  font-weight: 450;
+  line-height: 1.4;
+  letter-spacing: 0.015em;
+  color: rgba(175, 178, 186, 0.72);
   text-decoration: underline;
   text-underline-offset: 2px;
-  text-decoration-color: rgba(155, 159, 169, 0.18);
+  text-decoration-color: rgba(155, 159, 169, 0.35);
   max-width: 100%;
   text-align: left;
   text-wrap: balance;
 }
 
 .sync-modal-bypass:hover {
-  color: rgba(155, 159, 169, 0.62);
-  text-decoration-color: rgba(155, 159, 169, 0.32);
+  color: rgba(195, 198, 206, 0.88);
+  text-decoration-color: rgba(175, 178, 186, 0.5);
 }
 
 .sync-modal-bypass:focus-visible {
-  color: rgba(155, 159, 169, 0.62);
-  text-decoration-color: rgba(155, 159, 169, 0.32);
+  color: rgba(195, 198, 206, 0.88);
+  text-decoration-color: rgba(175, 178, 186, 0.5);
   outline: 1px solid var(--border-focus);
   outline-offset: 2px;
   border-radius: 4px;

@@ -34,7 +34,7 @@ Canonical list: **`AnalyticsEvent`** in `src/lib/analytics.ts`.
 | `sync_modal_opened`   | `surface` (optional): `header` \| `settings` \| `deeplink` (desktop); mobile also `screenshot` \| `dev_menu` | User opens Enable sync |
 | `sync_apple_continue_clicked` | (none)        | Desktop: user taps Continue with Apple (sync modal) |
 | `sync_gate_bypass_clicked` | (none)           | Desktop: “Already finished on your iPhone?” |
-| `sync_mobile_link_copy_clicked` | (none)       | Desktop: copy / open universal link for phone |
+| `sync_app_store_link_copy_clicked` | (none)    | Desktop: copy App Store URL from sync modal (install on iPhone) |
 | `sync_disconnect_clicked` | (none)            | Desktop: Disconnect this Mac |
 | `sync_oauth_completed` | (none)               | Desktop: Firebase sign-in with Apple succeeded |
 | `sync_oauth_failed` | `reason`: `credential` \| `oauth_bridge` \| `timeout` \| `window` \| `start` | Desktop: OAuth flow failed (no error text) |

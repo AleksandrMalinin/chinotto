@@ -40,7 +40,7 @@ export type AnalyticsEvent =
     }
   | { event: "sync_apple_continue_clicked" }
   | { event: "sync_gate_bypass_clicked" }
-  | { event: "sync_mobile_link_copy_clicked" }
+  | { event: "sync_app_store_link_copy_clicked" }
   | { event: "sync_disconnect_clicked" }
   | { event: "sync_oauth_completed" }
   | { event: "sync_oauth_failed"; reason: "credential" | "oauth_bridge" | "timeout" | "window" | "start" }

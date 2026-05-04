@@ -14,6 +14,7 @@ import { subscribeDesktopSyncGateSession } from "@/lib/desktopFirestoreSync";
 import { track } from "@/lib/analytics";
 import { useAppleSyncOAuth } from "@/lib/useAppleSyncOAuth";
 import { useChinottoSyncProfileAccess } from "@/lib/useChinottoSyncProfileAccess";
+import { CHINOTTO_MAC_APP_STORE_URL } from "@/lib/chinottoLinks";
 
 type Props = {
   onClose: () => void;
@@ -21,7 +22,7 @@ type Props = {
 
 /**
  * Universal link base for mobile “Enable sync” entry (contract: chinotto-mobile docs).
- * Desktop appends `?ds=<uuid>` so the phone can signal this modal session in Firestore.
+ * Desktop appends `?ds=<uuid>` for QR and clipboard so the phone can signal `sync_desktop_sessions`.
  */
 export const CHINOTTO_SYNC_MOBILE_UNIVERSAL_LINK = "https://getchinotto.app/sync";
 
@@ -95,15 +96,16 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
 
   /**
    * Left column copy + CTA (3 states, single block — no stacking):
-   * 1) Not signed in on desktop (`!stable`): instruction (+ optional bypass footnote in copy); CTA after copy block.
+   * 1) Not signed in on desktop (`!stable`): instruction + “Already finished on your iPhone?” until bypass used; CTA after copy.
    * 2) Signed in, sync not active yet: status + iPhone line; no Apple CTA (already signed in — use QR / Disconnect).
-   * 3) Not signed in, gate open (`!stable && (gateUnlocked || bypassGate)`): same instruction as (1); CTA enabled.
+   * 3) Not signed in, gate open (`!stable && (gateUnlocked || bypassGate)`): CTA enabled; bypass link still shown until user taps it (gate from phone may make bypass redundant).
    * While `profileLoading`, show (1)/(3) instruction so we don’t flash (2) before we know access.
    */
   const ctaEnabled = firebaseConfigured && !stable && (gateUnlocked || bypassGate);
   const showSyncReady = stable && profileActive && !profileLoading;
-  const showBypassHint =
-    firebaseConfigured && !stable && !bypassGate && !gateUnlocked;
+  /** Shown until the user opts into bypass (not gated on Firestore unlock — QR may never apply). */
+  const showBypassLink =
+    firebaseConfigured && !stable && !bypassGate;
 
   const { bodyLine1, bodyLine1Class, bodyLine2 } = useMemo((): {
     bodyLine1: string;
@@ -139,8 +141,8 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
     };
   }, [stable, profileLoading, profileActive, showSyncReady]);
 
-  const [linkCopied, setLinkCopied] = useState(false);
-  const [copyFailed, setCopyFailed] = useState(false);
+  const [storeLinkCopied, setStoreLinkCopied] = useState(false);
+  const [storeCopyFailed, setStoreCopyFailed] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const closeCommittedRef = useRef(false);
 
@@ -195,19 +197,19 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
-  const handleCopyLink = useCallback(() => {
-    setCopyFailed(false);
-    track({ event: "sync_mobile_link_copy_clicked" });
-    void navigator.clipboard.writeText(syncMobileUrl).then(
+  const handleCopyAppStoreLink = useCallback(() => {
+    setStoreCopyFailed(false);
+    track({ event: "sync_app_store_link_copy_clicked" });
+    void navigator.clipboard.writeText(CHINOTTO_MAC_APP_STORE_URL).then(
       () => {
-        setLinkCopied(true);
-        window.setTimeout(() => setLinkCopied(false), 2000);
+        setStoreLinkCopied(true);
+        window.setTimeout(() => setStoreLinkCopied(false), 2000);
       },
       () => {
-        setCopyFailed(true);
+        setStoreCopyFailed(true);
       }
     );
-  }, [syncMobileUrl]);
+  }, []);
 
   const handleOverlayClick = (e: MouseEvent) => {
     if (!(e.target as HTMLElement).closest?.(".chinotto-card")) {
@@ -301,7 +303,7 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
                   ) : null}
                   {firebaseConfigured && !stable ? (
                     <div className="sync-modal-copy-footnote">
-                      {showBypassHint ? (
+                      {showBypassLink ? (
                         <button
                           type="button"
                           className="sync-modal-bypass"
@@ -385,24 +387,28 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
                     />
                   </div>
                   <div className="sync-modal-phone-slot sync-modal-phone-slot--compact">
-                    {copyFailed ? (
+                    {storeCopyFailed ? (
                       <button
                         type="button"
                         className="sync-modal-open-phone"
                         onClick={() => {
-                          setCopyFailed(false);
-                          handleCopyLink();
+                          setStoreCopyFailed(false);
+                          handleCopyAppStoreLink();
                         }}
                       >
                         Couldn’t copy — try again
                       </button>
-                    ) : linkCopied ? (
+                    ) : storeLinkCopied ? (
                       <p className="sync-modal-open-phone-static" role="status" aria-live="polite">
-                        Link copied — paste in Safari.
+                        App Store link copied.
                       </p>
                     ) : (
-                      <button type="button" className="sync-modal-open-phone" onClick={handleCopyLink}>
-                        Open on your phone
+                      <button
+                        type="button"
+                        className="sync-modal-open-phone"
+                        onClick={handleCopyAppStoreLink}
+                      >
+                        Copy App Store link
                       </button>
                     )}
                   </div>
@@ -423,7 +429,8 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
 }
 
 /**
- * Mobile sync entry: QR to universal link + `ds` session; Firestore-backed gate before Continue with Apple.
+ * Mobile sync entry: QR encodes universal link + `ds`; optional App Store link copy for install-only.
+ * Firestore-backed gate before Continue with Apple.
  */
 export function SyncModal({ onClose }: Props) {
   const firebaseConfigured = isFirebaseSyncConfigured();

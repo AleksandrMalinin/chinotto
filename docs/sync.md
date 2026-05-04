@@ -142,9 +142,9 @@ Use the **same** Firebase **project** as mobile (`EXPO_PUBLIC_*` → `VITE_*` fo
 ### QR bridge → mobile (always)
 
 - **Header:** **Enable sync** opens `SyncModal` for every user (does not require `VITE_FIREBASE_*`).  
-- **QR URL:** `https://getchinotto.app/sync` plus per-open **`?ds=<uuid-v4>`** for Firestore `sync_desktop_sessions` (contract: `chinotto-mobile/docs/sync/desktop-handoff-monetization-deeplinks.md`, `chinotto-mobile/docs/sync/sync.md` §3).  
+- **QR URL:** `https://getchinotto.app/sync` plus per-open **`?ds=<uuid-v4>`** for Firestore `sync_desktop_sessions` (contract: `chinotto-mobile/docs/sync/desktop-handoff-monetization-deeplinks.md`, `chinotto-mobile/docs/sync/sync.md` §3). **Copy App Store link** copies `CHINOTTO_MAC_APP_STORE_URL` (`src/lib/chinottoLinks.ts`) for install-only — no `ds`; after installing, scan QR again or use bypass on desktop.  
 - **Constant:** `CHINOTTO_SYNC_MOBILE_UNIVERSAL_LINK` in `src/components/SyncModal.tsx` — change there if the host/path changes (desktop still appends `ds`).  
-- **Fallback:** “Open on your phone” copies the full URL (including `ds`); if clipboard fails, the same control becomes **Couldn’t copy — try again**.
+- **Clipboard:** App Store link only; sync handoff is QR or bypass (see modal copy).
 
 ### OAuth (this Mac, when Firebase is configured)
 
