@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Chinotto",
-  "version": "2.0.1",
+  "version": "2.0.0",
   "identifier": "app.chinotto",
   "build": {
     "frontendDist": "../dist",
@@ -60,11 +60,11 @@
       "icons/icon.ico"
     ],
     "macOS": {
-      "bundleVersion": "2.0.1",
+      "bundleVersion": "2.0.0",
       "minimumSystemVersion": "12.0",
       "exceptionDomain": null,
       "infoPlist": "Info.plist",
-      "entitlements": "Chinotto.entitlements",
+      "entitlements": "Chinotto.developer-id.entitlements",
       "dmg": {
         "background": "dmg-background.png"
       }

@@ -84,7 +84,7 @@ refactor(entries): extract EntryStream from App
 refactor(entries): rename entryApi to entriesApi
 perf(search): debounce FTS query by 150ms
 chore: add npm script for tauri dev
-chore: upgrade Tauri to 2.0.1
+chore: upgrade Tauri dependencies
 chore: add .cursor rule for commit convention
 docs: add architecture and commit convention
 style: normalize quote style in TS files

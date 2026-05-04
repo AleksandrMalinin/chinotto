@@ -4,14 +4,6 @@ These sections feed the **GitHub Release** description in CI (see `.github/workf
 
 Add **`## vX.Y.Z`** before you push tag **`vX.Y.Z`**.
 
-## v2.0.1
-
-* **Version metadata:** `2.0.1` in `package.json`, `src-tauri/tauri.conf.json` (`version`, `bundle.macOS.bundleVersion`), `src-tauri/Cargo.toml`, `src-tauri/Info.plist` (`CFBundleShortVersionString`, `CFBundleVersion`)
-* **Packaged Apple sync:** production path remains **`native_apple_sign_in` only** (no hosted webview fallback after a failed native call in `useAppleSyncOAuth.ts`)
-* **Release signing:** DMG / notarized flow uses **`Chinotto.entitlements`** in `tauri.conf.json` (unchanged from 2.0.0 product model)
-* **Local adhoc `build:macos`:** `scripts/sign-macos.sh` still uses **`Chinotto.developer-id.entitlements`** (mic/audio only) for the `-` adhoc strip
-* **Docs:** `docs/sync.md` — packaged OAuth bullet and troubleshooting row for **RBS / Launchd job spawn failed** tightened
-
 ## v2.0.0
 
 * **Sync (optional):** bidirectional Firestore sync with Chinotto mobile when `VITE_FIREBASE_*` is set — `src/lib/desktopFirestoreSync.ts`, `SyncModal.tsx`, `useAppleSyncOAuth.ts`, `firebaseConfig.ts`, SQLite tombstone outbox + ingest paths in `src-tauri/src/db/mod.rs` / `schema.sql`; contract in `docs/sync.md`
@@ -19,7 +11,8 @@ Add **`## vX.Y.Z`** before you push tag **`vX.Y.Z`**.
 * **Sync UX:** desktop sync gate / header CTA (`useDesktopSyncHeaderCta.ts`), saved-entry text push after edits (`syncSavedEntryTextToRemote.ts`), session teardown on lost Firestore access (`invalidateFirebaseSyncAfterRemoteSessionLost`, `clear_sync_tombstone_outbox_all`)
 * **Firebase Hosting:** static landing + OAuth surface (`firebase.json`, `public/index.html`, `HostingDesktopOnly.tsx`)
 * **Distribution:** App Store listing URL `CHINOTTO_MAC_APP_STORE_URL` (`src/lib/chinottoLinks.ts`), README / AGENTS copy for end-user links
-* **Docs:** maintainer-only MAS/TestFlight runbook removed from public tree; README oriented for observers; `docs/sync.md` troubleshooting trimmed of internal script references
+* **Docs:** maintainer-only MAS/TestFlight runbook removed from public tree; README oriented for observers; `docs/sync.md` packaged OAuth + troubleshooting (**RBS / Launchd job spawn failed**) notes
+* **Notarized DMG (Developer ID):** `tauri.conf.json` → `bundle.macOS.entitlements` = **`Chinotto.developer-id.entitlements`** (microphone + audio-input only; no **`com.apple.developer.applesignin`** in the shipped plist — avoids AMFI refusing launch on some macOS versions while **`spctl`** still passes). Full SIWA plist stays in **`Chinotto.entitlements`** for **`scripts/codesign-macos-dev.sh`**. **`scripts/sign-macos.sh`** uses the same **`Chinotto.developer-id.entitlements`** for adhoc `-` signing.
 * **macOS builds:** MAS merge entitlements helper and scripts (`scripts/build-mas-testflight.sh`, `Chinotto.mas.entitlements`, `tauri.mas-build.json`); codesign dev path (`scripts/codesign-macos-dev.sh`)
 * **Tooling:** `.cargo/config.toml` macOS deployment target 12.0; tray/popover and main-window behavior retained from 1.x
 
