@@ -149,7 +149,7 @@ Use the **same** Firebase **project** as mobile (`EXPO_PUBLIC_*` → `VITE_*` fo
 ### OAuth (this Mac, when Firebase is configured)
 
 - **Sync modal:** QR + Firestore gate; **Continue with Apple** is enabled only after mobile confirms unlock (`sync_desktop_sessions` or user taps **Already finished on your iPhone?**). **Sync is on** requires `users/{uid}.chinottoSyncAccess.active === true` from mobile (same field the modal polls via `getDocFromServer`).  
-- **Packaged desktop (release / TestFlight / Mac App Store):** **`native_apple_sign_in`** (Tauri) runs **Sign in with Apple** in-process; the Apple **ID token** + raw **nonce** are passed to **`signInWithAppleCredential`** (Firebase JS). No Safari loopback. Signing and entitlements: **`docs/macos-testflight.md`** and **`Chinotto.mas.entitlements`** for store builds; local team-signed **`npm run build:macos-app:native`** uses **`scripts/codesign-macos-dev.sh`** (embeds a **Mac App Development** provisioning profile for **`app.chinotto`** from Xcode’s cache when possible).  
+- **Packaged desktop:** **`native_apple_sign_in`** (Tauri) runs **Sign in with Apple** in-process; the Apple **ID token** + raw **nonce** are passed to **`signInWithAppleCredential`** (Firebase JS). No Safari loopback. Sandbox entitlements for builds that match the shipped Mac configuration live in **`Chinotto.mas.entitlements`**.  
 - **Dev (`npm run tauri dev`):** **`openUrl`** to **`http://localhost:5173/chinotto-oauth?…`** (Vite **`OAuthBridge`**), then a short-lived **`127.0.0.1`** listener in the app receives the credential via **`start_oauth_dev_bridge_listener`**. **Path:** `/chinotto-oauth` (path-based routing survives redirects better than query-only).  
 - **Firebase → Authentication → Settings → Authorized domains:** include **`localhost`** and **`127.0.0.1`** for the **dev** browser + loopback bridge.  
 - **`init.json`:** `https://{authDomain}/__/firebase/init.json` — **404** usually means wrong **`authDomain`** / project; it is not served from this repo’s Hosting root.
@@ -182,7 +182,7 @@ Deploy with **`npm run deploy:hosting`** when you want **`https://<projectId>.we
 | **400** `createAuthUri` | API key / Apple provider / authorized domains. |
 | **`auth/unauthorized-domain`** | Usually **dev**: OAuth ran on a host not listed under **Authorized domains** — add **`localhost`** / **`127.0.0.1`**. If you run Firebase inside **`tauri://`**, use the **Vite + localhost** dev flow instead. |
 | **`auth/invalid-credential`** — audience **`app.chinotto`** | Firebase project is missing an **Apple** app registration with bundle id **`app.chinotto`** (see **§ Configuration**). Add it in Console, wait a minute, retry. |
-| **“Could not start this step”** / **Touch ID** then failure on packaged Mac | Entitlements / signing / provisioning (native SIWA), or Firebase audience — see **`docs/macos-testflight.md`**, **`scripts/codesign-macos-dev.sh`**, and the row above. |
+| **“Could not start this step”** / **Touch ID** then failure on packaged Mac | Entitlements / signing / provisioning for native SIWA, or Firebase **`app.chinotto`** registration — compare **`Chinotto.mas.entitlements`** and the **`auth/invalid-credential`** row above. |
 | Blank OAuth | `VITE_FIREBASE_APP_ID`, `authDomain`. |
 | **`tombstone snapshot error` / `tombstone getDocs failed`** | Missing Firestore **composite index** (link in error). |
 | **`tombstone apply failed`** | IPC: use **`entryIds`** at top level — see **§ Desktop IPC**. |

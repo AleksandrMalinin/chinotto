@@ -3,7 +3,7 @@
 # If linking still fails after an Xcode upgrade, run: ls "$(xcode-select -p)"/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang
 # and adjust the version segment below (or create a symlink `clang/17` -> `clang/<ver>` in that directory).
 #
-# macOS 12+ matches App Store rule: arm64-only builds require minimumSystemVersion >= 12.0 (see docs/macos-testflight.md).
+# macOS 12+ aligns with bundle minimum in `src-tauri/tauri.conf.json` (arm64-only target).
 [env]
 MACOSX_DEPLOYMENT_TARGET = "12.0"
 

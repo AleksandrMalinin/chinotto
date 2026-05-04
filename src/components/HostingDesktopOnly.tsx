@@ -30,7 +30,7 @@ export function HostingDesktopOnly() {
       </p>
       <p style={{ margin: "0 0 0.75rem", maxWidth: "24rem" }}>
         <a href={CHINOTTO_MAC_APP_STORE_URL} style={{ color: "#7dd3fc", textDecoration: "underline" }}>
-          Mac App Store
+          App Store
         </a>
         {" · "}
         <a href="https://getchinotto.app" style={{ color: "#7dd3fc", textDecoration: "underline" }}>

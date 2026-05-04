@@ -19,26 +19,18 @@ Export them anytime.
 
 ## Download (macOS)
 
-**Mac App Store:** [Chinotto](https://apps.apple.com/us/app/chinotto/id6761345307) — in the app: menu **Chinotto → View on Mac App Store…**
+**App Store:** [Chinotto](https://apps.apple.com/us/app/chinotto/id6761345307) — one listing for iPhone and Mac (Apple’s web preview is phone-first). On Mac, install from the App Store app or use menu **Chinotto → View on Mac App Store…** inside Chinotto.
 
 ## Run locally
 
 Prerequisites: Node.js, Rust, and system dependencies for [Tauri 2](https://v2.tauri.app/start/prerequisites/).
 
-**macOS builds**
-
-| Goal | Command / script |
-|------|-------------------|
-| Local dev | `npm run tauri dev` |
-| Ad-hoc `.app` (opens from disk; **no** native Sign in with Apple) | `npm run build:macos-app` → runs `scripts/sign-macos.sh` |
-| Team-signed `.app` + **`builds/Chinotto-native.app`** (native SIWA; needs Xcode provisioning profiles for `app.chinotto`) | `npm run build:macos-app:native` → `scripts/codesign-macos-dev.sh` |
-| **TestFlight / Mac App Store** `.pkg` | `scripts/build-mas-testflight.sh` after `scripts/mas-testflight-env.sh` — see **`docs/macos-testflight.md`** |
-| Developer ID + notarize (outside store) | `./scripts/build-release-macos.sh` — see [Tauri macOS signing](https://v2.tauri.app/distribute/sign/macos/) and `docs/release-macos.md` if you keep it |
-
 ```bash
 npm install
 npm run tauri dev
 ```
+
+This repo is **source code** for the desktop app. End users install from the App Store (above). Shipping binaries is a maintainer concern and follows normal [Tauri macOS distribution](https://v2.tauri.app/distribute/macos/) tooling — not documented here.
 
 ## Stack
 
