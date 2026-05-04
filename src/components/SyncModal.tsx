@@ -103,9 +103,8 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
    */
   const ctaEnabled = firebaseConfigured && !stable && (gateUnlocked || bypassGate);
   const showSyncReady = stable && profileActive && !profileLoading;
-  /** Shown until the user opts into bypass (not gated on Firestore unlock — QR may never apply). */
-  const showBypassLink =
-    firebaseConfigured && !stable && !bypassGate;
+  /** Shown until bypass used; not gated on Firebase — link stays visible so missing-env builds still show the affordance. */
+  const showBypassLink = !stable && !bypassGate;
 
   const { bodyLine1, bodyLine1Class, bodyLine2 } = useMemo((): {
     bodyLine1: string;
@@ -301,13 +300,17 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
                   {bodyLine2 ? (
                     <p className="sync-modal-bridge-lead sync-modal-bridge-lead--second">{bodyLine2}</p>
                   ) : null}
-                  {firebaseConfigured && !stable ? (
+                  {!stable ? (
                     <div className="sync-modal-copy-footnote">
                       {showBypassLink ? (
                         <button
                           type="button"
                           className="sync-modal-bypass"
                           onClick={() => {
+                            if (!firebaseConfigured) {
+                              return;
+                            }
+                            setError(null);
                             track({ event: "sync_gate_bypass_clicked" });
                             setBypassGate(true);
                           }}
@@ -430,6 +433,7 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
 
 /**
  * Mobile sync entry: QR encodes universal link + `ds`; optional App Store link copy for install-only.
+ * “Already finished on your iPhone?” is always shown until bypass used (not hidden when Firebase env is missing).
  * Firestore-backed gate before Continue with Apple.
  */
 export function SyncModal({ onClose }: Props) {
