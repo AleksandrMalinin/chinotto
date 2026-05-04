@@ -1,5 +1,7 @@
 # Mac App Store — TestFlight (Tauri)
 
+**Store listing:** https://apps.apple.com/us/app/chinotto/id6761345307
+
 Pipeline for a **Mac App Store** build (TestFlight / App Store), **not** Developer ID and not DMG distribution.
 
 Bundle ID must match App Store Connect and the App ID in the Apple Developer portal (this repo: `app.chinotto` in `src-tauri/tauri.conf.json`).

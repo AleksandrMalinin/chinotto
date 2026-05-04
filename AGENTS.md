@@ -73,6 +73,7 @@ Do not propose or implement features that contradict the above. When in doubt, p
 
 - **In-code:** Comment only when the “why” or contract is not obvious from the code. No comments that restate what the code does. No TODOs without an owner or next step if they are long-lived.
 - **Repo docs:** `docs/` holds product and architecture. Update `docs/architecture.md` when the stack or high-level design changes; update `docs/product-spec.md` when scope or constraints change. Keep README aligned with run instructions and MVP scope.
+- **Public Mac App Store listing:** `https://apps.apple.com/us/app/chinotto/id6761345307` — `CHINOTTO_MAC_APP_STORE_URL` in `src/lib/chinottoLinks.ts` (native menu **Chinotto → View on Mac App Store…**, Firebase Hosting landing). Use when answering where users install the shipped desktop app (store path); GitHub DMG / dev builds remain separate per `docs/updater.md` and README.
 - **Release version bumps:** Follow `docs/release-process.md`: same semver in `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and **`src-tauri/Info.plist`** (`CFBundleShortVersionString`, `CFBundleVersion`).
 - **AGENTS.md and commit-convention:** Treat these as binding. Do not water them down or add generic “best practices” that duplicate them. When changing them, preserve strictness and practicality.
 

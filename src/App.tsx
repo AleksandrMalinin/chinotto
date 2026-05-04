@@ -54,6 +54,7 @@ import {
   message as dialogMessage,
   save as saveDialog,
 } from "@tauri-apps/plugin-dialog";
+import { CHINOTTO_MAC_APP_STORE_URL } from "@/lib/chinottoLinks";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   getIdsInCooldown,
@@ -592,6 +593,13 @@ export default function App() {
       const about = await PredefinedMenuItem.new({
         item: { About: { name: "Chinotto", version: APP_VERSION } },
       });
+      const macAppStoreItem = await MenuItem.new({
+        id: "mac_app_store",
+        text: "View on Mac App Store…",
+        action: async () => {
+          await openUrl(CHINOTTO_MAC_APP_STORE_URL).catch(() => {});
+        },
+      });
       const hide = await PredefinedMenuItem.new({ item: "Hide" });
       const hideOthers = await PredefinedMenuItem.new({ item: "HideOthers" });
       const showAll = await PredefinedMenuItem.new({ item: "ShowAll" });
@@ -600,6 +608,7 @@ export default function App() {
         text: "Chinotto",
         items: [
           about,
+          macAppStoreItem,
           await sep(),
           hide,
           hideOthers,

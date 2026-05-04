@@ -17,6 +17,10 @@ Local-first. Desktop only. Optional **device sync** with the mobile app via Fire
 Your entries stay local; analytics never include thought text.  
 Export them anytime.
 
+## Download (macOS)
+
+**Mac App Store:** [Chinotto](https://apps.apple.com/us/app/chinotto/id6761345307) — in the app: menu **Chinotto → View on Mac App Store…**
+
 ## Run locally
 
 Prerequisites: Node.js, Rust, and system dependencies for [Tauri 2](https://v2.tauri.app/start/prerequisites/).
