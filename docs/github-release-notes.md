@@ -4,6 +4,14 @@ These sections feed the **GitHub Release** description in CI (see `.github/workf
 
 Add **`## vX.Y.Z`** before you push tag **`vX.Y.Z`**.
 
+## v2.0.1
+
+* **Version metadata:** `2.0.1` in `package.json`, `src-tauri/tauri.conf.json` (`version`, `bundle.macOS.bundleVersion`), `src-tauri/Cargo.toml`, `src-tauri/Info.plist` (`CFBundleShortVersionString`, `CFBundleVersion`)
+* **Packaged Apple sync:** production path remains **`native_apple_sign_in` only** (no hosted webview fallback after a failed native call in `useAppleSyncOAuth.ts`)
+* **Release signing:** DMG / notarized flow uses **`Chinotto.entitlements`** in `tauri.conf.json` (unchanged from 2.0.0 product model)
+* **Local adhoc `build:macos`:** `scripts/sign-macos.sh` still uses **`Chinotto.developer-id.entitlements`** (mic/audio only) for the `-` adhoc strip
+* **Docs:** `docs/sync.md` — packaged OAuth bullet and troubleshooting row for **RBS / Launchd job spawn failed** tightened
+
 ## v2.0.0
 
 * **Sync (optional):** bidirectional Firestore sync with Chinotto mobile when `VITE_FIREBASE_*` is set — `src/lib/desktopFirestoreSync.ts`, `SyncModal.tsx`, `useAppleSyncOAuth.ts`, `firebaseConfig.ts`, SQLite tombstone outbox + ingest paths in `src-tauri/src/db/mod.rs` / `schema.sql`; contract in `docs/sync.md`

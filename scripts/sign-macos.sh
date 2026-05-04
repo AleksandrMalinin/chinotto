@@ -2,7 +2,7 @@
 set -e
 
 # Re-sign the macOS app for local runs with ad-hoc identity (`codesign -`).
-# Strips restricted entitlements (uses Chinotto.adhoc.entitlements): enough to open the .app
+# Strips restricted entitlements (uses Chinotto.developer-id.entitlements): enough to open the .app
 # from disk without a dev certificate. For native Sign in with Apple use `codesign-macos-dev.sh`
 # (npm run build:macos-app:native) or a Mac App Store build (`build-mas-testflight.sh`).
 #
@@ -12,7 +12,7 @@ set -e
 #   APP_PATH=/path/to/Chinotto.app ./scripts/sign-macos.sh
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-ENTITLEMENTS_PATH="$ROOT/src-tauri/Chinotto.adhoc.entitlements"
+ENTITLEMENTS_PATH="$ROOT/src-tauri/Chinotto.developer-id.entitlements"
 
 APP_PATH="${1:-${APP_PATH:-$ROOT/src-tauri/target/release/bundle/macos/Chinotto.app}}"
 
