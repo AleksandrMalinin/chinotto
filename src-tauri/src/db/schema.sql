@@ -1,11 +1,21 @@
--- Single table for MVP
+-- Spaces (stream lenses); seeded rows are referenced by entries.space_id. Inbox = space_id NULL.
+CREATE TABLE IF NOT EXISTS spaces (
+  id TEXT PRIMARY KEY,
+  label TEXT NOT NULL,
+  sort_order INTEGER NOT NULL
+);
+
+INSERT OR IGNORE INTO spaces (id, label, sort_order) VALUES ('work', 'Work', 1);
+INSERT OR IGNORE INTO spaces (id, label, sort_order) VALUES ('personal', 'Personal', 2);
+
 CREATE TABLE IF NOT EXISTS entries (
   id TEXT PRIMARY KEY,
   text TEXT NOT NULL,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   edit_count INTEGER DEFAULT 0,
-  open_count INTEGER DEFAULT 0
+  open_count INTEGER DEFAULT 0,
+  space_id TEXT REFERENCES spaces(id) ON DELETE SET NULL
 );
 
 -- FTS5 virtual table (external content); content_rowid links to entries.rowid

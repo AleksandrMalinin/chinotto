@@ -38,6 +38,7 @@ import {
   recordEntryOpen,
   deleteAllEntries,
   deleteEntry,
+  setEntrySpace,
 } from "./features/entries/entryApi";
 import {
   JumpToDatePopover,
@@ -97,6 +98,14 @@ import {
 import { isFirebaseSyncConfigured } from "@/lib/firebaseConfig";
 import { syncSavedEntryTextToRemote } from "@/lib/syncSavedEntryTextToRemote";
 import { useDesktopSyncHeaderCta } from "@/lib/useDesktopSyncHeaderCta";
+import {
+  SPACE_SCOPE_STORAGE_KEY,
+  captureSpaceId,
+  parseStoredSpaceScope,
+  spaceScopeFromDestination,
+  toApiSpaceFilter,
+  type SpaceScope,
+} from "@/lib/spaceScope";
 
 /** Voice capture is disabled in the main flow. Set to true to re-enable as an experimental feature. */
 const EXPERIMENTAL_VOICE_CAPTURE = false;
@@ -110,6 +119,13 @@ const JUMP_CONTEXT_EXPANDED_MS = 3000;
 const DESKTOP_FIRESTORE_INGEST_DEBOUNCE_MS = 120;
 /** After closing Sync modal, wait for the dismiss transition before attaching ingest listeners. */
 const DESKTOP_FIRESTORE_INGEST_AFTER_SYNC_MODAL_MS = 200;
+
+const SPACE_LENS_TABS = [
+  ["all", "All"],
+  ["inbox", "Inbox"],
+  ["work", "Work"],
+  ["personal", "Personal"],
+] as const;
 
 /** Lets ChinottoCard (and similar) run their exit animation instead of unmounting from the parent. */
 function emitSyntheticEscapeKeydown(): void {
@@ -130,10 +146,6 @@ function isTypingInInput(): boolean {
     el instanceof HTMLTextAreaElement ||
     (el instanceof HTMLElement && el.isContentEditable)
   );
-}
-
-function loadEntries(query: string): Promise<Entry[]> {
-  return query.trim() ? searchEntries(query) : listEntries();
 }
 
 function formatJumpContextLabel(ymd: string): string {
@@ -160,6 +172,12 @@ function todayLocalYmd(): string {
 }
 
 /** Dev-only: mock resurfaced entry so the overlay can be previewed when backend returns nothing */
+function analyticsLensFromSpaceId(
+  spaceId: string | null
+): "inbox" | "work" | "personal" {
+  return spaceId === "work" || spaceId === "personal" ? spaceId : "inbox";
+}
+
 function devMockResurfaced(): { entry: Entry; reason: string } {
   const d = new Date();
   d.setDate(d.getDate() - 3);
@@ -179,6 +197,17 @@ export default function App() {
   const [introTransitioning, setIntroTransitioning] = useState(false);
   const [emptyOnboardingIntroDelayReady, setEmptyOnboardingIntroDelayReady] = useState(false);
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [spaceScope, setSpaceScope] = useState<SpaceScope>(() =>
+    parseStoredSpaceScope(
+      typeof window !== "undefined"
+        ? localStorage.getItem(SPACE_SCOPE_STORAGE_KEY)
+        : null
+    )
+  );
+  const spaceFilterParam = useMemo(
+    () => toApiSpaceFilter(spaceScope),
+    [spaceScope]
+  );
   /** True after a full list load (no search query); used so the ⌘K control stays hidden while FTS results are empty. */
   const [hasEntriesInDb, setHasEntriesInDb] = useState(false);
   const [search, setSearch] = useState("");
@@ -254,6 +283,7 @@ export default function App() {
   const searchRef = useRef(search);
   searchRef.current = search;
   const devDeleteAllThoughtsRef = useRef<(() => Promise<void>) | null>(null);
+  const devMenuRef = useRef<HTMLDetailsElement>(null);
   const headerLogoRef = useRef<HTMLButtonElement>(null);
   const shownThisSessionRef = useRef(false);
   const triedResurfaceOnOpenRef = useRef(false);
@@ -282,6 +312,10 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    localStorage.setItem(SPACE_SCOPE_STORAGE_KEY, spaceScope);
+  }, [spaceScope]);
+
   const handleSendFeedback = useCallback(() => {
     const subject = "Chinotto feedback";
     const body = [
@@ -301,27 +335,34 @@ export default function App() {
     });
   }, []);
 
-  const refresh = useCallback(async (query: string) => {
-    if (getDevSimulateNewUser() || getDevPreviewEmptyStream()) {
-      setEntries([]);
-      setPinnedIds([]);
-      setHasEntriesInDb(false);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    try {
-      const list = await loadEntries(query);
-      setEntries(list);
-      if (!query.trim()) {
-        setHasEntriesInDb(hasEntriesAfterFullListLoad(list.length));
-        const ids = await getPinnedEntryIds();
-        setPinnedIds(ids);
+  const refresh = useCallback(
+    async (query: string, spaceFilterOverride?: string) => {
+      if (getDevSimulateNewUser() || getDevPreviewEmptyStream()) {
+        setEntries([]);
+        setPinnedIds([]);
+        setHasEntriesInDb(false);
+        setLoading(false);
+        return;
       }
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      const filter =
+        spaceFilterOverride !== undefined ? spaceFilterOverride : spaceFilterParam;
+      setLoading(true);
+      try {
+        const list = query.trim()
+          ? await searchEntries(query, filter)
+          : await listEntries(filter);
+        setEntries(list);
+        if (!query.trim()) {
+          setHasEntriesInDb(hasEntriesAfterFullListLoad(list.length));
+          const ids = await getPinnedEntryIds();
+          setPinnedIds(ids);
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [spaceFilterParam]
+  );
 
   useEffect(() => {
     const q = search.trim();
@@ -952,7 +993,8 @@ export default function App() {
 
   async function handleSubmit(text: string) {
     if (getDevSimulateNewUser()) return;
-    const id = await createEntry(text);
+    const cap = captureSpaceId(spaceScope);
+    const id = await createEntry(text, cap ? { spaceId: cap } : undefined);
     void getEntry(id).then((row) => {
       if (row) void pushEntryUpsertToFirestore(row);
     });
@@ -1012,7 +1054,7 @@ export default function App() {
         return;
       }
 
-      const id = await jumpAnchorForLocalDate(ymd);
+      const id = await jumpAnchorForLocalDate(ymd, spaceFilterParam);
       if (!id) return;
       track({
         event: "jump_to_date_completed",
@@ -1027,7 +1069,7 @@ export default function App() {
         requestAnimationFrame(runScroll);
       });
     },
-    [clearJumpContext]
+    [clearJumpContext, spaceFilterParam]
   );
 
   const handleJumpBackToNow = useCallback(() => {
@@ -1072,6 +1114,36 @@ export default function App() {
     }, 300);
     detailSaveTimersRef.current.set(entryId, t);
   }, []);
+
+  const handleEntryDetailSpaceChange = useCallback(
+    async (entryId: string, spaceId: string | null) => {
+      try {
+        await setEntrySpace(entryId, spaceId);
+        const nextScope = spaceScopeFromDestination(spaceId);
+        setSpaceScope(nextScope);
+        setSelectedEntry((prev) =>
+          prev && prev.id === entryId
+            ? { ...prev, space_id: spaceId ?? undefined }
+            : prev
+        );
+        track({
+          event: "entry_space_changed",
+          lens: analyticsLensFromSpaceId(spaceId),
+        });
+        await refresh(search, toApiSpaceFilter(nextScope));
+      } catch {
+        /* select stays on previous value from entry prop */
+      }
+    },
+    [refresh, search]
+  );
+
+  useEffect(() => {
+    if (!selectedEntry) return;
+    if (loading) return;
+    if (entries.some((e) => e.id === selectedEntry.id)) return;
+    setSelectedEntry(null);
+  }, [entries, selectedEntry, loading]);
 
   const handleCloseEntryDetail = useCallback(() => {
     const closingEntryId = selectedEntry?.id ?? null;
@@ -1220,7 +1292,7 @@ export default function App() {
       if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey && lastDeletedEntry) {
         e.preventDefault();
         const { entry, wasPinned } = lastDeletedEntry;
-        restoreEntry(entry.id, entry.text, entry.created_at)
+        restoreEntry(entry.id, entry.text, entry.created_at, entry.space_id)
           .then((restoredId) => {
             const afterPin = wasPinned ? pinEntry(restoredId) : Promise.resolve();
             return afterPin.then(() =>
@@ -1383,6 +1455,10 @@ export default function App() {
 
   devDeleteAllThoughtsRef.current = handleDevDeleteAllThoughts;
 
+  const closeDevMenu = useCallback(() => {
+    devMenuRef.current?.removeAttribute("open");
+  }, []);
+
   const handleIntroDismissRequest = useCallback(() => {
     setIntroTransitioning(true);
     const rect = headerLogoRef.current?.getBoundingClientRect();
@@ -1455,6 +1531,34 @@ export default function App() {
                 <span className="app-header-name">Chinotto</span>
               )}
             </div>
+            <div
+              className={`app-header-lens ${introDismissed ? "" : "app-header-lens--inert"}`}
+              role={introDismissed ? "tablist" : undefined}
+              aria-label={introDismissed ? "Stream lens" : undefined}
+              aria-hidden={!introDismissed}
+            >
+              <div className="header-space-lens-inner">
+                {SPACE_LENS_TABS.map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role={introDismissed ? "tab" : undefined}
+                    aria-selected={introDismissed ? spaceScope === id : undefined}
+                    tabIndex={introDismissed ? 0 : -1}
+                    className={
+                      spaceScope === id
+                        ? "space-scope-tab space-scope-tab--active"
+                        : "space-scope-tab"
+                    }
+                    onClick={() => {
+                      if (introDismissed) setSpaceScope(id);
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="app-header-end">
               {introDismissed ? (
                 <button
@@ -1488,44 +1592,42 @@ export default function App() {
                 </span>
               )}
               {import.meta.env.DEV && introDismissed && (
-                <>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="dev-preview-resurface text-[var(--muted)] hover:text-[var(--fg-dim)] text-xs"
-                    onClick={handleDevPreviewResurface}
-                    aria-label="Preview resurfaced overlay (dev)"
-                  >
-                    Preview resurface
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="dev-preview-empty-stream text-[var(--muted)] hover:text-[var(--fg-dim)] text-xs"
-                    onClick={handleDevToggleEmptyStreamPreview}
-                    aria-label={
-                      devEmptyStreamPreview
-                        ? "Stop previewing empty stream (dev)"
-                        : "Preview empty stream onboarding (dev)"
-                    }
-                  >
-                    {devEmptyStreamPreview ? "Stop empty stream" : "Preview empty stream"}
-                  </Button>
-                  {entries.length > 0 ? (
-                    <Button
+                <details ref={devMenuRef} className="app-header-dev-dropdown">
+                  <summary className="app-header-dev-summary">Dev</summary>
+                  <div className="app-header-dev-panel">
+                    <button
                       type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="dev-delete-all-thoughts text-[var(--muted)] hover:text-[var(--fg-dim)] text-xs"
-                      onClick={() => void handleDevDeleteAllThoughts()}
-                      aria-label="Delete all thoughts from database (dev)"
+                      className="app-header-dev-item"
+                      onClick={() => {
+                        handleDevPreviewResurface();
+                        closeDevMenu();
+                      }}
                     >
-                      Delete all thoughts
-                    </Button>
-                  ) : null}
-                </>
+                      Preview resurface
+                    </button>
+                    <button
+                      type="button"
+                      className="app-header-dev-item"
+                      onClick={() => {
+                        handleDevToggleEmptyStreamPreview();
+                        closeDevMenu();
+                      }}
+                    >
+                      {devEmptyStreamPreview ? "Stop empty stream" : "Preview empty stream"}
+                    </button>
+                    {entries.length > 0 ? (
+                      <button
+                        type="button"
+                        className="app-header-dev-item app-header-dev-item--danger"
+                        onClick={() => {
+                          void handleDevDeleteAllThoughts().finally(() => closeDevMenu());
+                        }}
+                      >
+                        Delete all thoughts…
+                      </button>
+                    ) : null}
+                  </div>
+                </details>
               )}
             </div>
           </header>
@@ -1632,6 +1734,7 @@ export default function App() {
               open={jumpPopoverOpen && showJumpTrigger}
               anchorRef={jumpToDateButtonRef}
               contextYmd={jumpContextYmd}
+              spaceFilter={spaceFilterParam}
               onClose={() => setJumpPopoverOpen(false)}
               onPickDate={(ymd) => {
                 void handleJumpDatePick(ymd);
@@ -1662,6 +1765,7 @@ export default function App() {
           onBack={handleCloseEntryDetail}
           onSelectEntry={handleOpenEntry}
           onEntryTextChange={handleEntryDetailTextChange}
+          onEntrySpaceChange={handleEntryDetailSpaceChange}
         />
       ) : (
         <>

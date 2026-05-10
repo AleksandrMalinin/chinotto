@@ -44,7 +44,8 @@ Do not propose or implement features that contradict the above. When in doubt, p
 - **Do not invent product scope.** Do not add features (e.g. tags, folders, AI chat, sync) unless the user explicitly asks. If the user’s request conflicts with product constraints, state the conflict and ask.
 - **Prefer the smallest change.** Fix or add what’s asked. Avoid “while I’m here” refactors or scope creep. Refactors are separate from feature work unless the user asks for both.
 - **Leave the codebase buildable and runnable.** Do not leave broken imports, commented-out code that should be removed, or half-finished work. If something is intentionally incomplete (e.g. stub), say so in the change or a short comment.
-- **Local macOS .app after bundle-affecting edits.** When work touches `src/` or `src-tauri/` in ways that affect the packaged app, run `npm run build:macos-app` and copy the resulting `Chinotto.app` to `builds/Chinotto-local.app` (overwrite), so the user always has an up-to-date local bundle without a separate “please rebuild” step—unless they asked not to run a build.
+- **Releases via Git tag / CI.** Shipping a cut is **push `main` and attach the semver tag** to the intended commit (`git tag -f vX.Y.Z`, `git push origin vX.Y.Z --force` when moving the tag). GitHub Actions on tag produces DMG/signing artifacts. **Do not** run `npm run build:macos-app` or other local packaging as part of “doing the release” **unless the user explicitly asks** for a local bundle.
+- **Local macOS .app.** Run `npm run build:macos-app` (and copy `Chinotto.app` to `builds/Chinotto-local.app` when that workflow is used) **only when the user asks** for a packaged smoke test or local `.app`—not by default after bundle-affecting edits, and not as a duplicate release step when they rely on the tag workflow.
 
 ---
 

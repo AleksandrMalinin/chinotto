@@ -581,6 +581,7 @@ body.chinotto-card-open {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.25s ease-out;
@@ -596,6 +597,34 @@ body.chinotto-card-open {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.app-header-lens {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 0;
+  padding: 0 0.25rem;
+}
+
+.app-header-lens--inert {
+  pointer-events: none;
+}
+
+.header-space-lens-inner {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .app-header-name {
@@ -740,6 +769,33 @@ body.welcome .app-bg {
   letter-spacing: 0.02em;
   color: var(--fg-dim);
   animation: welcome-wordmark 0.4s ease-out both;
+}
+
+.space-scope-tab {
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  padding: 0.22rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    color var(--transition),
+    background var(--transition),
+    border-color var(--transition);
+}
+
+.space-scope-tab:hover {
+  color: var(--fg-dim);
+  background: var(--accent-subtle);
+}
+
+.space-scope-tab--active {
+  color: var(--fg);
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .entry-input-row {
@@ -2387,6 +2443,95 @@ body.welcome .app-bg {
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 0.35rem 0.5rem;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.app-header-dev-dropdown {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.app-header-dev-summary {
+  list-style: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 0.25rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  color: var(--muted);
+  user-select: none;
+}
+
+.app-header-dev-summary::-webkit-details-marker {
+  display: none;
+}
+
+.app-header-dev-summary::marker {
+  content: "";
+}
+
+.app-header-dev-dropdown[open] .app-header-dev-summary,
+.app-header-dev-summary:hover {
+  color: var(--fg-dim);
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.app-header-dev-summary:focus-visible {
+  outline: 1px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.app-header-dev-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  min-width: 12rem;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(22, 22, 28, 0.98);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  z-index: 100;
+}
+
+.app-header-dev-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 12px;
+  padding: 0.45rem 0.65rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+
+.app-header-dev-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--fg);
+}
+
+.app-header-dev-item:focus-visible {
+  outline: 1px solid var(--border-focus);
+  outline-offset: -1px;
+}
+
+.app-header-dev-item--danger {
+  color: rgba(232, 128, 128, 0.95);
+}
+
+.app-header-dev-item--danger:hover {
+  color: #ffb4b4;
+  background: rgba(232, 96, 96, 0.12);
 }
 
 .app-header-sync {
@@ -3392,6 +3537,265 @@ body.welcome .app-bg {
   line-height: 1.4;
   letter-spacing: 0.02em;
   color: var(--meta-fg);
+}
+
+/* Detail meta row: timestamp | compact lens (matches header pattern + accent tint) */
+.entry-detail-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.65rem 0.85rem;
+  flex-wrap: wrap;
+  margin: 0 0 0.85rem;
+  overflow: visible;
+}
+
+.entry-detail-meta .entry-detail-time {
+  margin: 0;
+  flex: 0 1 auto;
+  min-width: min(100%, 11rem);
+}
+
+/* Same cadence as `.entry-detail-time` — quiet meta, not a control label */
+.entry-detail-meta-caption {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  color: var(--meta-fg);
+}
+
+@media (min-width: 520px) {
+  .entry-detail-meta {
+    justify-content: space-between;
+  }
+
+  .entry-detail-meta .entry-detail-time {
+    flex: 1 1 auto;
+  }
+}
+
+/* Compact lens: smaller than header; nowrap keeps one row in the hover panel */
+.entry-detail-meta .entry-detail-lens-inner {
+  flex-wrap: nowrap;
+  padding: 2px;
+  gap: 2px;
+}
+
+.entry-detail-meta .entry-detail-lens-inner--busy {
+  opacity: 0.76;
+  pointer-events: none;
+}
+
+.entry-detail-meta .entry-detail-lens-tab {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 0.14rem 0.42rem;
+  max-width: 5.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.entry-detail-meta .entry-detail-lens-inner button.entry-detail-lens-tab {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+/* Active chip: collapsed hint lives outside `.entry-detail-lens-inner` — same rule as tabs inside */
+.entry-detail-meta .entry-detail-lens-inner .space-scope-tab--active.entry-detail-lens-tab,
+.entry-detail-meta .entry-detail-space-hover-hint .space-scope-tab--active.entry-detail-lens-tab {
+  color: color-mix(in srgb, var(--accent) 48%, var(--fg));
+  border: 1px solid color-mix(in srgb, var(--accent) 52%, rgba(255, 255, 255, 0.08));
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: none;
+}
+
+/*
+ * Thought detail: collapsed = one tab chip only (same classes as active tab inside full lens).
+ * Stable min-height matches lens track (border + padding + tab row) so hint/panel share one vertical axis.
+ */
+.entry-detail-space-hover {
+  position: relative;
+  flex: 0 1 auto;
+  box-sizing: border-box;
+  /* Abs-pos children don’t set width — reserve rail width so expanded lens isn’t clipped */
+  width: min(100%, 15rem);
+  min-width: 0;
+  max-width: min(100%, 15rem);
+  /* Track: 1px border + 2px pad + tab row + tab borders; clip-path needs room or outer ring clips */
+  min-height: 2rem;
+  align-self: center;
+  overflow: visible;
+  outline: none;
+}
+
+.entry-detail-space-hover:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--accent) 52%, rgba(255, 255, 255, 0.08));
+  outline-offset: 3px;
+}
+
+.entry-detail-space-hover-hint {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  left: auto;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  /* Same inset as tab row inside `.header-space-lens-inner`: 1px border + 2px pad (see `.entry-detail-lens-inner`) */
+  padding-right: 3px;
+  width: max-content;
+  max-width: 100%;
+  white-space: nowrap;
+  cursor: pointer;
+  visibility: visible;
+  transition:
+    opacity 0.45s cubic-bezier(0.45, 0.05, 0.25, 1),
+    visibility 0s linear;
+}
+
+.entry-detail-space-hover-panel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: visible;
+  clip-path: inset(0 0 0 100%);
+  -webkit-clip-path: inset(0 0 0 100%);
+  opacity: 1;
+  transition:
+    clip-path 1.2s cubic-bezier(0.45, 0.05, 0.25, 1),
+    -webkit-clip-path 1.2s cubic-bezier(0.45, 0.05, 0.25, 1);
+  pointer-events: none;
+}
+
+/*
+ * Expand: hint fades while wipe runs — no idle delay (that felt stop/start). Same ease as clip-path.
+ */
+.entry-detail-space-hover:hover .entry-detail-space-hover-hint,
+.entry-detail-space-hover:focus-within .entry-detail-space-hover-hint {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.45s cubic-bezier(0.45, 0.05, 0.25, 1),
+    visibility 0s linear 0.45s;
+}
+
+.entry-detail-space-hover:hover .entry-detail-space-hover-panel,
+.entry-detail-space-hover:focus-within .entry-detail-space-hover-panel {
+  clip-path: inset(0 0 0 0);
+  -webkit-clip-path: inset(0 0 0 0);
+  transition:
+    clip-path 1.2s cubic-bezier(0.45, 0.05, 0.25, 1),
+    -webkit-clip-path 1.2s cubic-bezier(0.45, 0.05, 0.25, 1);
+  pointer-events: auto;
+}
+
+.entry-detail-space-hover--busy .entry-detail-space-hover-hint {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0s linear,
+    visibility 0s linear;
+}
+
+.entry-detail-space-hover--busy .entry-detail-space-hover-panel {
+  clip-path: inset(0 0 0 0);
+  -webkit-clip-path: inset(0 0 0 0);
+  pointer-events: none;
+}
+
+@media (hover: none) {
+  .entry-detail-space-hover-hint {
+    display: none;
+  }
+
+  .entry-detail-space-hover-panel {
+    clip-path: inset(0 0 0 0);
+    -webkit-clip-path: inset(0 0 0 0);
+    pointer-events: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entry-detail-space-hover-panel {
+    clip-path: inset(0 0 0 0);
+    -webkit-clip-path: inset(0 0 0 0);
+    transition: opacity 0.18s ease;
+  }
+
+  .entry-detail-space-hover:not(:hover):not(:focus-within):not(.entry-detail-space-hover--busy)
+    .entry-detail-space-hover-panel {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .entry-detail-space-hover:hover .entry-detail-space-hover-panel,
+  .entry-detail-space-hover:focus-within .entry-detail-space-hover-panel,
+  .entry-detail-space-hover--busy .entry-detail-space-hover-panel {
+    opacity: 1;
+  }
+
+  .entry-detail-space-hover--busy .entry-detail-space-hover-panel {
+    pointer-events: none;
+  }
+
+  .entry-detail-space-hover.entry-detail-space-hover--dismissed:not(
+      .entry-detail-space-hover--busy
+    )
+    .entry-detail-space-hover-panel,
+  .entry-detail-space-hover.entry-detail-space-hover--dismissed:not(
+      .entry-detail-space-hover--busy
+    ):hover
+    .entry-detail-space-hover-panel,
+  .entry-detail-space-hover.entry-detail-space-hover--dismissed:not(
+      .entry-detail-space-hover--busy
+    ):focus-within
+    .entry-detail-space-hover-panel {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .entry-detail-space-hover.entry-detail-space-hover--dismissed:not(
+      .entry-detail-space-hover--busy
+    )
+    .entry-detail-space-hover-hint {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+/* After a space pick, pointer can still hover the strip — keep folded until mouseleave */
+.entry-detail-space-hover.entry-detail-space-hover--dismissed:hover .entry-detail-space-hover-panel,
+.entry-detail-space-hover.entry-detail-space-hover--dismissed:focus-within
+  .entry-detail-space-hover-panel {
+  clip-path: inset(0 0 0 100%);
+  -webkit-clip-path: inset(0 0 0 100%);
+  pointer-events: none;
+}
+
+.entry-detail-space-hover.entry-detail-space-hover--dismissed:hover .entry-detail-space-hover-hint,
+.entry-detail-space-hover.entry-detail-space-hover--dismissed:focus-within
+  .entry-detail-space-hover-hint {
+  opacity: 1;
+  visibility: visible;
 }
 
 @keyframes entry-detail-caret-pulse {

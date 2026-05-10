@@ -21,6 +21,7 @@ pub struct ResurfaceEntry {
     pub created_at: String,
     pub edit_count: u32,
     pub open_count: u32,
+    pub space_id: Option<String>,
 }
 
 /// Which anchor or fallback produced the selection.
@@ -120,6 +121,7 @@ mod tests {
             created_at: created_at.to_string(),
             edit_count: 0,
             open_count: 0,
+            space_id: None,
         }
     }
 

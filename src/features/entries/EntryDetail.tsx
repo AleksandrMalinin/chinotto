@@ -1,9 +1,14 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import type { Entry } from "../../types/entry";
 import { Button } from "@/components/ui/button";
 import { EntryTextWithLinks } from "./EntryTextWithLinks";
 import { track } from "@/lib/analytics";
-import { findSimilarEntries, getThoughtTrail } from "./entryApi";
+import {
+  findSimilarEntries,
+  getThoughtTrail,
+  listSpaces,
+  type SpaceRow,
+} from "./entryApi";
 
 type Props = {
   entry: Entry;
@@ -11,6 +16,11 @@ type Props = {
   onSelectEntry: (entry: Entry) => void;
   /** When set, thought body is editable with debounced save from the parent. */
   onEntryTextChange?: (entryId: string, text: string) => void;
+  /** Assign entry to Inbox (null) or a seeded space (`work` / `personal`). */
+  onEntrySpaceChange?: (
+    entryId: string,
+    spaceId: string | null
+  ) => void | Promise<void>;
 };
 
 function formatTimestamp(iso: string): string {
@@ -41,17 +51,50 @@ function relativeToCurrent(
   return `${days} day${days === 1 ? "" : "s"} later`;
 }
 
-export function EntryDetail({ entry, onBack, onSelectEntry, onEntryTextChange }: Props) {
+export function EntryDetail({
+  entry,
+  onBack,
+  onSelectEntry,
+  onEntryTextChange,
+  onEntrySpaceChange,
+}: Props) {
   const [related, setRelated] = useState<Entry[]>([]);
   const [relatedLoading, setRelatedLoading] = useState(true);
   const [trail, setTrail] = useState<Entry[]>([]);
   const [trailLoading, setTrailLoading] = useState(true);
+  const [spaceOptions, setSpaceOptions] = useState<SpaceRow[]>([]);
+  const [spaceSaving, setSpaceSaving] = useState(false);
+  /** After picking a space, :hover can stay true while the cursor rests on the control — fold until pointer leaves. */
+  const [spaceLensDismissed, setSpaceLensDismissed] = useState(false);
+
+  const spaceSegments = useMemo(() => {
+    const sorted = [...spaceOptions].sort((a, b) => a.sort_order - b.sort_order);
+    return [
+      { spaceId: null as string | null, label: "Inbox", key: "inbox" },
+      ...sorted.map((s) => ({
+        spaceId: s.id,
+        label: s.label,
+        key: s.id,
+      })),
+    ];
+  }, [spaceOptions]);
+
+  const currentSpaceLabel = useMemo(() => {
+    const sid = entry.space_id ?? null;
+    const seg = spaceSegments.find((s) => (s.spaceId ?? null) === sid);
+    return seg?.label ?? "Inbox";
+  }, [entry.space_id, spaceSegments]);
+
   const textRef = useRef<HTMLTextAreaElement>(null);
   const hasInsertedContinuationBreakRef = useRef(false);
   const editable = Boolean(onEntryTextChange);
 
   useEffect(() => {
     hasInsertedContinuationBreakRef.current = false;
+  }, [entry.id]);
+
+  useEffect(() => {
+    setSpaceLensDismissed(false);
   }, [entry.id]);
 
   useEffect(() => {
@@ -109,6 +152,18 @@ export function EntryDetail({ entry, onBack, onSelectEntry, onEntryTextChange }:
     };
   }, [entry.id]);
 
+  useEffect(() => {
+    let cancelled = false;
+    listSpaces()
+      .then((rows) => {
+        if (!cancelled) setSpaceOptions(rows);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const moveCaretToEnd = () => {
     const el = textRef.current;
     if (!el) return;
@@ -139,6 +194,21 @@ export function EntryDetail({ entry, onBack, onSelectEntry, onEntryTextChange }:
     };
   }, [entry.id]);
 
+  const activateSpace = async (next: string | null) => {
+    if (!onEntrySpaceChange) return;
+    const current = entry.space_id ?? null;
+    if (next === current) return;
+    setSpaceSaving(true);
+    try {
+      await onEntrySpaceChange(entry.id, next);
+      setSpaceLensDismissed(true);
+      const ae = document.activeElement;
+      if (ae instanceof HTMLElement) ae.blur();
+    } finally {
+      setSpaceSaving(false);
+    }
+  };
+
   return (
     <div className="entry-detail">
       <Button
@@ -151,9 +221,75 @@ export function EntryDetail({ entry, onBack, onSelectEntry, onEntryTextChange }:
       >
         ←
       </Button>
-      <time className="entry-detail-time" dateTime={entry.created_at}>
-        {formatTimestamp(entry.created_at)}
-      </time>
+      {onEntrySpaceChange ? (
+        <div className="entry-detail-meta">
+          <time className="entry-detail-time" dateTime={entry.created_at}>
+            {formatTimestamp(entry.created_at)}
+          </time>
+          <div
+            tabIndex={0}
+            className={[
+              spaceSaving
+                ? "entry-detail-space-hover entry-detail-space-hover--busy"
+                : "entry-detail-space-hover",
+              spaceLensDismissed ? "entry-detail-space-hover--dismissed" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            onMouseDown={(e) => {
+              if (e.button === 0) (e.currentTarget as HTMLElement).focus();
+            }}
+            onMouseLeave={() => setSpaceLensDismissed(false)}
+            aria-label={`Thought is in ${currentSpaceLabel}. Hover, click, or press Tab to move to another space.`}
+          >
+            <div className="entry-detail-space-hover-hint">
+              <span
+                className="space-scope-tab space-scope-tab--active entry-detail-lens-tab"
+                aria-hidden="true"
+              >
+                {currentSpaceLabel}
+              </span>
+            </div>
+            <div className="entry-detail-space-hover-panel">
+              <div
+                className={
+                  spaceSaving
+                    ? "header-space-lens-inner entry-detail-lens-inner entry-detail-lens-inner--busy"
+                    : "header-space-lens-inner entry-detail-lens-inner"
+                }
+                role="tablist"
+                aria-label="Move to space"
+              >
+                {spaceSegments.map((seg) => {
+                  const active =
+                    (entry.space_id ?? null) === (seg.spaceId ?? null);
+                  return (
+                    <button
+                      key={seg.key}
+                      type="button"
+                      role="tab"
+                      disabled={spaceSaving}
+                      aria-selected={active}
+                      className={
+                        active
+                          ? "space-scope-tab space-scope-tab--active entry-detail-lens-tab"
+                          : "space-scope-tab entry-detail-lens-tab"
+                      }
+                      onClick={() => void activateSpace(seg.spaceId)}
+                    >
+                      {seg.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <time className="entry-detail-time" dateTime={entry.created_at}>
+          {formatTimestamp(entry.created_at)}
+        </time>
+      )}
       {editable && onEntryTextChange ? (
         <textarea
           ref={textRef}

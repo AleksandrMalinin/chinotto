@@ -5,6 +5,11 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { ChinottoLogo } from "@/components/ChinottoLogo";
 import { Textarea } from "@/components/ui/textarea";
 import { createEntry, generateEmbedding, getEntry } from "@/features/entries/entryApi";
+import {
+  SPACE_SCOPE_STORAGE_KEY,
+  captureSpaceId,
+  parseStoredSpaceScope,
+} from "@/lib/spaceScope";
 import { pushEntryUpsertToFirestore } from "@/lib/desktopFirestoreSync";
 import { isFirebaseSyncConfigured } from "@/lib/firebaseConfig";
 import { getDevSimulateNewUser } from "@/lib/devSimulateNewUser";
@@ -93,7 +98,13 @@ export function TrayCapturePanel() {
   async function submit(text: string) {
     if (getDevSimulateNewUser()) return;
     try {
-      const id = await createEntry(text);
+      const scope = parseStoredSpaceScope(
+        typeof localStorage !== "undefined"
+          ? localStorage.getItem(SPACE_SCOPE_STORAGE_KEY)
+          : null
+      );
+      const cap = captureSpaceId(scope);
+      const id = await createEntry(text, cap ? { spaceId: cap } : undefined);
       if (isFirebaseSyncConfigured()) {
         void getEntry(id).then((row) => {
           if (row) void pushEntryUpsertToFirestore(row);
