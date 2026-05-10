@@ -6,8 +6,10 @@ export async function createEntry(
   options?: { spaceId?: string }
 ): Promise<string> {
   return invoke<string>("create_entry", {
-    text,
-    ...(options?.spaceId ? { spaceId: options.spaceId } : {}),
+    input: {
+      text,
+      ...(options?.spaceId ? { spaceId: options.spaceId } : {}),
+    },
   });
 }
 
@@ -18,10 +20,12 @@ export async function restoreEntry(
   space_id?: string | null
 ): Promise<string> {
   return invoke<string>("restore_entry", {
-    id,
-    text,
-    createdAt: created_at,
-    ...(space_id ? { spaceId: space_id } : {}),
+    input: {
+      id,
+      text,
+      createdAt: created_at,
+      ...(space_id ? { spaceId: space_id } : {}),
+    },
   });
 }
 

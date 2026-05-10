@@ -115,7 +115,7 @@ html.tray-capture-page body > svg[aria-hidden="true"] {
   min-height: 0;
 }
 
-textarea.tray-capture-field {
+.tray-capture-field {
   flex: 1;
   min-width: 0;
   margin: 0;
@@ -164,14 +164,22 @@ button.tray-capture-open-main:focus-visible {
   display: block;
 }
 
-textarea.tray-capture-field::placeholder {
+.tray-capture-field::placeholder {
   color: rgba(155, 160, 172, 0.42);
 }
 
-textarea.tray-capture-field:focus,
-textarea.tray-capture-field:focus-visible {
+.tray-capture-field:focus,
+.tray-capture-field:focus-visible {
   outline: none !important;
   box-shadow: none !important;
+}
+
+.tray-capture-error {
+  margin: 0;
+  padding: 0 16px 10px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: rgba(232, 140, 140, 0.92);
 }
 
 body {

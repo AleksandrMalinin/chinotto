@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { emit } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { ChinottoLogo } from "@/components/ChinottoLogo";
-import { Textarea } from "@/components/ui/textarea";
 import { createEntry, generateEmbedding, getEntry } from "@/features/entries/entryApi";
 import {
   SPACE_SCOPE_STORAGE_KEY,
@@ -22,13 +21,31 @@ const TRAY_CAPTURE_CHROME_RGBA: [number, number, number, number] = [0, 0, 0, 0];
 /** After tray `show`/`set_focus`, macOS can deliver a spurious blur before focus settles; hide only after this delay and a fresh `isFocused()` check. */
 const BLUR_HIDE_MS = 280;
 
+function formatSubmitError(e: unknown): string {
+  const msg =
+    typeof e === "string"
+      ? e
+      : e instanceof Error
+        ? e.message
+        : String(e);
+  if (/not allowed on window|not allowed on webview|invoke/i.test(msg)) {
+    return "Couldn’t save from the menu bar. Rebuild the app with the latest version.";
+  }
+  if (msg.length > 200) {
+    return `${msg.slice(0, 200)}…`;
+  }
+  return msg;
+}
+
 /**
  * Single-field capture for the menu bar popover window only.
  * Enter saves and closes; Esc closes without saving; focus loss hides the window.
+ * Uses a one-line `input` inside a `form` so WebKit/Tauri delivers Enter as `submit` reliably (textarea + React `onKeyDown` is flaky in the tray webview).
  */
 export function TrayCapturePanel() {
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const hidePopover = useCallback(() => {
     void getCurrentWindow().hide();
@@ -74,6 +91,7 @@ export function TrayCapturePanel() {
         const el = inputRef.current;
         if (el) {
           el.value = "";
+          setSubmitError(null);
           el.focus();
         }
         return;
@@ -95,8 +113,10 @@ export function TrayCapturePanel() {
     };
   }, []);
 
-  async function submit(text: string) {
+  const saveEntry = useCallback(async (text: string) => {
     if (getDevSimulateNewUser()) return;
+
+    let id: string;
     try {
       const scope = parseStoredSpaceScope(
         typeof localStorage !== "undefined"
@@ -104,7 +124,40 @@ export function TrayCapturePanel() {
           : null
       );
       const cap = captureSpaceId(scope);
-      const id = await createEntry(text, cap ? { spaceId: cap } : undefined);
+      try {
+        id = await createEntry(text, cap ? { spaceId: cap } : undefined);
+      } catch (e) {
+        const msg =
+          typeof e === "string"
+            ? e
+            : e instanceof Error
+              ? e.message
+              : String(e);
+        if (cap != null && /unknown space/i.test(msg)) {
+          id = await createEntry(text);
+        } else {
+          throw e;
+        }
+      }
+    } catch (e) {
+      setSubmitError(formatSubmitError(e));
+      return;
+    }
+
+    setSubmitError(null);
+
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+    hidePopover();
+
+    try {
+      await emit("chinotto-tray-entry-saved", { id });
+    } catch {
+      /* Main window may miss one refresh; entry is already persisted. */
+    }
+
+    try {
       if (isFirebaseSyncConfigured()) {
         void getEntry(id).then((row) => {
           if (row) void pushEntryUpsertToFirestore(row);
@@ -113,39 +166,39 @@ export function TrayCapturePanel() {
       track({ event: "entry_created", text_length: text.length });
       setHasEverSavedThought();
       generateEmbedding(id);
-      await emit("chinotto-tray-entry-saved", { id });
-      if (inputRef.current) {
-        inputRef.current.value = "";
-      }
-      hidePopover();
     } catch {
-      /* Keep popover open so the user can fix or retry. */
+      /* Non-fatal after save. */
     }
+  }, [hidePopover]);
+
+  function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const raw = inputRef.current?.value.trim() ?? "";
+    if (!raw) return;
+    void saveEntry(raw);
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      hidePopover();
-      return;
-    }
-    if (e.key !== "Enter" || e.shiftKey) return;
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Escape") return;
     e.preventDefault();
-    const raw = (e.target as HTMLTextAreaElement).value.trim();
-    if (!raw) return;
-    void submit(raw);
+    hidePopover();
   }
 
   return (
     <div className="tray-capture-panel">
-      <div className="tray-capture-panel__row">
-        <Textarea
+      <form className="tray-capture-panel__row" onSubmit={handleFormSubmit}>
+        <input
           ref={inputRef}
+          type="text"
+          enterKeyHint="done"
+          autoComplete="off"
           className="tray-capture-field !min-h-0 !border-0 !border-b-0 !py-1 !text-[14px] !leading-normal !shadow-none focus-visible:!border-0 focus-visible:!shadow-none"
           placeholder="Capture a thought..."
-          rows={1}
           aria-label="Capture a thought"
+          aria-invalid={submitError ? true : undefined}
+          aria-describedby={submitError ? "tray-capture-error" : undefined}
           onKeyDown={handleKeyDown}
+          onChange={() => submitError && setSubmitError(null)}
         />
         <button
           type="button"
@@ -155,7 +208,12 @@ export function TrayCapturePanel() {
         >
           <ChinottoLogo size={18} className="tray-capture-open-main__icon" />
         </button>
-      </div>
+      </form>
+      {submitError ? (
+        <p id="tray-capture-error" className="tray-capture-error" role="alert">
+          {submitError}
+        </p>
+      ) : null}
     </div>
   );
 }
