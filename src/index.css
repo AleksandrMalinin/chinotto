@@ -2086,6 +2086,8 @@ body.welcome .app-bg {
 
 /* Bypass line; after tap, invisible duplicate keeps height (see sync-modal-bypass--layout-hold). */
 .sync-modal-copy-footnote {
+  position: relative;
+  z-index: 2;
   margin-top: 0.35rem;
   width: 100%;
   display: flex;

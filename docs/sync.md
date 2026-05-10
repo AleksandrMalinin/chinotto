@@ -137,6 +137,8 @@ Command **`delete_local_entries_for_sync`** expects **top-level** `entryIds` (ca
 | `VITE_FIREBASE_STORAGE_BUCKET` | Optional |
 | `VITE_FIREBASE_MESSAGING_SENDER_ID` | Optional |
 
+**GitHub Actions (`release.yml`):** add repository secrets with the same names (`VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_PROJECT_ID`, optional fields above) so tag/release builds embed sync config. Without them, `isFirebaseSyncConfigured()` is false in packaged apps even when sync works in dev.
+
 Use the **same** Firebase **project** as mobile (`EXPO_PUBLIC_*` → `VITE_*` for the web client config). In **Project settings → Your apps**, register **two** Apple apps if you ship both: **`com.chinotto.mobile`** (Expo) and **`app.chinotto`** (desktop Tauri / Mac App Store). Native Sign in with Apple on Mac sends an ID token whose JWT **`aud`** is **`app.chinotto`**; Firebase rejects **`auth/invalid-credential`** (audience mismatch) until that bundle id exists in the project.
 
 ### QR bridge → mobile (always)
