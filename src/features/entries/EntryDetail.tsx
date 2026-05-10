@@ -239,7 +239,16 @@ export function EntryDetail({
             onMouseDown={(e) => {
               if (e.button === 0) (e.currentTarget as HTMLElement).focus();
             }}
-            onMouseLeave={() => setSpaceLensDismissed(false)}
+            onMouseLeave={(e) => {
+              const root = e.currentTarget as HTMLElement;
+              const to = e.relatedTarget as Node | null;
+              if (to && root.contains(to)) return;
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  if (!root.matches(":hover")) setSpaceLensDismissed(false);
+                });
+              });
+            }}
             aria-label={`Thought is in ${currentSpaceLabel}. Hover, click, or press Tab to move to another space.`}
           >
             <div className="entry-detail-space-hover-hint">

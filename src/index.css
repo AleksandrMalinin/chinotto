@@ -3644,6 +3644,7 @@ body.welcome .app-bg {
   align-self: center;
   overflow: visible;
   outline: none;
+  pointer-events: none;
 }
 
 .entry-detail-space-hover:focus-visible {
@@ -3657,7 +3658,8 @@ body.welcome .app-bg {
   bottom: 0;
   right: 0;
   left: auto;
-  z-index: 1;
+  z-index: 3;
+  pointer-events: auto;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -3703,6 +3705,7 @@ body.welcome .app-bg {
 .entry-detail-space-hover:focus-within .entry-detail-space-hover-hint {
   opacity: 0;
   visibility: hidden;
+  z-index: 1;
   transition:
     opacity 0.45s cubic-bezier(0.45, 0.05, 0.25, 1),
     visibility 0s linear 0.45s;
@@ -3712,6 +3715,7 @@ body.welcome .app-bg {
 .entry-detail-space-hover:focus-within .entry-detail-space-hover-panel {
   clip-path: inset(0 0 0 0);
   -webkit-clip-path: inset(0 0 0 0);
+  z-index: 3;
   transition:
     clip-path 1.2s cubic-bezier(0.45, 0.05, 0.25, 1),
     -webkit-clip-path 1.2s cubic-bezier(0.45, 0.05, 0.25, 1);
@@ -3721,6 +3725,7 @@ body.welcome .app-bg {
 .entry-detail-space-hover--busy .entry-detail-space-hover-hint {
   opacity: 0;
   visibility: hidden;
+  z-index: 1;
   transition:
     opacity 0s linear,
     visibility 0s linear;
@@ -3729,10 +3734,15 @@ body.welcome .app-bg {
 .entry-detail-space-hover--busy .entry-detail-space-hover-panel {
   clip-path: inset(0 0 0 0);
   -webkit-clip-path: inset(0 0 0 0);
+  z-index: 3;
   pointer-events: none;
 }
 
 @media (hover: none) {
+  .entry-detail-space-hover {
+    pointer-events: auto;
+  }
+
   .entry-detail-space-hover-hint {
     display: none;
   }
@@ -3799,6 +3809,7 @@ body.welcome .app-bg {
   clip-path: inset(0 0 0 100%);
   -webkit-clip-path: inset(0 0 0 100%);
   pointer-events: none;
+  z-index: 2;
 }
 
 .entry-detail-space-hover.entry-detail-space-hover--dismissed:hover .entry-detail-space-hover-hint,
@@ -3806,6 +3817,7 @@ body.welcome .app-bg {
   .entry-detail-space-hover-hint {
   opacity: 1;
   visibility: visible;
+  z-index: 3;
 }
 
 @keyframes entry-detail-caret-pulse {
