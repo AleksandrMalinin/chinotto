@@ -27,6 +27,10 @@ export type AnalyticsEvent =
   | { event: "sync_modal_opened"; surface?: SyncModalSurface }
   | { event: "stream_showcase_opened" }
   | { event: "entry_opened" }
+  | {
+      event: "entry_space_changed";
+      lens: "inbox" | "work" | "personal";
+    }
   | { event: "resurface_shown"; age_days: number }
   | { event: "resurface_opened"; age_days: number }
   | { event: "thought_trail_opened" }

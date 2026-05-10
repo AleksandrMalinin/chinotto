@@ -18,7 +18,7 @@ mod tray_capture;
 
 use base64::Engine;
 use chrono::TimeZone;
-use db::Db;
+use db::{Db, SpaceFilter};
 use keywords::{
     extract_keywords, keyword_overlap, thought_trail_candidates, thought_trail_max_related,
     thought_trail_min_overlap, thought_trail_similarity,
@@ -31,6 +31,20 @@ use std::sync::mpsc;
 use std::sync::Arc;
 use tauri::Emitter;
 use tauri::Manager;
+
+fn resolve_space_filter(db: &Db, raw: Option<String>) -> Result<SpaceFilter, String> {
+    match raw.as_deref() {
+        None | Some("") => Ok(SpaceFilter::All),
+        Some("inbox") => Ok(SpaceFilter::Inbox),
+        Some(id) => {
+            if db.space_id_valid(id).map_err(|e| e.to_string())? {
+                Ok(SpaceFilter::Space(id.to_string()))
+            } else {
+                Err(format!("unknown space: {}", id))
+            }
+        }
+    }
+}
 
 fn parse_created_at(iso: &str) -> Option<chrono::DateTime<chrono::Utc>> {
     chrono::DateTime::parse_from_rfc3339(iso)
@@ -178,36 +192,64 @@ fn delete_local_entries_for_sync(
         .map_err(|e| e.to_string())
 }
 
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CreateEntryIn {
+    text: String,
+    #[serde(default)]
+    space_id: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RestoreEntryIn {
+    id: String,
+    text: String,
+    created_at: String,
+    #[serde(default)]
+    space_id: Option<String>,
+}
+
+fn validated_space_for_write(db: &Db, space_id: &Option<String>) -> Result<Option<String>, String> {
+    match space_id.as_deref() {
+        None | Some("") => Ok(None),
+        Some(id) => {
+            if db.space_id_valid(id).map_err(|e| e.to_string())? {
+                Ok(Some(id.to_string()))
+            } else {
+                Err(format!("unknown space: {}", id))
+            }
+        }
+    }
+}
+
 #[tauri::command]
-fn create_entry(db: tauri::State<Db>, text: String) -> Result<String, String> {
-    let trimmed = text.trim();
+fn create_entry(db: tauri::State<Db>, input: CreateEntryIn) -> Result<String, String> {
+    let trimmed = input.text.trim();
     if trimmed.is_empty() {
         return Err("entry text cannot be empty".to_string());
     }
+    let sid = validated_space_for_write(&db, &input.space_id)?;
     let id = uuid::Uuid::new_v4().to_string();
     let created_at = chrono::Utc::now().to_rfc3339();
-    db.create_entry(&id, trimmed, &created_at)
+    db.create_entry(&id, trimmed, &created_at, sid.as_deref())
         .map_err(|e| e.to_string())?;
     Ok(id)
 }
 
 #[tauri::command]
-fn restore_entry(
-    db: tauri::State<Db>,
-    id: String,
-    text: String,
-    created_at: String,
-) -> Result<String, String> {
-    let trimmed = text.trim();
+fn restore_entry(db: tauri::State<Db>, input: RestoreEntryIn) -> Result<String, String> {
+    let trimmed = input.text.trim();
     if trimmed.is_empty() {
         return Err("entry text cannot be empty".to_string());
     }
-    match db.create_entry(&id, trimmed, &created_at) {
-        Ok(()) => Ok(id),
+    let sid = validated_space_for_write(&db, &input.space_id)?;
+    match db.create_entry(&input.id, trimmed, &input.created_at, sid.as_deref()) {
+        Ok(()) => Ok(input.id),
         Err(e) => {
             if e.to_string().contains("UNIQUE constraint") {
                 let new_id = uuid::Uuid::new_v4().to_string();
-                db.create_entry(&new_id, trimmed, &created_at)
+                db.create_entry(&new_id, trimmed, &input.created_at, sid.as_deref())
                     .map_err(|e| e.to_string())?;
                 Ok(new_id)
             } else {
@@ -282,6 +324,7 @@ fn find_similar_entries(
                 } else {
                     Some(topics)
                 },
+                space_id: r.space_id.clone(),
             }
         })
         .collect();
@@ -289,8 +332,14 @@ fn find_similar_entries(
 }
 
 #[tauri::command]
-fn list_entries(db: tauri::State<Db>) -> Result<Vec<EntryPayload>, String> {
-    let rows = db.list_entries().map_err(|e| e.to_string())?;
+fn list_entries(
+    db: tauri::State<Db>,
+    space_filter: Option<String>,
+) -> Result<Vec<EntryPayload>, String> {
+    let filter = resolve_space_filter(&db, space_filter)?;
+    let rows = db
+        .list_entries_filtered(&filter)
+        .map_err(|e| e.to_string())?;
     let limit = keywords::default_topic_limit();
     Ok(rows
         .into_iter()
@@ -305,7 +354,21 @@ fn list_entries(db: tauri::State<Db>) -> Result<Vec<EntryPayload>, String> {
                 } else {
                     Some(topics)
                 },
+                space_id: r.space_id,
             }
+        })
+        .collect())
+}
+
+#[tauri::command]
+fn list_spaces(db: tauri::State<Db>) -> Result<Vec<SpacePayload>, String> {
+    let rows = db.list_spaces().map_err(|e| e.to_string())?;
+    Ok(rows
+        .into_iter()
+        .map(|r| SpacePayload {
+            id: r.id,
+            label: r.label,
+            sort_order: r.sort_order,
         })
         .collect())
 }
@@ -329,6 +392,7 @@ fn get_entry(db: tauri::State<Db>, entry_id: String) -> Result<Option<EntryPaylo
                 } else {
                     Some(topics)
                 },
+                space_id: r.space_id,
             })
         }
     })
@@ -339,11 +403,13 @@ fn jump_dates_in_month(
     db: tauri::State<Db>,
     year: i32,
     month: u32,
+    space_filter: Option<String>,
 ) -> Result<Vec<String>, String> {
     if !(1970..=2100).contains(&year) || !(1..=12).contains(&month) {
         return Err("invalid year or month".to_string());
     }
-    db.local_entry_dates_in_month(year, month)
+    let filter = resolve_space_filter(&db, space_filter)?;
+    db.local_entry_dates_in_month(year, month, &filter)
         .map_err(|e| e.to_string())
 }
 
@@ -351,10 +417,12 @@ fn jump_dates_in_month(
 fn jump_anchor_for_local_date(
     db: tauri::State<Db>,
     local_date: String,
+    space_filter: Option<String>,
 ) -> Result<Option<String>, String> {
     let target = chrono::NaiveDate::parse_from_str(&local_date, "%Y-%m-%d")
         .map_err(|_| "invalid date (expected YYYY-MM-DD)".to_string())?;
-    db.jump_anchor_entry_id_for_local_date(target)
+    let filter = resolve_space_filter(&db, space_filter)?;
+    db.jump_anchor_entry_id_for_local_date(target, &filter)
         .map_err(|e| e.to_string())
 }
 
@@ -383,6 +451,7 @@ pub(crate) fn get_resurfaced_entry_impl<R: rand::RngCore>(
             created_at: r.created_at,
             edit_count: r.edit_count,
             open_count: r.open_count,
+            space_id: r.space_id,
         })
         .collect();
     let pinned_ids: std::collections::HashSet<String> = db
@@ -419,6 +488,7 @@ pub(crate) fn get_resurfaced_entry_impl<R: rand::RngCore>(
             } else {
                 Some(topics)
             },
+            space_id: picked.space_id,
         },
         reason,
     }))
@@ -496,6 +566,7 @@ fn get_thought_trail(db: tauri::State<Db>, entry_id: String) -> Result<Vec<Entry
             } else {
                 Some(topics)
             },
+            space_id: r.space_id.clone(),
         }
     };
     let mut out: Vec<EntryPayload> = before_sorted.iter().map(to_payload).collect();
@@ -511,14 +582,22 @@ fn get_thought_trail(db: tauri::State<Db>, entry_id: String) -> Result<Vec<Entry
                 Some(t)
             }
         },
+        space_id: current.space_id.clone(),
     });
     out.extend(after_sorted.iter().map(to_payload));
     Ok(out)
 }
 
 #[tauri::command]
-fn search_entries(db: tauri::State<Db>, query: String) -> Result<Vec<SearchEntryPayload>, String> {
-    let rows = db.search_entries(&query).map_err(|e| e.to_string())?;
+fn search_entries(
+    db: tauri::State<Db>,
+    query: String,
+    space_filter: Option<String>,
+) -> Result<Vec<SearchEntryPayload>, String> {
+    let filter = resolve_space_filter(&db, space_filter)?;
+    let rows = db
+        .search_entries_filtered(&query, &filter)
+        .map_err(|e| e.to_string())?;
     let limit = keywords::default_topic_limit();
     Ok(rows
         .into_iter()
@@ -534,6 +613,7 @@ fn search_entries(db: tauri::State<Db>, query: String) -> Result<Vec<SearchEntry
                 } else {
                     Some(topics)
                 },
+                space_id: r.space_id,
             }
         })
         .collect())
@@ -563,6 +643,20 @@ fn update_entry(db: tauri::State<Db>, entry_id: String, text: String) -> Result<
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "entry not found".to_string())?;
     db.update_entry_text(&entry_id, &text)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_entry_space(
+    db: tauri::State<Db>,
+    entry_id: String,
+    space_id: Option<String>,
+) -> Result<(), String> {
+    db.get_entry_by_id(&entry_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "entry not found".to_string())?;
+    let sid = validated_space_for_write(&db, &space_id)?;
+    db.update_entry_space(&entry_id, sid.as_deref())
         .map_err(|e| e.to_string())
 }
 
@@ -597,9 +691,14 @@ fn export_entries(db: tauri::State<Db>, path: String) -> Result<(), String> {
         let dt = parse_created_at(&row.created_at)
             .ok_or_else(|| format!("invalid created_at: {}", row.created_at))?;
         let filename = format!("{}.md", dt.format("%Y-%m-%d-%H-%M-%S"));
+        let space_line = match &row.space_id {
+            Some(s) => format!("space_id: {}\n", s),
+            None => String::new(),
+        };
         let frontmatter = format!(
-            "---\ncreated_at: {}\napp: chinotto\nversion: {}\n---\n\n",
+            "---\ncreated_at: {}\n{}app: chinotto\nversion: {}\n---\n\n",
             row.created_at,
+            space_line,
             env!("CARGO_PKG_VERSION")
         );
         let content = format!("{}{}", frontmatter, row.text);
@@ -715,6 +814,8 @@ struct EntryPayload {
     created_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     topics: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    space_id: Option<String>,
 }
 
 #[derive(serde::Serialize)]
@@ -726,6 +827,15 @@ struct SearchEntryPayload {
     highlighted: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     topics: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    space_id: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+struct SpacePayload {
+    id: String,
+    label: String,
+    sort_order: i32,
 }
 
 #[derive(serde::Serialize)]
@@ -957,7 +1067,9 @@ pub fn run() {
             create_entry,
             restore_entry,
             update_entry,
+            set_entry_space,
             list_entries,
+            list_spaces,
             get_entry,
             jump_dates_in_month,
             jump_anchor_for_local_date,
@@ -1059,7 +1171,7 @@ mod resurface_integration {
         let db = open_memory_db();
         let now = chrono::Utc::now();
         let t24 = (now - chrono::Duration::days(1)).to_rfc3339();
-        db.create_entry("a", "entry a", &t24).unwrap();
+        db.create_entry("a", "entry a", &t24, None).unwrap();
         let mut rng = ChaCha8Rng::seed_from_u64(1);
         let r = get_resurfaced_entry_impl(&db, vec![], &mut rng).unwrap();
         assert!(r.is_some());
@@ -1072,8 +1184,8 @@ mod resurface_integration {
         let now = chrono::Utc::now();
         let t24 = (now - chrono::Duration::days(1)).to_rfc3339();
         let t7d = (now - chrono::Duration::days(7)).to_rfc3339();
-        db.create_entry("id-24h", "thought 24h", &t24).unwrap();
-        db.create_entry("id-7d", "thought 7d", &t7d).unwrap();
+        db.create_entry("id-24h", "thought 24h", &t24, None).unwrap();
+        db.create_entry("id-7d", "thought 7d", &t7d, None).unwrap();
         let mut rng = ChaCha8Rng::seed_from_u64(2);
         let with_exclude =
             get_resurfaced_entry_impl(&db, vec!["id-24h".to_string()], &mut rng).unwrap();
@@ -1086,7 +1198,7 @@ mod resurface_integration {
         let db = open_memory_db();
         let now = chrono::Utc::now();
         let t24 = (now - chrono::Duration::days(1)).to_rfc3339();
-        db.create_entry("only", "only entry", &t24).unwrap();
+        db.create_entry("only", "only entry", &t24, None).unwrap();
         let mut rng = ChaCha8Rng::seed_from_u64(3);
         let r = get_resurfaced_entry_impl(&db, vec!["only".to_string()], &mut rng).unwrap();
         assert!(r.is_none());

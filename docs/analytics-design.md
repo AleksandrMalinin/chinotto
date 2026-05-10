@@ -24,6 +24,7 @@ Canonical list: **`AnalyticsEvent`** in `src/lib/analytics.ts`.
 | `settings_opened`     | (none)               | User opens Settings (Chinotto Card) |
 | `stream_showcase_opened` | (none)            | User opens welcome screen preview (header title; DB has entries) |
 | `entry_opened`        | (none)               | User opens an entry (detail view) |
+| `entry_space_changed` | `lens`: `inbox` \| `work` \| `personal` | User moves a thought to another space from detail |
 | `resurface_shown`     | `age_days` (number)  | Resurface overlay is shown |
 | `resurface_opened`    | `age_days` (number)  | User opens entry from resurface overlay |
 | `thought_trail_opened` | (none)              | User views an entry that has a thought trail |
@@ -73,6 +74,7 @@ Canonical list: **`AnalyticsEvent`** in `src/lib/analytics.ts`.
 | `jump_to_date_completed` | After `jump_anchor_for_local_date` returns an id, before scroll; `days_ago` via `jumpDateDaysAgoMetric(ymd)`. |
 | `jump_to_date_back_to_now` | Start of `handleJumpBackToNow` in `App.tsx`. |
 | `entry_text_saved`      | After `updateEntry` succeeds: `source: "detail"` when the debounced detail draft matched the saved body; `source: "stream"` in `handleEntryUpdate` after stream inline edit. |
+| `entry_space_changed` | After `setEntrySpace` succeeds in `handleEntryDetailSpaceChange`; `lens` is the destination (Inbox, Work, or Personal). |
 | `sync_modal_opened`        | Desktop: header (`surface: header`). Mobile: `CaptureScreen` when opening the sheet (surfaces: header, settings, deeplink, screenshot, dev_menu). |
 | Sync / paywall (see table above) | `SyncModal.tsx`, `useAppleSyncOAuth.ts`, mobile `useEnableSyncController.ts`, `CaptureScreen` |
 

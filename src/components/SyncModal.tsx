@@ -307,12 +307,15 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
                           type="button"
                           className="sync-modal-bypass"
                           onClick={() => {
+                            setBypassGate(true);
+                            track({ event: "sync_gate_bypass_clicked" });
                             if (!firebaseConfigured) {
+                              setError(
+                                "This build doesn’t include Firebase sync configuration, so Continue with Apple stays unavailable."
+                              );
                               return;
                             }
                             setError(null);
-                            track({ event: "sync_gate_bypass_clicked" });
-                            setBypassGate(true);
                           }}
                         >
                           Already finished on your iPhone?

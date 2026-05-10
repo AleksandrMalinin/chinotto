@@ -36,7 +36,15 @@ Rationale, layout, and coverage targets: **`docs/testing-strategy.md`**.
 
 ## Why a single Entry model
 
-The product is “capture first, structure later.” The MVP avoids folders, pages, and documents. A single **Entry** entity (id, text, created_at) keeps the model minimal and the UI focused on capture and search. Structure can be added later without changing the core entity.
+The product is “capture first, structure later.” The MVP avoids folders, pages, and documents. A single **Entry** entity (id, text, created_at) keeps the model minimal and the UI focused on capture and search. **Spaces** add an optional `space_id` (foreign key to a small `spaces` table, or NULL for Inbox) so the stream can be lensed without nested hierarchy. Structure remains lightweight and optional at capture time.
+
+## Spaces (local-only, Phase 1)
+
+- **SQLite:** Table `spaces` with seeded ids `work` and `personal` (label + sort order). **Inbox** is not a row: `entries.space_id` **NULL** means Inbox.
+- **API:** `create_entry` / `restore_entry` accept optional `spaceId` (must exist in `spaces`). `set_entry_space` updates an existing entry’s `space_id` (Inbox = null / omit). `list_entries`, `search_entries`, `jump_dates_in_month`, and `jump_anchor_for_local_date` accept optional `spaceFilter`: omit or null = all entries; `"inbox"` = Inbox only; otherwise a `spaces.id` (e.g. `work`, `personal`). `list_spaces` returns rows for the UI.
+- **Mobile:** Companion app stays a **single-stream** capture surface (no Spaces UI); optional sync must **not lose** captures from device to Firestore/desktop ingest.
+- **Sync:** No Firestore `space_id` in Phase 1; spaces remain desktop-local. Extending the wire contract for spaces is out of scope until product asks for it.
+- **Resurface / thought trail / related (embeddings):** Still use the full entry set for selection in Phase 1 (not space-scoped).
 
 ## Out of scope for MVP
 
@@ -54,13 +62,13 @@ The product is “capture first, structure later.” The MVP avoids folders, pag
 - `src-tauri/` – Rust: app entry, Tauri setup, `db` (SQLite + FTS5 schema and commands)
 - `docs/` – Product and architecture notes
 
-Frontend calls backend via Tauri `invoke()` for `create_entry`, `list_entries`, `search_entries`, and (jump to date) `jump_dates_in_month`, `jump_anchor_for_local_date`.
+Frontend calls backend via Tauri `invoke()` for `create_entry`, `list_entries`, `list_spaces`, `set_entry_space`, `search_entries`, and (jump to date) `jump_dates_in_month`, `jump_anchor_for_local_date`. List/search/jump accept optional `spaceFilter`; create/restore accept optional `spaceId`.
 
 **Empty stream onboarding:** Progressive UI when the main stream has no entries. State and triggers live in `src/App.tsx`; empty layout and motion in `src/features/entries/EntryStream.tsx`; draft callbacks in `src/features/entries/EntryInput.tsx`; trail panel in `src/components/StreamFlowPanel.tsx`. First-time vs “empty again” uses `src/lib/streamOnboarding.ts` (`localStorage` key `chinotto.hasEverSavedThought`). Product behavior: **`docs/product-spec.md`** → *Empty stream onboarding*.
 
 **Search:** FTS5 virtual table `entries_fts` is kept in sync with `entries` via triggers (insert, update, delete). Search uses prefix matching (partial words match), case-insensitive FTS, and results are ordered by BM25 relevance. If FTS returns no rows, a case-insensitive substring (LIKE) fallback is used. The overlay shows result count, highlights matches, and supports Enter (open selected/first) and Escape (close and focus capture input).
 
-**Jump to date:** Small calendar popover (not a separate screen or filtered mode). `jump_dates_in_month` returns local calendar dates (`YYYY-MM-DD`) in a given month that have at least one entry; `jump_anchor_for_local_date` returns the entry id with the latest `created_at` on that local day (scroll anchor in the existing reverse-chronological stream). UI: `src/features/entries/JumpToDatePopover.tsx`; logic wired from `src/App.tsx`.
+**Jump to date:** Small calendar popover (not a separate screen or filtered mode). `jump_dates_in_month` returns local calendar dates (`YYYY-MM-DD`) in a given month that have at least one entry (respecting the same optional space lens as the stream); `jump_anchor_for_local_date` returns the entry id with the latest `created_at` on that local day (scroll anchor in the existing reverse-chronological stream). UI: `src/features/entries/JumpToDatePopover.tsx`; logic wired from `src/App.tsx`.
 
 **Related thoughts:** UI label on entry detail; same data as entries, computed by embedding cosine similarity (not FTS). Entries are embedded on save (AllMiniLML6V2); `find_similar_entries` returns the top-N by similarity. Root cause of noisy results was *no minimum score*: the top-N included weak matches (e.g. 0.2–0.4 similarity). We now require `cosine_similarity >= 0.5` so only clearly related entries are shown; if none pass, the block shows “None yet.” Normal search is unchanged (FTS only).
 

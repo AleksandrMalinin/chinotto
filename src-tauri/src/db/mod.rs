@@ -74,6 +74,48 @@ fn highlight_substring(text: &str, query: &str) -> String {
     out
 }
 
+/// Stream lens: all entries, Inbox-only (`space_id` NULL), or a row from `spaces`.
+#[derive(Clone, Debug, Default)]
+pub enum SpaceFilter {
+    #[default]
+    All,
+    Inbox,
+    Space(String),
+}
+
+#[derive(Clone, Debug)]
+pub struct SpaceRow {
+    pub id: String,
+    pub label: String,
+    pub sort_order: i32,
+}
+
+fn ensure_spaces(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS spaces (
+            id TEXT PRIMARY KEY,
+            label TEXT NOT NULL,
+            sort_order INTEGER NOT NULL
+        );
+        INSERT OR IGNORE INTO spaces (id, label, sort_order) VALUES ('work', 'Work', 1);
+        INSERT OR IGNORE INTO spaces (id, label, sort_order) VALUES ('personal', 'Personal', 2);
+    "#,
+    )?;
+    let has_column = conn.query_row(
+        "SELECT 1 FROM pragma_table_info('entries') WHERE name = 'space_id'",
+        [],
+        |r| r.get::<_, i32>(0),
+    );
+    if !matches!(has_column, Ok(1)) {
+        conn.execute(
+            "ALTER TABLE entries ADD COLUMN space_id TEXT REFERENCES spaces(id) ON DELETE SET NULL",
+            [],
+        )?;
+    }
+    Ok(())
+}
+
 pub struct Db(Mutex<Connection>);
 
 fn ensure_importance_columns(conn: &Connection) -> Result<(), rusqlite::Error> {
@@ -122,7 +164,34 @@ impl Db {
         schema::run_migrations(&conn)?;
         ensure_importance_columns(&conn)?;
         ensure_updated_at_column(&conn)?;
+        ensure_spaces(&conn)?;
         Ok(Self(Mutex::new(conn)))
+    }
+
+    /// Returns true if `id` exists in `spaces` (for assignable space ids, not Inbox).
+    pub fn space_id_valid(&self, id: &str) -> Result<bool, rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let n: i32 = conn.query_row(
+            "SELECT COUNT(*) FROM spaces WHERE id = ?1",
+            [id],
+            |r| r.get(0),
+        )?;
+        Ok(n > 0)
+    }
+
+    pub fn list_spaces(&self) -> Result<Vec<SpaceRow>, rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, label, sort_order FROM spaces ORDER BY sort_order ASC, id ASC",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok(SpaceRow {
+                id: r.get(0)?,
+                label: r.get(1)?,
+                sort_order: r.get(2)?,
+            })
+        })?;
+        rows.collect()
     }
 
     pub fn create_entry(
@@ -130,11 +199,12 @@ impl Db {
         id: &str,
         text: &str,
         created_at: &str,
+        space_id: Option<&str>,
     ) -> Result<(), rusqlite::Error> {
         let conn = self.0.lock().unwrap();
         conn.execute(
-            "INSERT INTO entries (id, text, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)",
-            [id, text, created_at],
+            "INSERT INTO entries (id, text, created_at, updated_at, space_id) VALUES (?1, ?2, ?3, ?3, ?4)",
+            rusqlite::params![id, text, created_at, space_id],
         )?;
         conn.execute(
             "DELETE FROM firestore_ingest_suppressed_ids WHERE id = ?1",
@@ -188,6 +258,20 @@ impl Db {
         Ok(())
     }
 
+    pub fn update_entry_space(
+        &self,
+        id: &str,
+        space_id: Option<&str>,
+    ) -> Result<(), rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let updated_at = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "UPDATE entries SET space_id = ?1, updated_at = ?2 WHERE id = ?3",
+            rusqlite::params![space_id, updated_at, id],
+        )?;
+        Ok(())
+    }
+
     pub fn record_entry_open(&self, entry_id: &str) -> Result<(), rusqlite::Error> {
         let conn = self.0.lock().unwrap();
         conn.execute(
@@ -198,20 +282,38 @@ impl Db {
     }
 
     pub fn list_entries(&self) -> Result<Vec<EntryRow>, rusqlite::Error> {
+        self.list_entries_filtered(&SpaceFilter::All)
+    }
+
+    pub fn list_entries_filtered(
+        &self,
+        filter: &SpaceFilter,
+    ) -> Result<Vec<EntryRow>, rusqlite::Error> {
         let conn = self.0.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT id, text, created_at, COALESCE(edit_count, 0), COALESCE(open_count, 0) FROM entries ORDER BY created_at DESC, id ASC",
-        )?;
-        let rows = stmt.query_map([], |r| {
-            Ok(EntryRow {
-                id: r.get(0)?,
-                text: r.get(1)?,
-                created_at: r.get(2)?,
-                edit_count: r.get::<_, i64>(3)? as u32,
-                open_count: r.get::<_, i64>(4)? as u32,
-            })
-        })?;
-        rows.collect()
+        match filter {
+            SpaceFilter::All => {
+                let mut stmt = conn.prepare(
+                    "SELECT id, text, created_at, COALESCE(edit_count, 0), COALESCE(open_count, 0), space_id FROM entries ORDER BY created_at DESC, id ASC",
+                )?;
+                let out: Vec<EntryRow> = stmt.query_map([], row_to_entry)?.collect::<Result<_, _>>()?;
+                Ok(out)
+            }
+            SpaceFilter::Inbox => {
+                let mut stmt = conn.prepare(
+                    "SELECT id, text, created_at, COALESCE(edit_count, 0), COALESCE(open_count, 0), space_id FROM entries WHERE space_id IS NULL ORDER BY created_at DESC, id ASC",
+                )?;
+                let out: Vec<EntryRow> = stmt.query_map([], row_to_entry)?.collect::<Result<_, _>>()?;
+                Ok(out)
+            }
+            SpaceFilter::Space(id) => {
+                let mut stmt = conn.prepare(
+                    "SELECT id, text, created_at, COALESCE(edit_count, 0), COALESCE(open_count, 0), space_id FROM entries WHERE space_id = ?1 ORDER BY created_at DESC, id ASC",
+                )?;
+                let out: Vec<EntryRow> =
+                    stmt.query_map([id.as_str()], row_to_entry)?.collect::<Result<_, _>>()?;
+                Ok(out)
+            }
+        }
     }
 
     /// Local calendar dates (YYYY-MM-DD) in `[year, month]` that have at least one entry.
@@ -219,16 +321,36 @@ impl Db {
         &self,
         year: i32,
         month: u32,
+        filter: &SpaceFilter,
     ) -> Result<Vec<String>, rusqlite::Error> {
         let conn = self.0.lock().unwrap();
-        let mut stmt = conn.prepare("SELECT created_at FROM entries")?;
         let mut set = BTreeSet::new();
-        let rows = stmt.query_map([], |r| {
-            let created_at: String = r.get(0)?;
-            Ok(created_at)
-        })?;
-        for row in rows {
-            let created_at = row?;
+        let created_ats: Vec<String> = match filter {
+            SpaceFilter::All => {
+                let mut stmt = conn.prepare("SELECT created_at FROM entries")?;
+                let v: Vec<String> = stmt
+                    .query_map([], |r| r.get::<_, String>(0))?
+                    .collect::<Result<_, _>>()?;
+                v
+            }
+            SpaceFilter::Inbox => {
+                let mut stmt =
+                    conn.prepare("SELECT created_at FROM entries WHERE space_id IS NULL")?;
+                let v: Vec<String> = stmt
+                    .query_map([], |r| r.get::<_, String>(0))?
+                    .collect::<Result<_, _>>()?;
+                v
+            }
+            SpaceFilter::Space(id) => {
+                let mut stmt =
+                    conn.prepare("SELECT created_at FROM entries WHERE space_id = ?1")?;
+                let v: Vec<String> = stmt
+                    .query_map([id.as_str()], |r| r.get::<_, String>(0))?
+                    .collect::<Result<_, _>>()?;
+                v
+            }
+        };
+        for created_at in created_ats {
             let Some(d) = local_naive_date_from_created_at(&created_at) else {
                 continue;
             };
@@ -243,18 +365,38 @@ impl Db {
     pub fn jump_anchor_entry_id_for_local_date(
         &self,
         target: NaiveDate,
+        filter: &SpaceFilter,
     ) -> Result<Option<String>, rusqlite::Error> {
         let conn = self.0.lock().unwrap();
-        let mut stmt = conn.prepare("SELECT id, created_at FROM entries")?;
-        let rows = stmt.query_map([], |r| {
-            Ok((
-                r.get::<_, String>(0)?,
-                r.get::<_, String>(1)?,
-            ))
-        })?;
+        let pairs: Vec<(String, String)> = match filter {
+            SpaceFilter::All => {
+                let mut stmt = conn.prepare("SELECT id, created_at FROM entries")?;
+                let v: Vec<(String, String)> = stmt
+                    .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?
+                    .collect::<Result<_, _>>()?;
+                v
+            }
+            SpaceFilter::Inbox => {
+                let mut stmt =
+                    conn.prepare("SELECT id, created_at FROM entries WHERE space_id IS NULL")?;
+                let v: Vec<(String, String)> = stmt
+                    .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?
+                    .collect::<Result<_, _>>()?;
+                v
+            }
+            SpaceFilter::Space(id) => {
+                let mut stmt =
+                    conn.prepare("SELECT id, created_at FROM entries WHERE space_id = ?1")?;
+                let v: Vec<(String, String)> = stmt
+                    .query_map([id.as_str()], |r| {
+                        Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+                    })?
+                    .collect::<Result<_, _>>()?;
+                v
+            }
+        };
         let mut best: Option<(String, DateTime<Utc>)> = None;
-        for row in rows {
-            let (id, created_at) = row?;
+        for (id, created_at) in pairs {
             let Some(d) = local_naive_date_from_created_at(&created_at) else {
                 continue;
             };
@@ -277,17 +419,11 @@ impl Db {
     pub fn get_entry_by_id(&self, id: &str) -> Result<Option<EntryRow>, rusqlite::Error> {
         let conn = self.0.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, text, created_at, COALESCE(edit_count, 0), COALESCE(open_count, 0) FROM entries WHERE id = ?1",
+            "SELECT id, text, created_at, COALESCE(edit_count, 0), COALESCE(open_count, 0), space_id FROM entries WHERE id = ?1",
         )?;
         let mut rows = stmt.query([id])?;
         if let Some(row) = rows.next()? {
-            return Ok(Some(EntryRow {
-                id: row.get(0)?,
-                text: row.get(1)?,
-                created_at: row.get(2)?,
-                edit_count: row.get::<_, i64>(3)? as u32,
-                open_count: row.get::<_, i64>(4)? as u32,
-            }));
+            return Ok(Some(row_to_entry(&row)?));
         }
         Ok(None)
     }
@@ -348,20 +484,14 @@ impl Db {
         let conn = self.0.lock().unwrap();
         let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
         let sql = format!(
-            "SELECT id, text, created_at, COALESCE(edit_count, 0), COALESCE(open_count, 0) FROM entries WHERE id IN ({})",
+            "SELECT id, text, created_at, COALESCE(edit_count, 0), COALESCE(open_count, 0), space_id FROM entries WHERE id IN ({})",
             placeholders
         );
         let mut stmt = conn.prepare(&sql)?;
         let mut rows = stmt.query(rusqlite::params_from_iter(ids.iter()))?;
         let mut out = vec![];
         while let Some(row) = rows.next()? {
-            out.push(EntryRow {
-                id: row.get(0)?,
-                text: row.get(1)?,
-                created_at: row.get(2)?,
-                edit_count: row.get::<_, i64>(3)? as u32,
-                open_count: row.get::<_, i64>(4)? as u32,
-            });
+            out.push(row_to_entry(&row)?);
         }
         Ok(out)
     }
@@ -486,9 +616,13 @@ impl Db {
         Ok(removed)
     }
 
-    pub fn search_entries(&self, query: &str) -> Result<Vec<SearchEntryRow>, rusqlite::Error> {
+    pub fn search_entries_filtered(
+        &self,
+        query: &str,
+        filter: &SpaceFilter,
+    ) -> Result<Vec<SearchEntryRow>, rusqlite::Error> {
         if query.trim().is_empty() {
-            let rows = self.list_entries()?;
+            let rows = self.list_entries_filtered(filter)?;
             return Ok(rows
                 .into_iter()
                 .map(|r| SearchEntryRow {
@@ -496,6 +630,7 @@ impl Db {
                     text: r.text,
                     created_at: r.created_at,
                     highlighted: None,
+                    space_id: r.space_id,
                 })
                 .collect());
         }
@@ -503,50 +638,126 @@ impl Db {
         let prefix_query = fts5_prefix_query(query);
 
         if !prefix_query.is_empty() {
-            let sql = "SELECT e.id, e.text, e.created_at,
+            let fts_sql_all = "SELECT e.id, e.text, e.created_at, e.space_id,
                     highlight(entries_fts, 0, '\u{0001}', '\u{0002}') AS highlighted
              FROM entries e
              INNER JOIN entries_fts ON e.rowid = entries_fts.rowid
              WHERE entries_fts MATCH ?1
              ORDER BY bm25(entries_fts)";
-            if let Ok(mut stmt) = conn.prepare(sql) {
-                let rows = stmt.query_map([&prefix_query], |r| {
-                    let highlighted: String = r.get(3)?;
-                    Ok(SearchEntryRow {
-                        id: r.get(0)?,
-                        text: r.get(1)?,
-                        created_at: r.get(2)?,
-                        highlighted: Some(highlighted),
-                    })
-                });
-                if let Ok(rows) = rows {
-                    if let Ok(list) = rows.collect::<Result<Vec<_>, _>>() {
-                        if !list.is_empty() {
-                            return Ok(list);
-                        }
-                    }
+            let fts_sql_inbox = "SELECT e.id, e.text, e.created_at, e.space_id,
+                    highlight(entries_fts, 0, '\u{0001}', '\u{0002}') AS highlighted
+             FROM entries e
+             INNER JOIN entries_fts ON e.rowid = entries_fts.rowid
+             WHERE entries_fts MATCH ?1 AND e.space_id IS NULL
+             ORDER BY bm25(entries_fts)";
+            let fts_sql_space = "SELECT e.id, e.text, e.created_at, e.space_id,
+                    highlight(entries_fts, 0, '\u{0001}', '\u{0002}') AS highlighted
+             FROM entries e
+             INNER JOIN entries_fts ON e.rowid = entries_fts.rowid
+             WHERE entries_fts MATCH ?1 AND e.space_id = ?2
+             ORDER BY bm25(entries_fts)";
+
+            let fts_list: Option<Vec<SearchEntryRow>> = match filter {
+                SpaceFilter::All => conn.prepare(fts_sql_all).ok().and_then(|mut stmt| {
+                    stmt
+                        .query_map([&prefix_query], fts_match_row)
+                        .ok()
+                        .and_then(|rows| rows.collect::<Result<Vec<_>, _>>().ok())
+                }),
+                SpaceFilter::Inbox => conn.prepare(fts_sql_inbox).ok().and_then(|mut stmt| {
+                    stmt
+                        .query_map([&prefix_query], fts_match_row)
+                        .ok()
+                        .and_then(|rows| rows.collect::<Result<Vec<_>, _>>().ok())
+                }),
+                SpaceFilter::Space(sid) => conn.prepare(fts_sql_space).ok().and_then(|mut stmt| {
+                    stmt
+                        .query_map(rusqlite::params![prefix_query, sid.as_str()], fts_match_row)
+                        .ok()
+                        .and_then(|rows| rows.collect::<Result<Vec<_>, _>>().ok())
+                }),
+            };
+            if let Some(list) = fts_list {
+                if !list.is_empty() {
+                    return Ok(list);
                 }
             }
         }
 
         let query_trim = query.trim();
         let like_pattern = format!("%{}%", escape_like(query_trim));
-        let fallback_sql = "SELECT id, text, created_at FROM entries WHERE LOWER(text) LIKE LOWER(?1) ESCAPE '\\' ORDER BY created_at DESC";
-        let mut stmt = conn.prepare(fallback_sql)?;
-        let rows = stmt.query_map([&like_pattern], |r| {
-            let id: String = r.get(0)?;
-            let text: String = r.get(1)?;
-            let created_at: String = r.get(2)?;
-            let highlighted = Some(highlight_substring(&text, query_trim));
-            Ok(SearchEntryRow {
-                id,
-                text,
-                created_at,
-                highlighted,
-            })
-        })?;
-        rows.collect()
+        match filter {
+            SpaceFilter::All => {
+                let fallback_sql = "SELECT id, text, created_at, space_id FROM entries WHERE LOWER(text) LIKE LOWER(?1) ESCAPE '\\' ORDER BY created_at DESC";
+                let mut stmt = conn.prepare(fallback_sql)?;
+                let rows = stmt.query_map([&like_pattern], |r| {
+                    let id: String = r.get(0)?;
+                    let text: String = r.get(1)?;
+                    let created_at: String = r.get(2)?;
+                    let space_id: Option<String> = r.get(3)?;
+                    let highlighted = Some(highlight_substring(&text, query_trim));
+                    Ok(SearchEntryRow {
+                        id,
+                        text,
+                        created_at,
+                        space_id,
+                        highlighted,
+                    })
+                })?;
+                rows.collect()
+            }
+            SpaceFilter::Inbox => {
+                let fallback_sql = "SELECT id, text, created_at, space_id FROM entries WHERE LOWER(text) LIKE LOWER(?1) ESCAPE '\\' AND space_id IS NULL ORDER BY created_at DESC";
+                let mut stmt = conn.prepare(fallback_sql)?;
+                let rows = stmt.query_map([&like_pattern], |r| {
+                    let id: String = r.get(0)?;
+                    let text: String = r.get(1)?;
+                    let created_at: String = r.get(2)?;
+                    let space_id: Option<String> = r.get(3)?;
+                    let highlighted = Some(highlight_substring(&text, query_trim));
+                    Ok(SearchEntryRow {
+                        id,
+                        text,
+                        created_at,
+                        space_id,
+                        highlighted,
+                    })
+                })?;
+                rows.collect()
+            }
+            SpaceFilter::Space(sid) => {
+                let fallback_sql = "SELECT id, text, created_at, space_id FROM entries WHERE LOWER(text) LIKE LOWER(?1) ESCAPE '\\' AND space_id = ?2 ORDER BY created_at DESC";
+                let mut stmt = conn.prepare(fallback_sql)?;
+                let rows =
+                    stmt.query_map(rusqlite::params![like_pattern, sid.as_str()], |r| {
+                        let id: String = r.get(0)?;
+                        let text: String = r.get(1)?;
+                        let created_at: String = r.get(2)?;
+                        let space_id: Option<String> = r.get(3)?;
+                        let highlighted = Some(highlight_substring(&text, query_trim));
+                        Ok(SearchEntryRow {
+                            id,
+                            text,
+                            created_at,
+                            space_id,
+                            highlighted,
+                        })
+                    })?;
+                rows.collect()
+            }
+        }
     }
+}
+
+fn row_to_entry(r: &rusqlite::Row<'_>) -> Result<EntryRow, rusqlite::Error> {
+    Ok(EntryRow {
+        id: r.get(0)?,
+        text: r.get(1)?,
+        created_at: r.get(2)?,
+        edit_count: r.get::<_, i64>(3)? as u32,
+        open_count: r.get::<_, i64>(4)? as u32,
+        space_id: r.get(5)?,
+    })
 }
 
 #[derive(Clone)]
@@ -556,6 +767,7 @@ pub struct EntryRow {
     pub created_at: String,
     pub edit_count: u32,
     pub open_count: u32,
+    pub space_id: Option<String>,
 }
 
 pub struct SearchEntryRow {
@@ -563,6 +775,17 @@ pub struct SearchEntryRow {
     pub text: String,
     pub created_at: String,
     pub highlighted: Option<String>,
+    pub space_id: Option<String>,
+}
+
+fn fts_match_row(r: &rusqlite::Row<'_>) -> Result<SearchEntryRow, rusqlite::Error> {
+    Ok(SearchEntryRow {
+        id: r.get(0)?,
+        text: r.get(1)?,
+        created_at: r.get(2)?,
+        space_id: r.get(3)?,
+        highlighted: Some(r.get(4)?),
+    })
 }
 
 #[cfg(test)]
@@ -574,13 +797,13 @@ mod tests {
         let db = Db::open(PathBuf::from(":memory:")).unwrap();
         for (i, (id, text)) in entries.iter().enumerate() {
             let created = format!("2025-01-{:02}T12:00:00Z", 15 - i);
-            db.create_entry(id, text, &created).unwrap();
+            db.create_entry(id, text, &created, None).unwrap();
         }
         db
     }
 
     fn search_ids(db: &Db, query: &str) -> Vec<String> {
-        db.search_entries(query)
+        db.search_entries_filtered(query, &SpaceFilter::All)
             .unwrap()
             .into_iter()
             .map(|r| r.id.to_string())
@@ -626,7 +849,7 @@ mod tests {
     #[test]
     fn firestore_ingest_skips_duplicate_id() {
         let db = Db::open(PathBuf::from(":memory:")).unwrap();
-        db.create_entry("a", "local", "2025-01-01T12:00:00Z")
+        db.create_entry("a", "local", "2025-01-01T12:00:00Z", None)
             .unwrap();
         let n = db
             .ingest_firestore_entries(&[(
@@ -658,7 +881,7 @@ mod tests {
     #[test]
     fn firestore_ingest_skips_desktop_deleted_id() {
         let db = Db::open(PathBuf::from(":memory:")).unwrap();
-        db.create_entry("meow", "cat", "2025-01-01T12:00:00Z").unwrap();
+        db.create_entry("meow", "cat", "2025-01-01T12:00:00Z", None).unwrap();
         db.delete_entry("meow").unwrap();
         assert!(db.get_entry_by_id("meow").unwrap().is_none());
         let n = db
@@ -675,9 +898,9 @@ mod tests {
     #[test]
     fn create_entry_clears_firestore_ingest_suppression() {
         let db = Db::open(PathBuf::from(":memory:")).unwrap();
-        db.create_entry("r", "one", "2025-01-01T12:00:00Z").unwrap();
+        db.create_entry("r", "one", "2025-01-01T12:00:00Z", None).unwrap();
         db.delete_entry("r").unwrap();
-        db.create_entry("r", "two", "2025-01-02T12:00:00Z").unwrap();
+        db.create_entry("r", "two", "2025-01-02T12:00:00Z", None).unwrap();
         let n = db
             .ingest_firestore_entries(&[(
                 "r".to_string(),
@@ -696,7 +919,9 @@ mod tests {
             ("once", "design review notes"),
             ("twice", "design and design again"),
         ]);
-        let rows = db.search_entries("design").unwrap();
+        let rows = db
+            .search_entries_filtered("design", &SpaceFilter::All)
+            .unwrap();
         assert_eq!(rows.len(), 2);
         let ids: Vec<&str> = rows.iter().map(|r| r.id.as_str()).collect();
         assert_eq!(
@@ -718,7 +943,7 @@ mod tests {
     #[test]
     fn delete_local_entries_for_sync_clears_suppression() {
         let db = Db::open(PathBuf::from(":memory:")).unwrap();
-        db.create_entry("gone", "x", "2025-01-01T12:00:00Z").unwrap();
+        db.create_entry("gone", "x", "2025-01-01T12:00:00Z", None).unwrap();
         db.delete_entry("gone").unwrap();
         assert!(db.get_entry_by_id("gone").unwrap().is_none());
         let n = db
@@ -750,14 +975,14 @@ mod tests {
     #[test]
     fn jump_anchor_matches_list_entries_local_day() {
         let db = Db::open(PathBuf::from(":memory:")).unwrap();
-        db.create_entry("e1", "x", "2025-01-20T18:30:00Z").unwrap();
+        db.create_entry("e1", "x", "2025-01-20T18:30:00Z", None).unwrap();
         let created = db.list_entries().unwrap()[0].created_at.clone();
         let utc: chrono::DateTime<chrono::Utc> = chrono::DateTime::parse_from_rfc3339(&created)
             .unwrap()
             .with_timezone(&chrono::Utc);
         let target = utc.with_timezone(&chrono::Local).date_naive();
         assert_eq!(
-            db.jump_anchor_entry_id_for_local_date(target)
+            db.jump_anchor_entry_id_for_local_date(target, &SpaceFilter::All)
                 .unwrap()
                 .as_deref(),
             Some("e1")
@@ -767,7 +992,7 @@ mod tests {
     #[test]
     fn clear_firestore_ingest_suppression_allows_ingest_like_tombstone_success() {
         let db = Db::open(PathBuf::from(":memory:")).unwrap();
-        db.create_entry("t", "local", "2025-01-01T12:00:00Z").unwrap();
+        db.create_entry("t", "local", "2025-01-01T12:00:00Z", None).unwrap();
         db.delete_entry("t").unwrap();
         assert_eq!(
             db.ingest_firestore_entries(&[(
@@ -811,7 +1036,7 @@ mod tests {
     #[test]
     fn update_entry_text_changes_body_and_increments_edit_count() {
         let db = Db::open(PathBuf::from(":memory:")).unwrap();
-        db.create_entry("e1", "original", "2025-01-01T12:00:00Z")
+        db.create_entry("e1", "original", "2025-01-01T12:00:00Z", None)
             .unwrap();
         let before = db.list_entries().unwrap();
         assert_eq!(before[0].text, "original");
@@ -824,26 +1049,84 @@ mod tests {
     }
 
     #[test]
+    fn update_entry_space_changes_lens_without_touching_edit_count() {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        db.create_entry("e1", "hello", "2025-01-01T12:00:00Z", None)
+            .unwrap();
+        assert_eq!(db.list_entries_filtered(&SpaceFilter::Inbox).unwrap().len(), 1);
+        assert_eq!(
+            db.list_entries_filtered(&SpaceFilter::Space("work".to_string()))
+                .unwrap()
+                .len(),
+            0
+        );
+
+        db.update_entry_space("e1", Some("work")).unwrap();
+        assert_eq!(db.list_entries_filtered(&SpaceFilter::Inbox).unwrap().len(), 0);
+        let work = db
+            .list_entries_filtered(&SpaceFilter::Space("work".to_string()))
+            .unwrap();
+        assert_eq!(work.len(), 1);
+        assert_eq!(work[0].space_id.as_deref(), Some("work"));
+        assert_eq!(work[0].edit_count, 0);
+
+        db.update_entry_space("e1", None).unwrap();
+        assert_eq!(db.list_entries_filtered(&SpaceFilter::Inbox).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn list_entries_respects_space_filter() {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        db.create_entry("a", "inbox text", "2025-01-01T12:00:00Z", None)
+            .unwrap();
+        db.create_entry(
+            "b",
+            "work text",
+            "2025-01-02T12:00:00Z",
+            Some("work"),
+        )
+        .unwrap();
+        assert_eq!(
+            db.list_entries_filtered(&SpaceFilter::All).unwrap().len(),
+            2
+        );
+        let inbox = db.list_entries_filtered(&SpaceFilter::Inbox).unwrap();
+        assert_eq!(inbox.len(), 1);
+        assert_eq!(inbox[0].id, "a");
+        let work = db
+            .list_entries_filtered(&SpaceFilter::Space("work".to_string()))
+            .unwrap();
+        assert_eq!(work.len(), 1);
+        assert_eq!(work[0].id, "b");
+    }
+
+    #[test]
     fn local_entry_dates_in_month_drops_day_after_last_delete() {
         let db = Db::open(PathBuf::from(":memory:")).unwrap();
-        db.create_entry("a", "one", "2025-03-24T08:00:00Z").unwrap();
-        db.create_entry("b", "two", "2025-03-24T18:00:00Z").unwrap();
+        db.create_entry("a", "one", "2025-03-24T08:00:00Z", None).unwrap();
+        db.create_entry("b", "two", "2025-03-24T18:00:00Z", None).unwrap();
 
-        let initial = db.local_entry_dates_in_month(2025, 3).unwrap();
+        let initial = db
+            .local_entry_dates_in_month(2025, 3, &SpaceFilter::All)
+            .unwrap();
         assert!(
             initial.iter().any(|d| d == "2025-03-24"),
             "date with entries should be marked"
         );
 
         db.delete_entry("a").unwrap();
-        let after_first_delete = db.local_entry_dates_in_month(2025, 3).unwrap();
+        let after_first_delete = db
+            .local_entry_dates_in_month(2025, 3, &SpaceFilter::All)
+            .unwrap();
         assert!(
             after_first_delete.iter().any(|d| d == "2025-03-24"),
             "date should stay marked while at least one entry remains"
         );
 
         db.delete_entry("b").unwrap();
-        let after_last_delete = db.local_entry_dates_in_month(2025, 3).unwrap();
+        let after_last_delete = db
+            .local_entry_dates_in_month(2025, 3, &SpaceFilter::All)
+            .unwrap();
         assert!(
             !after_last_delete.iter().any(|d| d == "2025-03-24"),
             "date should unmark after last entry is deleted"

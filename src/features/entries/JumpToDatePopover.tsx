@@ -34,6 +34,8 @@ export type JumpToDatePopoverProps = {
   contextYmd: string | null;
   onClose: () => void;
   onPickDate: (ymd: string) => void;
+  /** Matches list/search/jump space lens (`undefined` = all stream) */
+  spaceFilter?: string;
 };
 
 export function JumpToDatePopover({
@@ -42,6 +44,7 @@ export function JumpToDatePopover({
   contextYmd,
   onClose,
   onPickDate,
+  spaceFilter,
 }: JumpToDatePopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const [cursor, setCursor] = useState(() => new Date());
@@ -73,14 +76,14 @@ export function JumpToDatePopover({
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    jumpDatesInMonth(year, monthIndex + 1).then((list) => {
+    jumpDatesInMonth(year, monthIndex + 1, spaceFilter).then((list) => {
       if (cancelled) return;
       setDatesWithEntries(new Set(list));
     });
     return () => {
       cancelled = true;
     };
-  }, [open, year, monthIndex]);
+  }, [open, year, monthIndex, spaceFilter]);
 
   useLayoutEffect(() => {
     if (!open) return;

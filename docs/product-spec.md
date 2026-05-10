@@ -17,6 +17,7 @@ Chinotto is a minimal desktop thinking tool for instantly capturing thoughts and
 - Local-first (SQLite authoritative on device)
 - Single-user
 - **Sync:** Optional bidirectional Firestore sync when Firebase env is configured and the user signs in with Apple (same project as mobile); see `docs/sync.md` (desktop) and `chinotto-mobile/docs/sync/sync.md` (contract). Release QA: `docs/sync-release-checklist.md`. Not required for core use.
+- **Mobile (companion):** One chronological capture stream—no Spaces lens or desktop-only organization there in the current stance (capture-pocket tool). When sync is on, captures must **reach storage reliably**—nothing dropped through the pipeline.
 - No collaboration
 - No Chinotto password / separate account product
 - No hard dependency on cloud for capture or search
@@ -49,10 +50,11 @@ What the app does today. Single source of truth for “do we have this?” and �
 
 | Flow | Description |
 |------|-------------|
-| **Capture** | Open app → input focused → type → **Enter** creates a new entry. One stream, no folders. |
+| **Capture** | Open app → input focused → type → **Enter** creates a new entry. No capture-time picker required. |
 | **Stream** | Entries in reverse chronological order (newest first). Click an entry to open detail. |
-| **Search** | **Cmd+K** (Mac) / **Ctrl+K** (Win/Linux) opens search. Full-text search (FTS5) across all entries. Escape or clear query to return to stream. |
-| **Jump to date** | Calendar icon (and **Cmd+Shift+J** / **Ctrl+Shift+J**) opens a compact month popover. Pick a day that has entries → stream scrolls there; quiet date label and **Back to now** return to the top. Same full stream—no date filter or archive mode. |
+| **Spaces** | Optional stream lens (All, Inbox, Work, Personal)—ambient tabs, not folders. New entries go to **Inbox** unless Work or Personal is selected (then they land in that space). **Thought detail** shows the **current space name** alone in the **same meta typography as the timestamp**; on hover a **smaller** pill lens than the header **unfolds** via a smooth **clip-path** reveal from the right with **all** space options to **move** the thought (or stays visible when saving / on touch)—still three destinations (no “All”). **Moving a thought’s space from detail switches the stream lens** to that space (Inbox, Work, or Personal—not All). Switching lens filters list, search, jump-to-date, and pins to that context. **Local-only** in Phase 1 (not synced to Firestore). |
+| **Search** | **Cmd+K** (Mac) / **Ctrl+K** (Win/Linux) opens search. Full-text search (FTS5) respects the active space lens when not “All.” Escape or clear query to return to stream. |
+| **Jump to date** | Calendar icon (and **Cmd+Shift+J** / **Ctrl+Shift+J**) opens a compact month popover. Pick a day that has entries (in the current lens) → stream scrolls there; quiet date label and **Back to now** return to the top. |
 
 ### Empty stream onboarding
 
@@ -76,6 +78,7 @@ When the **main stream has no entries** (unpinned stream only; not the “no sea
 **Persistence**
 
 - `localStorage` key **`chinotto.hasEverSavedThought`** is set to `1` after a **successful** `create_entry`. It is not cleared when entries are deleted. Used only to choose **full** vs **soft** when the stream is empty again.
+- `localStorage` key **`chinotto.spaceScope`** stores the last selected stream lens (`all` \| `inbox` \| `work` \| `personal`) so reopening the app restores context; menu bar capture reads the same key when present.
 
 **Optional feedback**
 

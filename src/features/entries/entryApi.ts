@@ -1,20 +1,43 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Entry } from "../../types/entry";
 
-export async function createEntry(text: string): Promise<string> {
-  return invoke<string>("create_entry", { text });
+export async function createEntry(
+  text: string,
+  options?: { spaceId?: string }
+): Promise<string> {
+  return invoke<string>("create_entry", {
+    input: {
+      text,
+      ...(options?.spaceId ? { spaceId: options.spaceId } : {}),
+    },
+  });
 }
 
 export async function restoreEntry(
   id: string,
   text: string,
-  created_at: string
+  created_at: string,
+  space_id?: string | null
 ): Promise<string> {
-  return invoke<string>("restore_entry", { id, text, createdAt: created_at });
+  return invoke<string>("restore_entry", {
+    input: {
+      id,
+      text,
+      createdAt: created_at,
+      ...(space_id ? { spaceId: space_id } : {}),
+    },
+  });
 }
 
 export async function updateEntry(entryId: string, text: string): Promise<void> {
   return invoke("update_entry", { entryId, text });
+}
+
+export async function setEntrySpace(
+  entryId: string,
+  spaceId: string | null
+): Promise<void> {
+  return invoke("set_entry_space", { entryId, spaceId });
 }
 
 export function generateEmbedding(entryId: string): void {
@@ -41,29 +64,56 @@ export async function getResurfacedEntry(
   });
 }
 
-export async function listEntries(): Promise<Entry[]> {
-  return invoke<Entry[]>("list_entries");
+export async function listEntries(spaceFilter?: string): Promise<Entry[]> {
+  return invoke<Entry[]>("list_entries", {
+    spaceFilter: spaceFilter ?? null,
+  });
 }
 
 export async function getEntry(entryId: string): Promise<Entry | null> {
   return invoke<Entry | null>("get_entry", { entryId });
 }
 
-export async function searchEntries(query: string): Promise<Entry[]> {
-  return invoke<Entry[]>("search_entries", { query });
+export async function searchEntries(
+  query: string,
+  spaceFilter?: string
+): Promise<Entry[]> {
+  return invoke<Entry[]>("search_entries", {
+    query,
+    spaceFilter: spaceFilter ?? null,
+  });
+}
+
+export type SpaceRow = {
+  id: string;
+  label: string;
+  sort_order: number;
+};
+
+export async function listSpaces(): Promise<SpaceRow[]> {
+  return invoke<SpaceRow[]>("list_spaces");
 }
 
 export async function jumpDatesInMonth(
   year: number,
-  month: number
+  month: number,
+  spaceFilter?: string
 ): Promise<string[]> {
-  return invoke<string[]>("jump_dates_in_month", { year, month });
+  return invoke<string[]>("jump_dates_in_month", {
+    year,
+    month,
+    spaceFilter: spaceFilter ?? null,
+  });
 }
 
 export async function jumpAnchorForLocalDate(
-  localDate: string
+  localDate: string,
+  spaceFilter?: string
 ): Promise<string | null> {
-  return invoke<string | null>("jump_anchor_for_local_date", { localDate });
+  return invoke<string | null>("jump_anchor_for_local_date", {
+    localDate,
+    spaceFilter: spaceFilter ?? null,
+  });
 }
 
 export async function getThoughtTrail(entryId: string): Promise<Entry[]> {

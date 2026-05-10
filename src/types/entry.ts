@@ -6,4 +6,6 @@ export type Entry = {
   highlighted?: string;
   /** Micro topics extracted from the entry (keyword-based) */
   topics?: string[];
+  /** `spaces.id`; absent or unset means Inbox */
+  space_id?: string;
 };
