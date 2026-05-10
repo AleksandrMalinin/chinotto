@@ -2,6 +2,8 @@
 
 This file defines how agents must behave when working in the Chinotto repository. Deviations are bugs.
 
+**Agents must read this file when working here.** It overrides generic tooling defaults (batch commits, branch-name templates, “commit all and push” shortcuts). For commits and git history, **`docs/commit-convention.md` is mandatory reading** before writing any commit message or deciding commit boundaries.
+
 ---
 
 ## What Chinotto is
@@ -40,7 +42,7 @@ Do not propose or implement features that contradict the above. When in doubt, p
 
 - **Read before changing.** Use the codebase and `docs/` to understand current behavior and constraints. Do not assume; verify paths, APIs, and data shapes.
 - **Preserve existing contracts.** Frontend invokes Tauri commands (`create_entry`, `list_entries`, `search_entries`, and others in `docs/architecture.md`). Entry has `id`, `text`, `created_at`. Do not change the entry/search trio or Entry shape without explicit requirement and approval.
-- **Follow the commit convention.** All suggested commit messages must conform to `docs/commit-convention.md`: type(scope): imperative subject, one logical change, no vague or emotional wording.
+- **Follow the commit convention.** Before any commit: read `docs/commit-convention.md` (format, types, **granularity** — when to split commits). Every message must match that doc: `type(scope): imperative subject`, one logical change, no vague or emotional wording. **Unrelated work (e.g. schema + UI polish + unrelated fix) → separate commits.** Do not squash distinct changes into one commit to satisfy a push workflow or automation unless the user **explicitly** asks for a single commit.
 - **Do not invent product scope.** Do not add features (e.g. tags, folders, AI chat, sync) unless the user explicitly asks. If the user’s request conflicts with product constraints, state the conflict and ask.
 - **Prefer the smallest change.** Fix or add what’s asked. Avoid “while I’m here” refactors or scope creep. Refactors are separate from feature work unless the user asks for both.
 - **Leave the codebase buildable and runnable.** Do not leave broken imports, commented-out code that should be removed, or half-finished work. If something is intentionally incomplete (e.g. stub), say so in the change or a short comment.
@@ -101,4 +103,4 @@ Do not propose or implement features that contradict the above. When in doubt, p
 
 ## Summary
 
-Agents work in Chinotto under a strict, product-aligned contract: minimal scope, local-first, debuggable code, no fluff. Follow the docs, the commit convention, and the “what is / what is not” boundaries. Prefer the smallest change; avoid new deps and abstractions unless justified. Documentation stays accurate and minimal. This file is the source of truth for agent behavior in this repo.
+Agents work in Chinotto under a strict, product-aligned contract: minimal scope, local-first, debuggable code, no fluff. **Re-read this file and `docs/commit-convention.md` when committing.** Follow product/architecture docs and the “what is / what is not” boundaries. Prefer the smallest change; avoid new deps and abstractions unless justified. Documentation stays accurate and minimal. This file is the source of truth for agent behavior in this repo.
