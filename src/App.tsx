@@ -1,6 +1,7 @@
 import {
   useState,
   useEffect,
+  useLayoutEffect,
   useCallback,
   useRef,
   useMemo,
@@ -115,6 +116,14 @@ import {
   type SpaceScope,
 } from "@/lib/spaceScope";
 import { SPACE_LENS_TABS, SPACE_THEME_ATTR } from "@/lib/spaceTheme";
+import {
+  applyAmbienceToDocument,
+  loadStoredSpaceAmbience,
+  saveSpaceAmbienceForScope,
+  type SpaceAmbienceLevel,
+} from "@/lib/spaceAmbience";
+import { SpaceAtmosphereAffordance } from "./features/entries/SpaceAtmosphereAffordance";
+import { SpaceAtmospherePopover } from "./features/entries/SpaceAtmospherePopover";
 
 /** Voice capture is disabled in the main flow. Set to true to re-enable as an experimental feature. */
 const EXPERIMENTAL_VOICE_CAPTURE = false;
@@ -205,6 +214,14 @@ export default function App() {
         ? localStorage.getItem(SPACE_SCOPE_STORAGE_KEY)
         : null
     )
+  );
+  const [spaceAmbienceByScope, setSpaceAmbienceByScope] = useState(
+    loadStoredSpaceAmbience
+  );
+  const activeSpaceAmbience = spaceAmbienceByScope[spaceScope];
+  const [atmospherePopoverOpen, setAtmospherePopoverOpen] = useState(false);
+  const [atmosphereAnchor, setAtmosphereAnchor] = useState<HTMLElement | null>(
+    null
   );
   const spaceFilterParam = useMemo(
     () => toApiSpaceFilter(spaceScope),
@@ -318,9 +335,40 @@ export default function App() {
     localStorage.setItem(SPACE_SCOPE_STORAGE_KEY, spaceScope);
   }, [spaceScope]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.setAttribute(SPACE_THEME_ATTR, spaceScope);
+    applyAmbienceToDocument(spaceScope, activeSpaceAmbience);
+  }, [spaceScope, activeSpaceAmbience]);
+
+  useEffect(() => {
+    setAtmospherePopoverOpen(false);
   }, [spaceScope]);
+
+  const openAtmospherePopover = useCallback((el: HTMLButtonElement) => {
+    setAtmosphereAnchor(el);
+    setAtmospherePopoverOpen(true);
+  }, []);
+
+  const toggleAtmospherePopover = useCallback(
+    (el: HTMLButtonElement) => {
+      if (atmospherePopoverOpen && atmosphereAnchor === el) {
+        setAtmospherePopoverOpen(false);
+        return;
+      }
+      openAtmospherePopover(el);
+    },
+    [atmosphereAnchor, atmospherePopoverOpen, openAtmospherePopover]
+  );
+
+  const handleSpaceAmbienceChange = useCallback(
+    (level: SpaceAmbienceLevel) => {
+      applyAmbienceToDocument(spaceScope, level);
+      setSpaceAmbienceByScope((prev) =>
+        saveSpaceAmbienceForScope(spaceScope, level, prev)
+      );
+    },
+    [spaceScope]
+  );
 
   const handleSendFeedback = useCallback(() => {
     const subject = "Chinotto feedback";
@@ -1565,26 +1613,36 @@ export default function App() {
               aria-label={introDismissed ? "Stream lens" : undefined}
               aria-hidden={!introDismissed}
             >
-              <div className="header-space-lens-inner">
-                {SPACE_LENS_TABS.map(([id, label]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    role={introDismissed ? "tab" : undefined}
-                    aria-selected={introDismissed ? spaceScope === id : undefined}
-                    tabIndex={introDismissed ? 0 : -1}
-                    className={
-                      spaceScope === id
-                        ? "space-scope-tab space-scope-tab--active"
-                        : "space-scope-tab"
-                    }
-                    onClick={() => {
-                      if (introDismissed) setSpaceScope(id);
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
+              <div className="app-header-lens-row">
+                <div className="header-space-lens-inner">
+                  {SPACE_LENS_TABS.map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      role={introDismissed ? "tab" : undefined}
+                      aria-selected={
+                        introDismissed ? spaceScope === id : undefined
+                      }
+                      tabIndex={introDismissed ? 0 : -1}
+                      className={
+                        spaceScope === id
+                          ? "space-scope-tab space-scope-tab--active"
+                          : "space-scope-tab"
+                      }
+                      onClick={() => {
+                        if (introDismissed) setSpaceScope(id);
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {introDismissed ? (
+                  <SpaceAtmosphereAffordance
+                    open={atmospherePopoverOpen}
+                    onToggle={toggleAtmospherePopover}
+                  />
+                ) : null}
               </div>
             </div>
             <div className="app-header-end">
@@ -1747,7 +1805,7 @@ export default function App() {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="search-trigger-inline text-[var(--muted)] hover:text-[var(--fg-dim)]"
+                  className="search-trigger-inline text-[var(--muted)] hover:text-[var(--ui-dim)]"
                   onClick={() => {
                     setJumpPopoverOpen(false);
                     setIsSearchOpen(true);
@@ -1950,6 +2008,16 @@ export default function App() {
           }}
         />
       )}
+      {introDismissed ? (
+        <SpaceAtmospherePopover
+          open={atmospherePopoverOpen}
+          anchor={atmosphereAnchor}
+          scope={spaceScope}
+          value={activeSpaceAmbience}
+          onChange={handleSpaceAmbienceChange}
+          onClose={() => setAtmospherePopoverOpen(false)}
+        />
+      ) : null}
       <UpdateNudge
         phase={appUpdater.phase}
         onDownload={appUpdater.download}
