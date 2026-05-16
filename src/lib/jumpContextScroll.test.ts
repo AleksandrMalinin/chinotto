@@ -3,6 +3,7 @@ import {
   JUMP_CONTEXT_SCROLL_AWAY_MIN_PX,
   JUMP_CONTEXT_SCROLL_TOP_CLEAR_PX,
   jumpScrollDismissStep,
+  streamBackToNowVisibleStep,
 } from "./jumpContextScroll";
 
 describe("jumpScrollDismissStep", () => {
@@ -47,5 +48,28 @@ describe("jumpScrollDismissStep", () => {
       hadScrolledAway: true,
       shouldDismiss: false,
     });
+  });
+});
+
+describe("streamBackToNowVisibleStep", () => {
+  it("shows when scroll is past the away threshold", () => {
+    expect(
+      streamBackToNowVisibleStep(JUMP_CONTEXT_SCROLL_AWAY_MIN_PX + 1, false)
+    ).toBe(true);
+  });
+
+  it("hides when scroll is at or below the top clear threshold", () => {
+    expect(
+      streamBackToNowVisibleStep(JUMP_CONTEXT_SCROLL_TOP_CLEAR_PX, true)
+    ).toBe(false);
+    expect(streamBackToNowVisibleStep(0, true)).toBe(false);
+  });
+
+  it("keeps prior visibility in the band between thresholds", () => {
+    const mid =
+      (JUMP_CONTEXT_SCROLL_TOP_CLEAR_PX + JUMP_CONTEXT_SCROLL_AWAY_MIN_PX) /
+      2;
+    expect(streamBackToNowVisibleStep(mid, true)).toBe(true);
+    expect(streamBackToNowVisibleStep(mid, false)).toBe(false);
   });
 });

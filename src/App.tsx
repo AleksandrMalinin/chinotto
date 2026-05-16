@@ -88,6 +88,7 @@ import {
 import { UpdateNudge } from "@/components/UpdateNudge";
 import { scrollJumpSectionIntoView } from "@/lib/scrollJumpSectionIntoView";
 import { useJumpContextAutoClear } from "@/lib/useJumpContextAutoClear";
+import { useStreamBackToNowVisible } from "@/lib/useStreamBackToNowVisible";
 import { APP_VERSION } from "@/lib/appVersion";
 import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
 import {
@@ -505,6 +506,14 @@ export default function App() {
     isSearchOpen,
     selectedEntry,
   });
+
+  const streamBackToNowFromScroll = useStreamBackToNowVisible(
+    !loading && !selectedEntry && !search.trim()
+  );
+  const showBackToNow =
+    !search.trim() &&
+    !selectedEntry &&
+    (jumpContextYmd !== null || streamBackToNowFromScroll);
 
   useEffect(() => {
     const len = streamEntries.length;
@@ -1073,14 +1082,18 @@ export default function App() {
   );
 
   const handleJumpBackToNow = useCallback(() => {
-    track({ event: "jump_to_date_back_to_now" });
+    track({
+      event: jumpContextYmd
+        ? "jump_to_date_back_to_now"
+        : "stream_back_to_now",
+    });
     clearJumpContext();
     requestAnimationFrame(() => {
       const scroller = document.scrollingElement;
       scroller?.scrollTo({ top: 0, behavior: "smooth" });
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
-  }, [clearJumpContext]);
+  }, [clearJumpContext, jumpContextYmd]);
 
   const handleOpenEntry = useCallback((entry: Entry) => {
     track({ event: "entry_opened" });
@@ -1741,23 +1754,26 @@ export default function App() {
               }}
             />
           </div>
-      {jumpContextYmd && !search.trim() && !selectedEntry ? (
-        <div className="jump-date-context">
-          {jumpContextExpanded ? (
-            <span className="jump-date-context-label">
-              {formatJumpContextLabel(jumpContextYmd)}
-            </span>
-          ) : null}
-          <button
-            type="button"
-            className="jump-date-context-back"
-            onClick={handleJumpBackToNow}
+          <div
+            className="jump-date-context"
+            data-visible={showBackToNow || undefined}
+            aria-hidden={!showBackToNow}
           >
-            Back to now
-          </button>
-        </div>
-      ) : null}
-      {loading ? (
+            {jumpContextYmd && jumpContextExpanded ? (
+              <span className="jump-date-context-label">
+                {formatJumpContextLabel(jumpContextYmd)}
+              </span>
+            ) : null}
+            <button
+              type="button"
+              className="jump-date-context-back"
+              onClick={handleJumpBackToNow}
+              tabIndex={showBackToNow ? 0 : -1}
+            >
+              Back to now
+            </button>
+          </div>
+          {loading ? (
         <p className="stream-loading">Loading…</p>
       ) : selectedEntry ? (
         <EntryDetail

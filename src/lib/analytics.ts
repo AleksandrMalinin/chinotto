@@ -37,6 +37,7 @@ export type AnalyticsEvent =
   | { event: "jump_to_date_calendar_opened" }
   | { event: "jump_to_date_completed"; days_ago: number }
   | { event: "jump_to_date_back_to_now" }
+  | { event: "stream_back_to_now" }
   | {
       event: "entry_text_saved";
       source: "detail" | "stream";

@@ -17,3 +17,13 @@ export function jumpScrollDismissStep(
     scrollTop <= JUMP_CONTEXT_SCROLL_TOP_CLEAR_PX && nextHad;
   return { hadScrolledAway: nextHad, shouldDismiss };
 }
+
+/** Hysteresis for showing “Back to now” when the user scrolls the stream (not only calendar jump). */
+export function streamBackToNowVisibleStep(
+  scrollTop: number,
+  wasVisible: boolean
+): boolean {
+  if (scrollTop > JUMP_CONTEXT_SCROLL_AWAY_MIN_PX) return true;
+  if (scrollTop <= JUMP_CONTEXT_SCROLL_TOP_CLEAR_PX) return false;
+  return wasVisible;
+}

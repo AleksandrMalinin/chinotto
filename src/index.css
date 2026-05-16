@@ -997,18 +997,23 @@ body.welcome .app-bg {
   background: rgba(160, 170, 255, 0.42);
 }
 
+/* Fixed overlay: never affects stream layout when shown or hidden. */
 .jump-date-context {
+  position: fixed;
+  top: 0.55rem;
+  right: 2rem;
+  z-index: 20;
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
   gap: 0.4rem;
-  margin: 0 0 0.95rem auto;
+  margin: 0;
   padding: 0.28rem 0.42rem;
   width: fit-content;
-  max-width: 100%;
-  position: sticky;
-  top: 0.55rem;
-  z-index: 4;
+  max-width: min(100vw - 4rem, 1100px);
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(10, 10, 16, 0.82);
@@ -1019,6 +1024,18 @@ body.welcome .app-bg {
   font-weight: 400;
   letter-spacing: 0.02em;
   color: rgba(255, 255, 255, 0.38);
+}
+
+@media (min-width: 1164px) {
+  .jump-date-context {
+    right: calc((100vw - 1100px) / 2 + 32px);
+  }
+}
+
+.jump-date-context[data-visible] {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .jump-date-context-label {
