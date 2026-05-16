@@ -772,7 +772,7 @@ body.chinotto-card-open {
     90deg,
     rgba(70, 115, 195, 0.22) 0%,
     rgba(110, 110, 130, 0.08) 50%,
-    rgba(175, 115, 90, 0.22) 100%
+    rgba(255, 252, 248, 0.14) 100%
   );
   pointer-events: none;
 }

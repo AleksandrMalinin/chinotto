@@ -17,23 +17,27 @@ export const SPACE_AMBIENCE_STORAGE_KEY = "chinotto.spaceAmbience";
 export const AMBIENCE_TONE_BLEND = 0.32;
 
 const COOL_BG_BIAS = "#070c18";
-const WARM_BG_BIAS = "#140a0c";
+/** Warm pole: bright clean highlights (set directly, not lerped from blue neutral). */
+const WARM_BG_BIAS = "#0d0d11";
+const WARM_BG_BLEND = 0.06;
 const COOL_SURFACE_TINT = "rgba(72, 108, 175, 0.045)";
-const WARM_SURFACE_TINT = "rgba(165, 105, 88, 0.045)";
+const WARM_SURFACE_TINT = "rgba(255, 255, 252, 0.022)";
 const COOL_AMBIENT_PRIMARY = "rgba(55, 95, 175, 0.14)";
-const WARM_AMBIENT_PRIMARY = "rgba(185, 110, 75, 0.14)";
+const WARM_AMBIENT_PRIMARY = "rgba(255, 252, 248, 0.09)";
 const COOL_AMBIENT_SECONDARY = "rgba(45, 75, 140, 0.11)";
-const WARM_AMBIENT_SECONDARY = "rgba(200, 130, 70, 0.11)";
+const WARM_AMBIENT_SECONDARY = "rgba(255, 255, 252, 0.065)";
+const WARM_AMBIENT_PRIMARY_AT = "18% 22%";
+const WARM_AMBIENT_SECONDARY_AT = "84% 76%";
 const COOL_ACCENT = "rgba(140, 168, 225, 0.94)";
-const WARM_ACCENT = "rgba(200, 175, 195, 0.88)";
+const WARM_ACCENT = "rgba(248, 246, 255, 0.9)";
 const COOL_ACCENT_HOVER = "rgba(175, 198, 240, 0.98)";
-const WARM_ACCENT_HOVER = "rgba(225, 200, 214, 0.94)";
+const WARM_ACCENT_HOVER = "rgba(255, 252, 255, 0.98)";
 const COOL_ACCENT_SUBTLE = "rgba(90, 118, 165, 0.12)";
-const WARM_ACCENT_SUBTLE = "rgba(150, 110, 130, 0.12)";
+const WARM_ACCENT_SUBTLE = "rgba(255, 255, 255, 0.08)";
 const COOL_BORDER_FOCUS = "rgba(125, 155, 210, 0.5)";
-const WARM_BORDER_FOCUS = "rgba(195, 160, 180, 0.4)";
+const WARM_BORDER_FOCUS = "rgba(235, 232, 245, 0.42)";
 const COOL_CARET = "rgba(150, 180, 225, 0.92)";
-const WARM_CARET = "rgba(215, 185, 200, 0.85)";
+const WARM_CARET = "rgba(255, 252, 255, 0.88)";
 
 export const DEFAULT_SPACE_AMBIENCE_BY_SCOPE: Record<
   SpaceScope,
@@ -193,7 +197,7 @@ export function deriveRoomToneAnchors(_scope?: SpaceScope): ScopeAnchors {
   const defaultRoom: AmbienceAnchorTokens = { ...NEUTRAL_AMBIENCE_CENTER };
   const blend = AMBIENCE_TONE_BLEND;
   const coolBg = lerpHex(defaultRoom.bg, COOL_BG_BIAS, blend);
-  const warmBg = lerpHex(defaultRoom.bg, WARM_BG_BIAS, blend);
+  const warmBg = lerpHex(defaultRoom.bg, WARM_BG_BIAS, WARM_BG_BLEND);
   return {
     default: defaultRoom,
     cool: {
@@ -229,24 +233,16 @@ export function deriveRoomToneAnchors(_scope?: SpaceScope): ScopeAnchors {
         defaultRoom.bgElevated,
         warmBg
       ),
-      surfaceTint: lerpRgba(defaultRoom.surfaceTint, WARM_SURFACE_TINT, 1),
-      spaceAmbientPrimary: lerpRgba(
-        defaultRoom.spaceAmbientPrimary,
-        WARM_AMBIENT_PRIMARY,
-        blend
-      ),
-      spaceAmbientSecondary: lerpRgba(
-        defaultRoom.spaceAmbientSecondary,
-        WARM_AMBIENT_SECONDARY,
-        blend
-      ),
-      spaceAmbientPrimaryAt: defaultRoom.spaceAmbientPrimaryAt,
-      spaceAmbientSecondaryAt: defaultRoom.spaceAmbientSecondaryAt,
-      accent: lerpRgba(defaultRoom.accent, WARM_ACCENT, blend),
-      accentHover: lerpRgba(defaultRoom.accentHover, WARM_ACCENT_HOVER, blend),
-      accentSubtle: lerpRgba(defaultRoom.accentSubtle, WARM_ACCENT_SUBTLE, blend),
-      borderFocus: lerpRgba(defaultRoom.borderFocus, WARM_BORDER_FOCUS, blend),
-      caretAccent: lerpRgba(defaultRoom.caretAccent, WARM_CARET, blend),
+      surfaceTint: WARM_SURFACE_TINT,
+      spaceAmbientPrimary: WARM_AMBIENT_PRIMARY,
+      spaceAmbientSecondary: WARM_AMBIENT_SECONDARY,
+      spaceAmbientPrimaryAt: WARM_AMBIENT_PRIMARY_AT,
+      spaceAmbientSecondaryAt: WARM_AMBIENT_SECONDARY_AT,
+      accent: WARM_ACCENT,
+      accentHover: WARM_ACCENT_HOVER,
+      accentSubtle: WARM_ACCENT_SUBTLE,
+      borderFocus: WARM_BORDER_FOCUS,
+      caretAccent: WARM_CARET,
     },
   };
 }

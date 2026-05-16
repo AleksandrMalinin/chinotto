@@ -38,10 +38,10 @@ describe("spaceAmbience", () => {
   });
 
   it("interpolateAmbienceTokens blends toward warm", () => {
-    const mid = interpolateAmbienceTokens("personal", 75);
-    expect(mid.bg).toMatch(/^#[0-9a-f]{6}$/i);
-    expect(mid.bg).not.toBe(NEUTRAL_AMBIENCE_CENTER.bg);
-    expect(mid.spaceAmbientPrimary).not.toBe(
+    const warm = interpolateAmbienceTokens("personal", 100);
+    expect(warm.spaceAmbientPrimary).toBe("rgba(255, 252, 248, 0.09)");
+    expect(warm.accent).toBe("rgba(248, 246, 255, 0.9)");
+    expect(interpolateAmbienceTokens("personal", 75).spaceAmbientPrimary).not.toBe(
       NEUTRAL_AMBIENCE_CENTER.spaceAmbientPrimary
     );
   });
