@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./styles/spaceThemes.css";
 
 /*
   Chinotto visual identity – calm thinking space, not a productivity dashboard.
@@ -23,6 +24,13 @@
   --accent-hover: rgba(188, 196, 255, 0.98);
   --accent-soft: color-mix(in srgb, var(--accent) 72%, transparent);
   --accent-subtle: rgba(128, 138, 188, 0.08);
+  --space-ambient-primary: rgba(100, 120, 180, 0.22);
+  --space-ambient-secondary: rgba(80, 100, 150, 0.18);
+  --space-ambient-primary-at: 15% 20%;
+  --space-ambient-secondary-at: 88% 82%;
+  --surface-tint: transparent;
+  --caret-accent: rgba(168, 178, 228, 0.82);
+  /* Text tokens: mirror src/lib/spaceThemeTokens.ts (all / inbox). */
   --transition: 180ms ease-out;
 
   /* Landing/card theme (aligns with PreviewPage) */
@@ -213,15 +221,33 @@ body.chinotto-card-open {
   background: var(--bg);
 }
 
+.app-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--surface-tint);
+}
+
 /* Main app background – radial gradients (lighter tone) */
 .app-bg {
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
+  transition: background 0.5s ease-out;
   background:
-    radial-gradient(ellipse 70vmax 45vmax at 15% 20%, rgba(100, 120, 180, 0.22) 0%, transparent 48%),
-    radial-gradient(ellipse 60vmax 50vmax at 88% 82%, rgba(80, 100, 150, 0.18) 0%, transparent 48%);
+    radial-gradient(
+      ellipse 70vmax 45vmax at var(--space-ambient-primary-at),
+      var(--space-ambient-primary) 0%,
+      transparent 48%
+    ),
+    radial-gradient(
+      ellipse 60vmax 50vmax at var(--space-ambient-secondary-at),
+      var(--space-ambient-secondary) 0%,
+      transparent 48%
+    );
   filter: blur(80px);
   animation: ambient-glow 20s ease-in-out infinite;
 }
@@ -802,8 +828,8 @@ body.welcome .app-bg {
 
 .space-scope-tab--active {
   color: var(--fg);
-  border-color: transparent;
-  background: rgba(255, 255, 255, 0.1);
+  border-color: color-mix(in srgb, var(--accent) 38%, transparent);
+  background: var(--accent-subtle);
 }
 
 .entry-input-row {
@@ -2788,6 +2814,7 @@ body.welcome .app-bg {
   outline: none;
   border-color: var(--border-focus);
   box-shadow: 0 1px 0 0 var(--border-focus);
+  caret-color: var(--caret-accent);
 }
 
 /* Resurfaced card – subtle surface, no heavy card */

@@ -107,6 +107,7 @@ import {
   toApiSpaceFilter,
   type SpaceScope,
 } from "@/lib/spaceScope";
+import { SPACE_LENS_TABS, SPACE_THEME_ATTR } from "@/lib/spaceTheme";
 
 /** Voice capture is disabled in the main flow. Set to true to re-enable as an experimental feature. */
 const EXPERIMENTAL_VOICE_CAPTURE = false;
@@ -120,13 +121,6 @@ const JUMP_CONTEXT_EXPANDED_MS = 3000;
 const DESKTOP_FIRESTORE_INGEST_DEBOUNCE_MS = 120;
 /** After closing Sync modal, wait for the dismiss transition before attaching ingest listeners. */
 const DESKTOP_FIRESTORE_INGEST_AFTER_SYNC_MODAL_MS = 200;
-
-const SPACE_LENS_TABS = [
-  ["all", "All"],
-  ["inbox", "Inbox"],
-  ["work", "Work"],
-  ["personal", "Personal"],
-] as const;
 
 /** Lets ChinottoCard (and similar) run their exit animation instead of unmounting from the parent. */
 function emitSyntheticEscapeKeydown(): void {
@@ -315,6 +309,10 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem(SPACE_SCOPE_STORAGE_KEY, spaceScope);
+  }, [spaceScope]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute(SPACE_THEME_ATTR, spaceScope);
   }, [spaceScope]);
 
   const handleSendFeedback = useCallback(() => {
