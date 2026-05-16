@@ -1,14 +1,7 @@
 /*
-  Per-space ambience. Selectors must load after :root in index.css.
-  html gets data-space-scope from App when the lens tab changes.
-
-  READABILITY (keep in sync with src/lib/spaceThemeTokens.ts):
-  - Only override --fg, --fg-dim, --meta-fg, --bg when both sides move together.
-  - Target >= 4.5:1 for --fg / --fg-dim / --meta-fg on --bg (WCAG AA normal).
-  - Do not override --muted per space without updating the contrast test.
-  - Glow / --surface-tint / --space-ambient-* are decorative; not text backgrounds.
-
-  Run: npm run test:ts -- --run src/lib/spaceThemeContrast.test.ts
+  Scope attribute for lens tabs. Room tone: spaceAmbience.ts (per-space slider).
+  Text and chrome tokens: :root in index.css (--ui-dim for header, placeholders).
+  Readability checks: src/lib/spaceThemeTokens.ts
 */
 
 html {
@@ -16,63 +9,3 @@ html {
     background-color 0.45s ease-out,
     color 0.35s ease-out;
 }
-
-:root[data-space-scope="inbox"] {
-  --atmosphere-soft: rgba(88, 108, 168, 0.2);
-  --glow: rgba(100, 125, 190, 0.22);
-  --accent: rgba(175, 192, 255, 0.92);
-  --accent-hover: rgba(200, 210, 255, 0.98);
-  --accent-soft: color-mix(in srgb, var(--accent) 72%, transparent);
-  --accent-subtle: rgba(118, 145, 215, 0.14);
-  --border-focus: rgba(158, 178, 235, 0.48);
-  --space-ambient-primary: rgba(105, 140, 220, 0.26);
-  --space-ambient-secondary: rgba(75, 105, 195, 0.18);
-  --space-ambient-primary-at: 8% 14%;
-  --space-ambient-secondary-at: 94% 76%;
-  --surface-tint: rgba(115, 150, 235, 0.045);
-  --caret-accent: rgba(185, 200, 255, 0.9);
-}
-
-:root[data-space-scope="work"] {
-  --fg: #e3e6ec;
-  --fg-dim: #9198a4;
-  --meta-fg: rgba(255, 255, 255, 0.6);
-  --border: rgba(255, 255, 255, 0.09);
-  --atmosphere-soft: rgba(62, 82, 112, 0.18);
-  --glow: rgba(72, 98, 135, 0.2);
-  --accent: rgba(140, 168, 225, 0.94);
-  --accent-hover: rgba(175, 198, 240, 0.98);
-  --accent-soft: color-mix(in srgb, var(--accent) 72%, transparent);
-  --accent-subtle: rgba(90, 118, 165, 0.12);
-  --border-focus: rgba(125, 155, 210, 0.5);
-  --bg: #08090d;
-  --bg-elevated: #0d0e13;
-  --space-ambient-primary: rgba(65, 95, 150, 0.21);
-  --space-ambient-secondary: rgba(50, 72, 110, 0.17);
-  --space-ambient-primary-at: 20% 10%;
-  --space-ambient-secondary-at: 86% 90%;
-  --surface-tint: rgba(65, 95, 150, 0.05);
-  --caret-accent: rgba(150, 180, 225, 0.92);
-}
-
-:root[data-space-scope="personal"] {
-  --fg: #ebe6e3;
-  --fg-dim: #a89f99;
-  --meta-fg: rgba(255, 255, 255, 0.56);
-  --atmosphere-soft: rgba(125, 85, 105, 0.15);
-  --glow: rgba(140, 100, 115, 0.17);
-  --accent: rgba(205, 178, 195, 0.86);
-  --accent-hover: rgba(225, 200, 214, 0.94);
-  --accent-soft: color-mix(in srgb, var(--accent) 72%, transparent);
-  --accent-subtle: rgba(150, 110, 130, 0.12);
-  --border-focus: rgba(195, 160, 180, 0.4);
-  --bg: #0c0a0d;
-  --bg-elevated: #110f12;
-  --space-ambient-primary: rgba(155, 100, 125, 0.18);
-  --space-ambient-secondary: rgba(180, 120, 80, 0.13);
-  --space-ambient-primary-at: 18% 24%;
-  --space-ambient-secondary-at: 80% 78%;
-  --surface-tint: rgba(170, 115, 95, 0.042);
-  --caret-accent: rgba(215, 185, 200, 0.85);
-}
-
