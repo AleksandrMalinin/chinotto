@@ -736,27 +736,30 @@ body.chinotto-card-open {
 .space-atmosphere-popover {
   position: fixed;
   z-index: 120;
-  min-width: 10.5rem;
-  padding: 0.5rem 0.65rem 0.55rem;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(12px);
+  width: 8.25rem;
+  padding: 0.38rem 0.5rem 0.42rem;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.2),
+    0 8px 24px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(10px);
 }
 
 .space-atmosphere-popover__label {
-  margin: 0 0 0.45rem;
-  font-size: 10px;
+  margin: 0 0 0.3rem;
+  font-size: 9px;
   font-weight: 500;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: color-mix(in srgb, var(--muted) 92%, var(--ui-dim));
+  line-height: 1.2;
 }
 
 .space-ambience-rail {
   position: relative;
-  padding: 0.2rem 0 0.05rem;
+  padding: 0.12rem 0 0;
 }
 
 .space-ambience-rail::before {
@@ -765,15 +768,28 @@ body.chinotto-card-open {
   left: 0;
   right: 0;
   top: 50%;
-  height: 3px;
+  height: 2px;
   transform: translateY(-50%);
   border-radius: 999px;
   background: linear-gradient(
     90deg,
-    rgba(70, 115, 195, 0.22) 0%,
-    rgba(110, 110, 130, 0.08) 50%,
-    rgba(255, 252, 248, 0.14) 100%
+    rgba(70, 115, 195, 0.2) 0%,
+    rgba(110, 110, 130, 0.06) 50%,
+    rgba(255, 252, 248, 0.12) 100%
   );
+  pointer-events: none;
+}
+
+.space-ambience-rail::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1px;
+  height: 5px;
+  transform: translate(-50%, -50%);
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.1);
   pointer-events: none;
 }
 
@@ -783,47 +799,47 @@ body.chinotto-card-open {
   display: block;
   width: 100%;
   margin: 0;
-  height: 14px;
+  height: 11px;
   appearance: none;
   background: transparent;
   cursor: pointer;
 }
 
 .space-ambience-slider::-webkit-slider-runnable-track {
-  height: 3px;
+  height: 2px;
   border-radius: 999px;
   background: transparent;
 }
 
 .space-ambience-slider::-webkit-slider-thumb {
   appearance: none;
-  width: 12px;
-  height: 12px;
-  margin-top: -4.5px;
+  width: 9px;
+  height: 9px;
+  margin-top: -3.5px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: color-mix(in srgb, var(--ui-dim) 90%, var(--bg));
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: color-mix(in srgb, var(--ui-dim) 85%, var(--bg-elevated));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
 }
 
 .space-ambience-slider::-moz-range-track {
-  height: 3px;
+  height: 2px;
   border-radius: 999px;
   background: transparent;
 }
 
 .space-ambience-slider::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: color-mix(in srgb, var(--ui-dim) 90%, var(--bg));
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: color-mix(in srgb, var(--ui-dim) 85%, var(--bg-elevated));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
 }
 
 .space-ambience-slider:focus-visible {
   outline: 1px solid var(--border-focus);
-  outline-offset: 3px;
+  outline-offset: 2px;
 }
 
 .app-header-name {

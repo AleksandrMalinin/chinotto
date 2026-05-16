@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef } from "react";
 import {
+  AMBIENCE_CENTER,
   AMBIENCE_MAX,
   AMBIENCE_MIN,
   applyAmbienceToDocument,
@@ -85,7 +86,7 @@ export function SpaceAtmospherePopover({
       aria-modal="false"
     >
       <p id={labelId} className="space-atmosphere-popover__label">
-        Tone · {SCOPE_LABEL[scope]}
+        Ambience · {SCOPE_LABEL[scope]}
       </p>
       <div className="space-ambience-rail">
         <input
@@ -95,12 +96,17 @@ export function SpaceAtmospherePopover({
           max={AMBIENCE_MAX}
           step={1}
           value={value}
-          aria-label={`Room tone for ${SCOPE_LABEL[scope]}, cool to warm`}
+          aria-label={`Ambience for ${SCOPE_LABEL[scope]}, cool to warm`}
           aria-valuetext="Adjusted"
+          title="Double-click to reset to default ambience"
           onInput={(e) => {
             const level = Number((e.target as HTMLInputElement).value);
             applyAmbienceToDocument(scope, level);
             onChange(level);
+          }}
+          onDoubleClick={() => {
+            applyAmbienceToDocument(scope, AMBIENCE_CENTER);
+            onChange(AMBIENCE_CENTER);
           }}
         />
       </div>
