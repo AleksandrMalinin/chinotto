@@ -25,11 +25,11 @@ html {
   --accent-soft: color-mix(in srgb, var(--accent) 72%, transparent);
   --accent-subtle: rgba(118, 145, 215, 0.14);
   --border-focus: rgba(158, 178, 235, 0.48);
-  --space-ambient-primary: rgba(105, 140, 220, 0.32);
-  --space-ambient-secondary: rgba(75, 105, 195, 0.22);
+  --space-ambient-primary: rgba(105, 140, 220, 0.26);
+  --space-ambient-secondary: rgba(75, 105, 195, 0.18);
   --space-ambient-primary-at: 8% 14%;
   --space-ambient-secondary-at: 94% 76%;
-  --surface-tint: rgba(115, 150, 235, 0.055);
+  --surface-tint: rgba(115, 150, 235, 0.045);
   --caret-accent: rgba(185, 200, 255, 0.9);
 }
 
@@ -47,11 +47,11 @@ html {
   --border-focus: rgba(125, 155, 210, 0.5);
   --bg: #08090d;
   --bg-elevated: #0d0e13;
-  --space-ambient-primary: rgba(65, 95, 150, 0.26);
-  --space-ambient-secondary: rgba(50, 72, 110, 0.2);
+  --space-ambient-primary: rgba(65, 95, 150, 0.21);
+  --space-ambient-secondary: rgba(50, 72, 110, 0.17);
   --space-ambient-primary-at: 20% 10%;
   --space-ambient-secondary-at: 86% 90%;
-  --surface-tint: rgba(65, 95, 150, 0.06);
+  --surface-tint: rgba(65, 95, 150, 0.05);
   --caret-accent: rgba(150, 180, 225, 0.92);
 }
 
@@ -68,11 +68,11 @@ html {
   --border-focus: rgba(195, 160, 180, 0.4);
   --bg: #0c0a0d;
   --bg-elevated: #110f12;
-  --space-ambient-primary: rgba(155, 100, 125, 0.22);
-  --space-ambient-secondary: rgba(180, 120, 80, 0.16);
+  --space-ambient-primary: rgba(155, 100, 125, 0.18);
+  --space-ambient-secondary: rgba(180, 120, 80, 0.13);
   --space-ambient-primary-at: 18% 24%;
   --space-ambient-secondary-at: 80% 78%;
-  --surface-tint: rgba(170, 115, 95, 0.05);
+  --surface-tint: rgba(170, 115, 95, 0.042);
   --caret-accent: rgba(215, 185, 200, 0.85);
 }
 
