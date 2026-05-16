@@ -27,3 +27,8 @@ export function streamBackToNowVisibleStep(
   if (scrollTop <= JUMP_CONTEXT_SCROLL_TOP_CLEAR_PX) return false;
   return wasVisible;
 }
+
+/** Whether the stream is far enough below “now” to show Back to now (scroll or calendar jump). */
+export function streamIsScrolledAwayFromTop(scrollTop: number): boolean {
+  return scrollTop > JUMP_CONTEXT_SCROLL_AWAY_MIN_PX;
+}

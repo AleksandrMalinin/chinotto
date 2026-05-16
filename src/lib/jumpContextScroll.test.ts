@@ -4,6 +4,7 @@ import {
   JUMP_CONTEXT_SCROLL_TOP_CLEAR_PX,
   jumpScrollDismissStep,
   streamBackToNowVisibleStep,
+  streamIsScrolledAwayFromTop,
 } from "./jumpContextScroll";
 
 describe("jumpScrollDismissStep", () => {
@@ -71,5 +72,20 @@ describe("streamBackToNowVisibleStep", () => {
       2;
     expect(streamBackToNowVisibleStep(mid, true)).toBe(true);
     expect(streamBackToNowVisibleStep(mid, false)).toBe(false);
+  });
+});
+
+describe("streamIsScrolledAwayFromTop", () => {
+  it("is false at or below the away threshold", () => {
+    expect(streamIsScrolledAwayFromTop(JUMP_CONTEXT_SCROLL_AWAY_MIN_PX)).toBe(
+      false
+    );
+    expect(streamIsScrolledAwayFromTop(0)).toBe(false);
+  });
+
+  it("is true above the away threshold", () => {
+    expect(
+      streamIsScrolledAwayFromTop(JUMP_CONTEXT_SCROLL_AWAY_MIN_PX + 1)
+    ).toBe(true);
   });
 });

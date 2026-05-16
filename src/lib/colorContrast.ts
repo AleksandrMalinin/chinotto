@@ -41,10 +41,9 @@ function compositeOnBackground(fg: Rgba, bg: Rgba): [number, number, number] {
 export function contrastRatio(foreground: string, background: string): number {
   const fg = parseColor(foreground);
   const bg = parseColor(background);
-  const bgRgb: [number, number, number] = [bg[0], bg[1], bg[2]];
-  const fgRgb = compositeOnBackground(fg, bgRgb);
+  const fgRgb = compositeOnBackground(fg, bg);
   const l1 = relativeLuminance(...fgRgb);
-  const l2 = relativeLuminance(...bgRgb);
+  const l2 = relativeLuminance(bg[0], bg[1], bg[2]);
   const lighter = Math.max(l1, l2);
   const darker = Math.min(l1, l2);
   return (lighter + 0.05) / (darker + 0.05);

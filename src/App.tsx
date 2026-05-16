@@ -86,7 +86,14 @@ import {
   shouldShowSearchTrigger,
 } from "@/lib/entryCatalogPresence";
 import { UpdateNudge } from "@/components/UpdateNudge";
-import { scrollJumpSectionIntoView } from "@/lib/scrollJumpSectionIntoView";
+import {
+  computeJumpScrollTop,
+  scrollJumpSectionIntoView,
+} from "@/lib/scrollJumpSectionIntoView";
+import {
+  JUMP_CONTEXT_SCROLL_AWAY_MIN_PX,
+  streamIsScrolledAwayFromTop,
+} from "@/lib/jumpContextScroll";
 import { useJumpContextAutoClear } from "@/lib/useJumpContextAutoClear";
 import { useStreamBackToNowVisible } from "@/lib/useStreamBackToNowVisible";
 import { APP_VERSION } from "@/lib/appVersion";
@@ -509,9 +516,7 @@ export default function App() {
     !loading && !selectedEntry && !search.trim()
   );
   const showBackToNow =
-    !search.trim() &&
-    !selectedEntry &&
-    (jumpContextYmd !== null || streamBackToNowFromScroll);
+    !search.trim() && !selectedEntry && streamBackToNowFromScroll;
 
   useEffect(() => {
     const len = streamEntries.length;
@@ -1067,13 +1072,25 @@ export default function App() {
         event: "jump_to_date_completed",
         days_ago: jumpDateDaysAgoMetric(ymd),
       });
-      setJumpContextYmd(ymd);
-      setJumpContextExpanded(true);
-      const runScroll = () => {
-        scrollJumpSectionIntoView(id);
-      };
+      clearJumpContext();
       requestAnimationFrame(() => {
-        requestAnimationFrame(runScroll);
+        requestAnimationFrame(() => {
+          const scroller = document.scrollingElement;
+          const maxScroll = Math.max(
+            0,
+            (scroller?.scrollHeight ?? 0) - (scroller?.clientHeight ?? 0)
+          );
+          const targetTop = computeJumpScrollTop(id);
+          if (targetTop === null) return;
+          scrollJumpSectionIntoView(id);
+          const streamCanScrollAway =
+            maxScroll > JUMP_CONTEXT_SCROLL_AWAY_MIN_PX;
+          if (streamIsScrolledAwayFromTop(targetTop) && streamCanScrollAway) {
+            setJumpContextYmd(ymd);
+            setJumpContextExpanded(true);
+          }
+          window.dispatchEvent(new Event("scroll"));
+        });
       });
     },
     [clearJumpContext, spaceFilterParam]
@@ -1757,7 +1774,7 @@ export default function App() {
             data-visible={showBackToNow || undefined}
             aria-hidden={!showBackToNow}
           >
-            {jumpContextYmd && jumpContextExpanded ? (
+            {jumpContextYmd && jumpContextExpanded && showBackToNow ? (
               <span className="jump-date-context-label">
                 {formatJumpContextLabel(jumpContextYmd)}
               </span>
