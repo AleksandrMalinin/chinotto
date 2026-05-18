@@ -736,30 +736,81 @@ body.chinotto-card-open {
 .space-atmosphere-popover {
   position: fixed;
   z-index: 120;
-  width: 8.25rem;
-  padding: 0.38rem 0.5rem 0.42rem;
-  border-radius: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.2),
-    0 8px 24px rgba(0, 0, 0, 0.32);
-  backdrop-filter: blur(10px);
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    opacity var(--transition),
+    transform var(--transition);
 }
 
-.space-atmosphere-popover__label {
-  margin: 0 0 0.3rem;
-  font-size: 9px;
+.space-atmosphere-popover[data-open] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .space-atmosphere-popover {
+    transform: none;
+    transition: opacity var(--transition);
+  }
+
+  .space-atmosphere-popover[data-open] {
+    transform: none;
+  }
+}
+
+.space-atmosphere-popover-inner {
+  width: 10.5rem;
+  padding: 0.55rem 0.6rem 0.6rem;
+  border-radius: 12px;
+  background: rgba(14, 14, 20, 0.94);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+    0 12px 40px -12px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.space-atmosphere-popover__title {
+  margin: 0 0 0.45rem;
+  font-size: 13px;
   font-weight: 500;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--muted) 92%, var(--ui-dim));
-  line-height: 1.2;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.25;
+}
+
+.space-ambience-track {
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.space-ambience-rail-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.space-ambience-end {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: var(--meta-fg);
+  user-select: none;
 }
 
 .space-ambience-rail {
+  --ambience-fill: 50%;
   position: relative;
-  padding: 0.12rem 0 0;
+  flex: 1;
+  min-width: 0;
+  height: 18px;
+  display: flex;
+  align-items: center;
 }
 
 .space-ambience-rail::before {
@@ -773,14 +824,31 @@ body.chinotto-card-open {
   border-radius: 999px;
   background: linear-gradient(
     90deg,
-    rgba(70, 115, 195, 0.2) 0%,
-    rgba(110, 110, 130, 0.06) 50%,
-    rgba(255, 252, 248, 0.12) 100%
+    rgba(70, 115, 195, 0.22) 0%,
+    rgba(70, 115, 195, 0.22) var(--ambience-fill),
+    rgba(255, 252, 248, 0.1) var(--ambience-fill),
+    rgba(255, 252, 248, 0.1) 100%
   );
   pointer-events: none;
 }
 
-.space-ambience-rail::after {
+.space-ambience-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 2;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  border: none;
+  border-radius: 2px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.space-ambience-center::before {
   content: "";
   position: absolute;
   left: 50%;
@@ -789,8 +857,18 @@ body.chinotto-card-open {
   height: 5px;
   transform: translate(-50%, -50%);
   border-radius: 1px;
-  background: rgba(255, 255, 255, 0.1);
-  pointer-events: none;
+  background: rgba(255, 255, 255, 0.14);
+  transition: background var(--transition);
+}
+
+.space-ambience-center:hover::before,
+.space-ambience-center:focus-visible::before {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.space-ambience-center:focus-visible {
+  outline: 1px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .space-ambience-slider {
@@ -799,7 +877,7 @@ body.chinotto-card-open {
   display: block;
   width: 100%;
   margin: 0;
-  height: 11px;
+  height: 18px;
   appearance: none;
   background: transparent;
   cursor: pointer;
@@ -813,13 +891,13 @@ body.chinotto-card-open {
 
 .space-ambience-slider::-webkit-slider-thumb {
   appearance: none;
-  width: 9px;
-  height: 9px;
-  margin-top: -3.5px;
+  width: 10px;
+  height: 10px;
+  margin-top: -4px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: color-mix(in srgb, var(--ui-dim) 85%, var(--bg-elevated));
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, rgba(255, 255, 255, 0.2));
+  background: color-mix(in srgb, var(--ui-dim) 80%, var(--bg-elevated));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .space-ambience-slider::-moz-range-track {
@@ -829,17 +907,30 @@ body.chinotto-card-open {
 }
 
 .space-ambience-slider::-moz-range-thumb {
-  width: 9px;
-  height: 9px;
+  width: 10px;
+  height: 10px;
+  border: none;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: color-mix(in srgb, var(--ui-dim) 85%, var(--bg-elevated));
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 40%, rgba(255, 255, 255, 0.2)),
+    0 1px 3px rgba(0, 0, 0, 0.3);
+  background: color-mix(in srgb, var(--ui-dim) 80%, var(--bg-elevated));
 }
 
 .space-ambience-slider:focus-visible {
-  outline: 1px solid var(--border-focus);
-  outline-offset: 2px;
+  outline: none;
+}
+
+.space-ambience-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 2px var(--bg-elevated),
+    0 0 0 3px var(--border-focus);
+}
+
+.space-ambience-slider:focus-visible::-moz-range-thumb {
+  box-shadow:
+    0 0 0 2px var(--bg-elevated),
+    0 0 0 3px var(--border-focus);
 }
 
 .app-header-name {
