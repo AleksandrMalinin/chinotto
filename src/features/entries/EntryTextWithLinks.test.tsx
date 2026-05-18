@@ -18,6 +18,13 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 vi.mock("./entryApi", () => ({
   findSimilarEntries: vi.fn(() => Promise.resolve([])),
   getThoughtTrail: vi.fn(() => Promise.resolve([])),
+  listSpaces: vi.fn(() =>
+    Promise.resolve([
+      { id: "inbox", label: "Inbox", sort_order: 0 },
+      { id: "work", label: "Work", sort_order: 1 },
+      { id: "personal", label: "Personal", sort_order: 2 },
+    ])
+  ),
 }));
 
 describe("EntryTextWithLinks", () => {
