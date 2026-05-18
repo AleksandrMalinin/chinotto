@@ -4,6 +4,14 @@ These sections feed the **GitHub Release** description in CI (see `.github/workf
 
 Add **`## vX.Y.Z`** before you push tag **`vX.Y.Z`**.
 
+## v2.1.0
+
+* **Spaces:** stream lens tabs (All, Inbox, Work, Personal) with per-scope capture destination, `space_id` on entries, detail lens picker, and `list_spaces` / filtered `list_entries` / search / jump-to-date in `src-tauri/src/db/mod.rs` and `App.tsx`
+* **Ambience:** per-space cool–warm slider (`src/lib/spaceAmbience.ts`, `SpaceAtmosphereAffordance` / `SpaceAtmospherePopover`); room tone on `--bg` and ambient CSS vars; neutral plateau and symmetric cool pole; `chinotto.spaceAmbience` localStorage (migrates legacy `chinotto.spacePalette`)
+* **Empty stream:** full onboarding only on All before first save; scoped lenses use quiet one-line empty copy (`src/lib/emptyStreamLensMessage.ts`)
+* **Jump to date:** show **Back to now** when the stream is scrolled below the top (`useStreamBackToNowVisible`, `jumpContextScroll.ts`); sticky pill layout without shifting the stream
+* **UI:** remove hardcoded per-scope theme colors from CSS; lens chrome and jump-date / ambience popovers reposition on resize and scroll
+
 ## v2.0.0
 
 * **Sync (optional):** bidirectional Firestore sync with Chinotto mobile when `VITE_FIREBASE_*` is set — `src/lib/desktopFirestoreSync.ts`, `SyncModal.tsx`, `useAppleSyncOAuth.ts`, `firebaseConfig.ts`, SQLite tombstone outbox + ingest paths in `src-tauri/src/db/mod.rs` / `schema.sql`; contract in `docs/sync.md`
