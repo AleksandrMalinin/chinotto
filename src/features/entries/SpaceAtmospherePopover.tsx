@@ -33,6 +33,20 @@ const SCOPE_LABEL: Record<SpaceScope, string> = {
 };
 
 const POPOVER_ESTIMATE_WIDTH = 168;
+const POPOVER_ANCHOR_PAD = 6;
+
+function computePopoverPosition(
+  anchor: HTMLElement,
+  popoverWidth: number
+): { top: number; left: number } {
+  const rect = anchor.getBoundingClientRect();
+  let left = rect.right - popoverWidth;
+  left = Math.max(
+    POPOVER_ANCHOR_PAD,
+    Math.min(left, window.innerWidth - popoverWidth - POPOVER_ANCHOR_PAD)
+  );
+  return { top: rect.bottom + POPOVER_ANCHOR_PAD, left };
+}
 
 export function SpaceAtmospherePopover({
   open,
@@ -73,15 +87,28 @@ export function SpaceAtmospherePopover({
     return () => document.removeEventListener("mousedown", onMouseDown);
   }, [open, anchor, onClose]);
 
-  useLayoutEffect(() => {
+  const updatePosition = useCallback(() => {
     if (!open || !anchor) return;
-    const rect = anchor.getBoundingClientRect();
-    const pad = 6;
     const pw = popoverRef.current?.offsetWidth ?? POPOVER_ESTIMATE_WIDTH;
-    let left = rect.right - pw;
-    left = Math.max(pad, Math.min(left, window.innerWidth - pw - pad));
-    setPos({ top: rect.bottom + pad, left });
-  }, [open, anchor, scope, value]);
+    setPos(computePopoverPosition(anchor, pw));
+  }, [open, anchor]);
+
+  useLayoutEffect(() => {
+    updatePosition();
+  }, [updatePosition, scope, value]);
+
+  useEffect(() => {
+    if (!open || !anchor) return;
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    const ro = new ResizeObserver(updatePosition);
+    ro.observe(anchor);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      ro.disconnect();
+    };
+  }, [open, anchor, updatePosition]);
 
   useEffect(() => {
     if (!open) {

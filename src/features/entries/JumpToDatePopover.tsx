@@ -85,10 +85,9 @@ export function JumpToDatePopover({
     };
   }, [open, year, monthIndex, spaceFilter]);
 
-  useLayoutEffect(() => {
-    if (!open) return;
+  const updatePosition = useCallback(() => {
     const el = anchorRef.current;
-    if (!el) return;
+    if (!open || !el) return;
     const r = el.getBoundingClientRect();
     const pw = 280;
     let left = r.left;
@@ -97,7 +96,26 @@ export function JumpToDatePopover({
       left = Math.max(pad, window.innerWidth - pw - pad);
     }
     setPos({ top: r.bottom + pad, left });
-  }, [open, anchorRef, year, monthIndex]);
+  }, [open, anchorRef]);
+
+  useLayoutEffect(() => {
+    updatePosition();
+  }, [updatePosition, year, monthIndex]);
+
+  useEffect(() => {
+    if (!open) return;
+    const el = anchorRef.current;
+    if (!el) return;
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    const ro = new ResizeObserver(updatePosition);
+    ro.observe(el);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      ro.disconnect();
+    };
+  }, [open, anchorRef, updatePosition]);
 
   useEffect(() => {
     if (!open) return;
