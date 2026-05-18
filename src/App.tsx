@@ -108,6 +108,10 @@ import { isFirebaseSyncConfigured } from "@/lib/firebaseConfig";
 import { syncSavedEntryTextToRemote } from "@/lib/syncSavedEntryTextToRemote";
 import { useDesktopSyncHeaderCta } from "@/lib/useDesktopSyncHeaderCta";
 import {
+  quietEmptyStreamMessage,
+  shouldShowFullEmptyOnboarding,
+} from "@/lib/emptyStreamLensMessage";
+import {
   SPACE_SCOPE_STORAGE_KEY,
   captureSpaceId,
   parseStoredSpaceScope,
@@ -493,6 +497,14 @@ export default function App() {
     return { pinnedEntries, streamEntries };
   }, [entries, pinnedIds]);
 
+  const mainStreamEmpty =
+    pinnedEntries.length === 0 && streamEntries.length === 0;
+
+  const emptyLensMessage = useMemo(() => {
+    if (!mainStreamEmpty) return undefined;
+    return quietEmptyStreamMessage(spaceScope, hasEverSaved) ?? undefined;
+  }, [mainStreamEmpty, spaceScope, hasEverSaved]);
+
   const showSearchTrigger = useMemo(
     () =>
       shouldShowSearchTrigger({
@@ -569,12 +581,16 @@ export default function App() {
   useEffect(() => {
     const len = streamEntries.length;
     const prev = prevStreamLenRef.current;
-    if (prev > 0 && len === 0) {
+    if (
+      prev > 0 &&
+      len === 0 &&
+      shouldShowFullEmptyOnboarding(spaceScope, hasEverSaved)
+    ) {
       setEmptyOnboardingDismissed(false);
       emptyOnboardingExitStartedRef.current = false;
     }
     prevStreamLenRef.current = len;
-  }, [streamEntries.length]);
+  }, [streamEntries.length, spaceScope, hasEverSaved]);
 
   const onEmptyOnboardingExitComplete = useCallback(() => {
     setEmptyOnboardingDismissed(true);
@@ -583,26 +599,47 @@ export default function App() {
   }, []);
 
   const tryBeginEmptyOnboardingExit = useCallback(() => {
+    if (!shouldShowFullEmptyOnboarding(spaceScope, hasEverSaved)) return;
     if (emptyOnboardingExitStartedRef.current) return;
     if (streamEntries.length > 0) return;
     emptyOnboardingExitStartedRef.current = true;
     setEmptyOnboardingExiting(true);
     setEmptyOnboardingTypingAccent(true);
-  }, [streamEntries.length]);
+  }, [streamEntries.length, spaceScope, hasEverSaved]);
 
   const onCaptureDraftChange = useCallback(
     (value: string) => {
       if (streamEntries.length === 0 && value.trim().length === 0) {
-        setEmptyOnboardingDismissed(false);
-        setEmptyOnboardingExiting(false);
-        setEmptyOnboardingTypingAccent(false);
-        emptyOnboardingExitStartedRef.current = false;
+        if (shouldShowFullEmptyOnboarding(spaceScope, hasEverSaved)) {
+          setEmptyOnboardingDismissed(false);
+          setEmptyOnboardingExiting(false);
+          setEmptyOnboardingTypingAccent(false);
+          emptyOnboardingExitStartedRef.current = false;
+        }
         return;
       }
       if (value.length > 0) tryBeginEmptyOnboardingExit();
     },
-    [tryBeginEmptyOnboardingExit, streamEntries.length]
+    [tryBeginEmptyOnboardingExit, streamEntries.length, spaceScope, hasEverSaved]
   );
+
+  const emptyOnboardingForStream = useMemo(() => {
+    if (!mainStreamEmpty || emptyLensMessage) return undefined;
+    if (emptyOnboardingDismissed) return null;
+    return {
+      variant: "full" as const,
+      exiting: emptyOnboardingExiting,
+      typingAccent: emptyOnboardingTypingAccent,
+      onExitComplete: onEmptyOnboardingExitComplete,
+    };
+  }, [
+    mainStreamEmpty,
+    emptyLensMessage,
+    emptyOnboardingDismissed,
+    emptyOnboardingExiting,
+    emptyOnboardingTypingAccent,
+    onEmptyOnboardingExitComplete,
+  ]);
 
   useEffect(() => {
     if (search.trim()) {
@@ -1902,18 +1939,8 @@ export default function App() {
                   onEntryHover={(entry) => setHoveredEntryId(entry ? entry.id : null)}
                   deferEmptyPanelMotion={!emptyOnboardingIntroReady}
                   revealEmptyOnboarding={emptyOnboardingIntroReady}
-                  emptyOnboarding={
-                    pinnedEntries.length === 0 && streamEntries.length === 0
-                      ? emptyOnboardingDismissed
-                        ? null
-                        : {
-                            variant: hasEverSaved ? "soft" : "full",
-                            exiting: emptyOnboardingExiting,
-                            typingAccent: emptyOnboardingTypingAccent,
-                            onExitComplete: onEmptyOnboardingExitComplete,
-                          }
-                      : undefined
-                  }
+                  emptyLensMessage={emptyLensMessage}
+                  emptyOnboarding={emptyOnboardingForStream}
                 />
               ) : null}
             </>

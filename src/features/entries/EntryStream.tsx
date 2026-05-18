@@ -66,6 +66,8 @@ export type EntryStreamProps = {
    * Omit to use default full onboarding (static defaults; no App-driven exit/soft variant).
    */
   emptyOnboarding?: EmptyOnboardingConfig | null;
+  /** Scoped lens or “all empty again”: single meta line, no onboarding panel. */
+  emptyLensMessage?: string;
   /**
    * When true, empty-state trail panel holds CSS motion until intro is dismissed (launch / relaunch).
    */
@@ -599,6 +601,7 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
   onDeleteAnimationEnd,
   onEntryHover,
   emptyOnboarding,
+  emptyLensMessage,
   deferEmptyPanelMotion = false,
   revealEmptyOnboarding = true,
 }) {
@@ -617,6 +620,13 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
       return (
         <p className="stream-empty" aria-live="polite">
           No thoughts match your search.
+        </p>
+      );
+    }
+    if (emptyLensMessage) {
+      return (
+        <p className="stream-empty stream-empty-lens" aria-live="polite">
+          {emptyLensMessage}
         </p>
       );
     }

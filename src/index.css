@@ -3497,6 +3497,10 @@ body.welcome .app-bg {
   transition: color var(--transition);
 }
 
+.stream-empty-lens {
+  margin-top: 0.35rem;
+}
+
 .stream-empty-onboarding {
   --empty-onboard-pad: clamp(1rem, 4vw, 1.75rem);
   width: 100%;

@@ -38,6 +38,17 @@ describe("EntryStream empty main timeline", () => {
     expect(screen.getByText("Start with one line.")).toBeInTheDocument();
   });
 
+  it("renders quiet lens empty copy when emptyLensMessage is set", () => {
+    render(<EntryStream entries={[]} emptyLensMessage="Nothing in Work yet." />);
+    expect(screen.getByText("Nothing in Work yet.")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: /just write/i })
+    ).not.toBeInTheDocument();
+    expect(
+      document.querySelector(".stream-empty-onboarding--progressive")
+    ).not.toBeInTheDocument();
+  });
+
   it("renders progressive onboarding when emptyOnboarding config is passed", () => {
     const onExitComplete = vi.fn();
     const { container } = render(
