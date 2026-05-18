@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   AMBIENCE_CENTER,
+  AMBIENCE_NEUTRAL_PLATEAU_MAX,
+  AMBIENCE_NEUTRAL_PLATEAU_MIN,
   clampAmbienceLevel,
   deriveRoomToneAnchors,
   interpolateAmbienceTokens,
@@ -22,11 +24,17 @@ describe("spaceAmbience", () => {
     expect(clampAmbienceLevel(44.6)).toBe(45);
   });
 
-  it("center is neutral for every space", () => {
+  it("center and neutral plateau use brand tokens for every space", () => {
     for (const scope of SPACE_SCOPES_WITH_AMBIENCE) {
-      expect(interpolateAmbienceTokens(scope, AMBIENCE_CENTER)).toEqual(
-        NEUTRAL_AMBIENCE_CENTER
-      );
+      for (const level of [
+        AMBIENCE_CENTER,
+        AMBIENCE_NEUTRAL_PLATEAU_MIN,
+        AMBIENCE_NEUTRAL_PLATEAU_MAX,
+      ]) {
+        expect(interpolateAmbienceTokens(scope, level)).toEqual(
+          NEUTRAL_AMBIENCE_CENTER
+        );
+      }
     }
   });
 
@@ -37,11 +45,12 @@ describe("spaceAmbience", () => {
     expect(work.default.bg).toBe(NEUTRAL_AMBIENCE_CENTER.bg);
   });
 
-  it("interpolateAmbienceTokens blends toward warm", () => {
+  it("interpolateAmbienceTokens reaches full cool and warm poles", () => {
+    const cool = interpolateAmbienceTokens("personal", 0);
     const warm = interpolateAmbienceTokens("personal", 100);
+    expect(cool.spaceAmbientPrimary).toBe("rgba(55, 95, 175, 0.17)");
     expect(warm.spaceAmbientPrimary).toBe("rgba(255, 252, 248, 0.09)");
-    expect(warm.accent).toBe("rgba(248, 246, 255, 0.9)");
-    expect(interpolateAmbienceTokens("personal", 75).spaceAmbientPrimary).not.toBe(
+    expect(interpolateAmbienceTokens("personal", 80).spaceAmbientPrimary).not.toBe(
       NEUTRAL_AMBIENCE_CENTER.spaceAmbientPrimary
     );
   });
@@ -54,8 +63,8 @@ describe("spaceAmbience", () => {
     );
     expect(stored.work).toBe(25);
     expect(stored.personal).toBe(80);
-    expect(interpolateAmbienceTokens("work", stored.work).bg).not.toBe(
-      interpolateAmbienceTokens("personal", stored.personal).bg
+    expect(interpolateAmbienceTokens("work", stored.work).spaceAmbientPrimary).not.toBe(
+      interpolateAmbienceTokens("personal", stored.personal).spaceAmbientPrimary
     );
   });
 

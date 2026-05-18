@@ -13,18 +13,22 @@ export const AMBIENCE_CENTER = 50;
 
 export const SPACE_AMBIENCE_STORAGE_KEY = "chinotto.spaceAmbience";
 
-/** How far cool/warm endpoints sit from neutral center. */
-export const AMBIENCE_TONE_BLEND = 0.32;
+/** Slider range that keeps exact brand neutral (no RGB drift). */
+export const AMBIENCE_NEUTRAL_PLATEAU_MIN = 42;
+export const AMBIENCE_NEUTRAL_PLATEAU_MAX = 58;
 
+const COOL_BG_BLEND = 0.16;
 const COOL_BG_BIAS = "#070c18";
+const COOL_AMBIENT_PRIMARY_AT = "10% 12%";
+const COOL_AMBIENT_SECONDARY_AT = "92% 88%";
 /** Warm pole: bright clean highlights (set directly, not lerped from blue neutral). */
 const WARM_BG_BIAS = "#0d0d11";
 const WARM_BG_BLEND = 0.06;
-const COOL_SURFACE_TINT = "rgba(72, 108, 175, 0.045)";
+const COOL_SURFACE_TINT = "rgba(72, 108, 175, 0.055)";
 const WARM_SURFACE_TINT = "rgba(255, 255, 252, 0.022)";
-const COOL_AMBIENT_PRIMARY = "rgba(55, 95, 175, 0.14)";
+const COOL_AMBIENT_PRIMARY = "rgba(55, 95, 175, 0.17)";
 const WARM_AMBIENT_PRIMARY = "rgba(255, 252, 248, 0.09)";
-const COOL_AMBIENT_SECONDARY = "rgba(45, 75, 140, 0.11)";
+const COOL_AMBIENT_SECONDARY = "rgba(45, 75, 140, 0.13)";
 const WARM_AMBIENT_SECONDARY = "rgba(255, 255, 252, 0.065)";
 const WARM_AMBIENT_PRIMARY_AT = "18% 22%";
 const WARM_AMBIENT_SECONDARY_AT = "84% 76%";
@@ -195,8 +199,7 @@ function elevatedForBg(
 /** Cool/warm poles from neutral center — same curve for every space. */
 export function deriveRoomToneAnchors(_scope?: SpaceScope): ScopeAnchors {
   const defaultRoom: AmbienceAnchorTokens = { ...NEUTRAL_AMBIENCE_CENTER };
-  const blend = AMBIENCE_TONE_BLEND;
-  const coolBg = lerpHex(defaultRoom.bg, COOL_BG_BIAS, blend);
+  const coolBg = lerpHex(defaultRoom.bg, COOL_BG_BIAS, COOL_BG_BLEND);
   const warmBg = lerpHex(defaultRoom.bg, WARM_BG_BIAS, WARM_BG_BLEND);
   return {
     default: defaultRoom,
@@ -207,24 +210,16 @@ export function deriveRoomToneAnchors(_scope?: SpaceScope): ScopeAnchors {
         defaultRoom.bgElevated,
         coolBg
       ),
-      surfaceTint: lerpRgba(defaultRoom.surfaceTint, COOL_SURFACE_TINT, 1),
-      spaceAmbientPrimary: lerpRgba(
-        defaultRoom.spaceAmbientPrimary,
-        COOL_AMBIENT_PRIMARY,
-        blend
-      ),
-      spaceAmbientSecondary: lerpRgba(
-        defaultRoom.spaceAmbientSecondary,
-        COOL_AMBIENT_SECONDARY,
-        blend
-      ),
-      spaceAmbientPrimaryAt: defaultRoom.spaceAmbientPrimaryAt,
-      spaceAmbientSecondaryAt: defaultRoom.spaceAmbientSecondaryAt,
-      accent: lerpRgba(defaultRoom.accent, COOL_ACCENT, blend),
-      accentHover: lerpRgba(defaultRoom.accentHover, COOL_ACCENT_HOVER, blend),
-      accentSubtle: lerpRgba(defaultRoom.accentSubtle, COOL_ACCENT_SUBTLE, blend),
-      borderFocus: lerpRgba(defaultRoom.borderFocus, COOL_BORDER_FOCUS, blend),
-      caretAccent: lerpRgba(defaultRoom.caretAccent, COOL_CARET, blend),
+      surfaceTint: COOL_SURFACE_TINT,
+      spaceAmbientPrimary: COOL_AMBIENT_PRIMARY,
+      spaceAmbientSecondary: COOL_AMBIENT_SECONDARY,
+      spaceAmbientPrimaryAt: COOL_AMBIENT_PRIMARY_AT,
+      spaceAmbientSecondaryAt: COOL_AMBIENT_SECONDARY_AT,
+      accent: COOL_ACCENT,
+      accentHover: COOL_ACCENT_HOVER,
+      accentSubtle: COOL_ACCENT_SUBTLE,
+      borderFocus: COOL_BORDER_FOCUS,
+      caretAccent: COOL_CARET,
     },
     warm: {
       bg: warmBg,
@@ -282,12 +277,24 @@ export function interpolateAmbienceTokens(
 ): AmbienceAnchorTokens {
   const anchors = deriveRoomToneAnchors(scope);
   const clamped = clampAmbienceLevel(level);
-  if (clamped <= AMBIENCE_CENTER) {
-    const t = clamped / AMBIENCE_CENTER;
-    return lerpTokens(anchors.cool, anchors.default, t);
+  const neutral = anchors.default;
+
+  if (
+    clamped >= AMBIENCE_NEUTRAL_PLATEAU_MIN &&
+    clamped <= AMBIENCE_NEUTRAL_PLATEAU_MAX
+  ) {
+    return { ...neutral };
   }
-  const t = (clamped - AMBIENCE_CENTER) / (AMBIENCE_MAX - AMBIENCE_CENTER);
-  return lerpTokens(anchors.default, anchors.warm, t);
+
+  if (clamped < AMBIENCE_NEUTRAL_PLATEAU_MIN) {
+    const t = clamped / AMBIENCE_NEUTRAL_PLATEAU_MIN;
+    return lerpTokens(anchors.cool, neutral, t);
+  }
+
+  const t =
+    (clamped - AMBIENCE_NEUTRAL_PLATEAU_MAX) /
+    (AMBIENCE_MAX - AMBIENCE_NEUTRAL_PLATEAU_MAX);
+  return lerpTokens(neutral, anchors.warm, t);
 }
 
 export function tokensToStyleProperties(
