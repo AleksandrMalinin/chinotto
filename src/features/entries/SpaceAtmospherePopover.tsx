@@ -95,7 +95,7 @@ export function SpaceAtmospherePopover({
 
   useLayoutEffect(() => {
     updatePosition();
-  }, [updatePosition, scope, value]);
+  }, [updatePosition, scope]);
 
   useEffect(() => {
     if (!open || !anchor) return;
@@ -142,7 +142,11 @@ export function SpaceAtmospherePopover({
         <div className="space-ambience-track">
           <div className="space-ambience-rail-row">
             <span className="space-ambience-end space-ambience-end--cool">cool</span>
-            <div className="space-ambience-rail" style={railStyle}>
+            <div
+              className="space-ambience-rail"
+              style={railStyle}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
               <input
                 type="range"
                 className="space-ambience-slider"
@@ -159,13 +163,6 @@ export function SpaceAtmospherePopover({
                   onChange(level);
                 }}
                 onDoubleClick={resetToDefault}
-              />
-              <button
-                type="button"
-                className="space-ambience-center"
-                aria-label="Reset to default ambience"
-                title="Reset to default ambience"
-                onClick={resetToDefault}
               />
             </div>
             <span className="space-ambience-end space-ambience-end--warm">warm</span>
