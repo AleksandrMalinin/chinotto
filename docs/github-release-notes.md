@@ -4,6 +4,10 @@ These sections feed the **GitHub Release** description in CI (see `.github/workf
 
 Add **`## vX.Y.Z`** before you push tag **`vX.Y.Z`**.
 
+## v2.1.1
+
+* **Sync (release):** CI requires `VITE_FIREBASE_API_KEY` and `VITE_FIREBASE_PROJECT_ID` Actions secrets before building; embeds all `VITE_FIREBASE_*` env in the packaged SPA so `isFirebaseSyncConfigured()` is true and **Continue with Apple** works in production DMGs (see `docs/sync.md`)
+
 ## v2.1.0
 
 * **Spaces:** stream lens tabs (All, Inbox, Work, Personal) with per-scope capture destination, `space_id` on entries, detail lens picker, and `list_spaces` / filtered `list_entries` / search / jump-to-date in `src-tauri/src/db/mod.rs` and `App.tsx`

@@ -35,6 +35,16 @@ jobs:
             exit 1
           fi
 
+      - name: Require VITE_FIREBASE sync config
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+        run: |
+          if [ -z "$VITE_FIREBASE_API_KEY" ] || [ -z "$VITE_FIREBASE_PROJECT_ID" ]; then
+            echo "::error::Set Actions secrets VITE_FIREBASE_API_KEY and VITE_FIREBASE_PROJECT_ID so packaged builds embed Firebase sync config. See docs/sync.md"
+            exit 1
+          fi
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
