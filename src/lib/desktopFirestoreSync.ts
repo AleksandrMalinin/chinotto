@@ -39,9 +39,11 @@ import {
   deleteLocalEntriesForSync,
   enqueueSyncTombstone,
   ingestFirestoreEntries,
+  listEntries,
   listSyncTombstoneOutbox,
   removeSyncTombstoneOutbox,
 } from "@/features/entries/entryApi";
+import type { Entry } from "@/types/entry";
 import { getFirebaseWebOptions, isFirebaseSyncConfigured } from "./firebaseConfig";
 import { isFirestoreDocumentTombstoned } from "./firestoreTombstone";
 
@@ -59,6 +61,10 @@ export type BridgedOAuthCredentialJson = {
 const INGEST_PAGE_SIZE = 500;
 /** Matches mobile backfill cap (~20k docs). */
 const INGEST_BACKFILL_MAX_PAGES = 40;
+/** One-shot upload of pre-sync local rows to Firestore (per Firebase uid). */
+const LOCAL_FIRESTORE_UPLOAD_UID_KEY = "chinotto_local_entries_firestore_upload_v1_uid";
+const LOCAL_UPLOAD_BATCH_SIZE = 25;
+let localUploadInFlight: Promise<void> | null = null;
 /** Tombstones are queried separately so deletes on older entries (outside the recent ingest window) still apply locally. */
 const TOMBSTONE_QUERY_LIMIT = 1000;
 /**
@@ -334,22 +340,22 @@ export type FirestoreEntryPush = {
  * Upsert `users/{uid}/entries/{id}` so mobile (and other clients) receive new or restored thoughts.
  * Uses merge; `deletedAt` is cleared so Cmd+Z after a synced delete can revive the doc remotely.
  */
-export async function pushEntryUpsertToFirestore(entry: FirestoreEntryPush): Promise<void> {
+export async function pushEntryUpsertToFirestore(entry: FirestoreEntryPush): Promise<boolean> {
   if (!isFirebaseSyncConfigured()) {
-    return;
+    return false;
   }
   const auth = getAuth(getOrInitApp());
   const user = auth.currentUser;
   if (!user || user.isAnonymous) {
-    return;
+    return false;
   }
   const trimmed = entry.text.trim();
   if (!trimmed) {
-    return;
+    return false;
   }
   const ms = Date.parse(entry.created_at);
   if (Number.isNaN(ms)) {
-    return;
+    return false;
   }
   const db = getOrInitFirestore();
   const ref = doc(db, "users", user.uid, "entries", entry.id);
@@ -364,15 +370,167 @@ export async function pushEntryUpsertToFirestore(entry: FirestoreEntryPush): Pro
       },
       { merge: true }
     );
+    return true;
   } catch (e) {
     if (isFirestoreSessionAccessLostError(e)) {
       void invalidateFirebaseSyncAfterRemoteSessionLost("pushEntry");
-      return;
+      return false;
     }
     if (import.meta.env.DEV) {
       console.warn("[chinotto sync] push entry failed", entry.id, e);
     }
+    return false;
   }
+}
+
+function localFirestoreUploadDoneForUid(uid: string): boolean {
+  try {
+    return localStorage.getItem(LOCAL_FIRESTORE_UPLOAD_UID_KEY) === uid;
+  } catch {
+    return false;
+  }
+}
+
+function markLocalFirestoreUploadDone(uid: string): void {
+  try {
+    localStorage.setItem(LOCAL_FIRESTORE_UPLOAD_UID_KEY, uid);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * After first sign-in per uid: push all local entries to Firestore so mobile can ingest them.
+ * Skips tombstone outbox ids; runs after `flushSyncTombstoneOutbox` so deletes win.
+ */
+async function runLocalEntriesFirestoreBackfillUpload(
+  uid: string,
+  shouldAbort: () => boolean
+): Promise<void> {
+  if (localUploadInFlight) {
+    return localUploadInFlight;
+  }
+  localUploadInFlight = runLocalEntriesFirestoreBackfillUploadInner(uid, shouldAbort).finally(
+    () => {
+      localUploadInFlight = null;
+    }
+  );
+  return localUploadInFlight;
+}
+
+async function runLocalEntriesFirestoreBackfillUploadInner(
+  uid: string,
+  shouldAbort: () => boolean
+): Promise<void> {
+  if (localFirestoreUploadDoneForUid(uid)) {
+    return;
+  }
+  let entries: Entry[];
+  try {
+    entries = await listEntries();
+  } catch (e) {
+    console.error("[chinotto sync] local upload list_entries failed", e);
+    return;
+  }
+  let tombstonePending = new Set<string>();
+  try {
+    tombstonePending = new Set(await listSyncTombstoneOutbox());
+  } catch (e) {
+    console.error("[chinotto sync] local upload list tombstone outbox failed", e);
+    return;
+  }
+  const candidates = entries.filter((e) => !tombstonePending.has(e.id));
+  if (candidates.length === 0) {
+    markLocalFirestoreUploadDone(uid);
+    return;
+  }
+
+  console.log(`[chinotto sync] local upload: pushing ${candidates.length} entries to Firestore`);
+
+  let failed = 0;
+  for (let i = 0; i < candidates.length; i += LOCAL_UPLOAD_BATCH_SIZE) {
+    if (shouldAbort()) {
+      return;
+    }
+    const batch = candidates.slice(i, i + LOCAL_UPLOAD_BATCH_SIZE);
+    for (const entry of batch) {
+      if (shouldAbort()) {
+        return;
+      }
+      const ok = await pushEntryUpsertToFirestore({
+        id: entry.id,
+        text: entry.text,
+        created_at: entry.created_at,
+      });
+      if (!ok) {
+        failed += 1;
+        if (shouldAbort()) {
+          return;
+        }
+      }
+    }
+  }
+
+  if (failed > 0) {
+    console.warn(
+      `[chinotto sync] local upload: ${failed}/${candidates.length} entry pushes failed; will retry after next sign-in`
+    );
+    return;
+  }
+
+  markLocalFirestoreUploadDone(uid);
+  console.log(`[chinotto sync] local upload: done (${candidates.length} entries)`);
+}
+
+/**
+ * Push pre-sync local SQLite entries to Firestore once per uid. Runs on auth (not gated by sync modal).
+ */
+export function startLocalEntriesFirestoreUploadOnAuth(): () => void {
+  if (!isFirebaseSyncConfigured()) {
+    return () => {};
+  }
+
+  let auth: ReturnType<typeof getAuth>;
+  try {
+    auth = getAuth(getOrInitApp());
+  } catch (e) {
+    console.error("[chinotto sync] Firebase init failed; local upload disabled.", e);
+    return () => {};
+  }
+
+  let aborted = false;
+
+  const unsub = onAuthStateChanged(auth, (user) => {
+    if (aborted || !user || user.isAnonymous) {
+      return;
+    }
+    const uidAtStart = user.uid;
+    void (async () => {
+      try {
+        await auth.authStateReady();
+      } catch {
+        /* ignore */
+      }
+      const stillSignedIn = () =>
+        !aborted &&
+        auth.currentUser != null &&
+        auth.currentUser.uid === uidAtStart &&
+        !auth.currentUser.isAnonymous;
+      if (!stillSignedIn()) {
+        return;
+      }
+      await flushSyncTombstoneOutbox();
+      if (!stillSignedIn()) {
+        return;
+      }
+      await runLocalEntriesFirestoreBackfillUpload(uidAtStart, () => !stillSignedIn());
+    })();
+  });
+
+  return () => {
+    aborted = true;
+    unsub();
+  };
 }
 
 /**

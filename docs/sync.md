@@ -20,7 +20,7 @@
 
 | Area | State |
 |------|--------|
-| **Phase 2** | **Shipped** on desktop when `VITE_FIREBASE_*` is set and the user signs in with Apple (non-anonymous). **Create** + **tombstone delete** across devices. **Text edits:** desktop merges `text` + `updatedAt` to Firestore after local save; **mobile** must apply remote `text` changes to existing SQLite rows (see `chinotto-mobile/docs/sync/sync.md`). |
+| **Phase 2** | **Shipped** on desktop when `VITE_FIREBASE_*` is set and the user signs in with Apple (non-anonymous). **Create** + **tombstone delete** across devices. **First sign-in per uid:** one-shot upload of existing local entries to Firestore (mobile ingest). **Text edits:** desktop merges `text` + `updatedAt` to Firestore after local save; **mobile** must apply remote `text` changes to existing SQLite rows (see `chinotto-mobile/docs/sync/sync.md`). |
 | **Optional** | Core capture/search work **without** Firebase. |
 | **Parity** | Desktop matches mobile on live **500** / tombstone **1000**, **post–sign-in backfill** (~20k actives), suppression + outbox, `createdAt` ingest shapes. |
 | **Mobile** | Assumed shipped for the same Phase 2; see `chinotto-mobile/docs/sync/sync.md`. |
@@ -64,10 +64,10 @@ Tombstone listener query: `deletedAt != null` + **`orderBy('deletedAt','desc')`*
 |--------|------|
 | `src/lib/firebaseConfig.ts` | `VITE_FIREBASE_*` gate. |
 | `src/lib/firestoreTombstone.ts` | `isFirestoreDocumentTombstoned` (+ tests). |
-| `src/lib/desktopFirestoreSync.ts` | Auth, **backfill** (`getDocs`, `startAfter`, ≤40×500), live ingest + tombstone listeners, forced tombstone `getDocs` (sign-in, each ingest snapshot, ~12s poll), `lastTombstoneQueryDocIds`, push + tombstone flush; `subscribeDesktopSyncGateSession`, `subscribeChinottoUserSyncAccess` for sync modal gating. |
+| `src/lib/desktopFirestoreSync.ts` | Auth, **local upload** (one-shot per uid after sign-in), **backfill** (`getDocs`, `startAfter`, ≤40×500), live ingest + tombstone listeners, forced tombstone `getDocs` (sign-in, each ingest snapshot, ~12s poll), `lastTombstoneQueryDocIds`, push + tombstone flush; `subscribeDesktopSyncGateSession`, `subscribeChinottoUserSyncAccess` for sync modal gating. |
 | `src/lib/syncSavedEntryTextToRemote.ts` | After local `update_entry`: `getEntry` → `pushEntryUpsertToFirestore` + `generate_embedding`. |
 | `src/features/entries/entryApi.ts` | `invoke` wrappers; **`ingestFirestoreEntries`**; **`deleteLocalEntriesForSync`** → `{ entryIds }`; **`clearSyncTombstoneOutboxAll`** after lost cloud session. |
-| `src/App.tsx` | `startDesktopFirestoreIngest`, push after create/restore, `syncSavedEntryTextToRemote` after local text save (detail + stream late edit + unmount flush), `notifyEntryDeletedForSync` on delete. |
+| `src/App.tsx` | `startLocalEntriesFirestoreUploadOnAuth`, `startDesktopFirestoreIngest`, push after create/restore, `syncSavedEntryTextToRemote` after local text save (detail + stream late edit + unmount flush), `notifyEntryDeletedForSync` on delete. |
 | `src/features/entries/TrayCapturePanel.tsx` | Push after `createEntry` when sync on (menu bar surface). |
 | `SyncModal.tsx`, `useAppleSyncOAuth.ts`, `OAuthBridge.tsx`, `main.tsx` | OAuth / UX. |
 
@@ -178,13 +178,14 @@ Deploy with **`npm run deploy:hosting`** when you want **`https://<projectId>.we
 
 ## Runtime behavior (desktop, signed in)
 
-1. `flushSyncTombstoneOutbox` → forced tombstone **`getDocs`** → **backfill** (paginated `orderBy('createdAt','desc')`, 500/page, `startAfter`, max 40 pages) → then **`onSnapshot`** (ingest + tombstones). Aborted on sign-out / uid change before listeners attach.  
-2. Live ingest: same query, `limit(500)` → `ingest_firestore_entries`.  
-3. Tombstone listener: all doc ids from query → `delete_local_entries_for_sync`.  
-4. Forced tombstone **`getDocs`** also on every ingest snapshot and ~**12s** interval.  
-5. `lastTombstoneQueryDocIds` prevents stale ingest from resurrecting tombstoned rows.  
-6. Local delete → `notifyEntryDeletedForSync` → outbox → flush.  
-7. `delete_all_entries` clears entries, suppressions, outbox.
+1. **Local upload** (auth, once per uid): `flushSyncTombstoneOutbox` → push all `list_entries` to Firestore (`startLocalEntriesFirestoreUploadOnAuth`; not gated by sync modal).  
+2. **Ingest** (after sync modal closes): `flushSyncTombstoneOutbox` → forced tombstone **`getDocs`** → **backfill** (paginated `orderBy('createdAt','desc')`, 500/page, `startAfter`, max 40 pages) → then **`onSnapshot`** (ingest + tombstones). Aborted on sign-out / uid change before listeners attach.  
+3. Live ingest: same query, `limit(500)` → `ingest_firestore_entries`.  
+4. Tombstone listener: all doc ids from query → `delete_local_entries_for_sync`.  
+5. Forced tombstone **`getDocs`** also on every ingest snapshot and ~**12s** interval.  
+6. `lastTombstoneQueryDocIds` prevents stale ingest from resurrecting tombstoned rows.  
+7. Local delete → `notifyEntryDeletedForSync` → outbox → flush.  
+8. `delete_all_entries` clears entries, suppressions, outbox.
 
 **Logs:** `[chinotto sync]` (desktop). `[ChinottoSync]` (mobile).
 
@@ -215,7 +216,8 @@ Deploy with **`npm run deploy:hosting`** when you want **`https://<projectId>.we
 
 | Limit | Detail |
 |-------|--------|
-| Backfill cap | ~**20k** newest actives by `createdAt`; extend pagination if needed. |
+| Backfill cap | ~**20k** newest actives by `createdAt` on each client; extend pagination if needed. |
+| Local upload | Once per Firebase **uid** (`chinotto_local_entries_firestore_upload_v1_uid`); runs on auth (not gated by sync modal). Retries if any push fails. Empty `text` skipped (same as live push). |
 | Tombstone window | **1000** newest tombstones by `deletedAt`. |
 | Edit sync | Desktop **pushes** `text` + `updatedAt` after local save; mobile **apply** path is separate; ingest insert-only on desktop. |
 | Read cost | Backfill + forced tombstone reads per sign-in / snapshot; tradeoff for correctness and WKWebView reliability. |
@@ -226,7 +228,7 @@ Deploy with **`npm run deploy:hosting`** when you want **`https://<projectId>.we
 
 | Date | Change |
 |------|--------|
-| 2026-05-23 | **Desktop OAuth (DMG):** Packaged **Continue with Apple** uses **127.0.0.1 loopback** + system browser instead of **`native_apple_sign_in`** (Developer ID cannot ship SIWA without launch failure). |
+| 2026-05-23 | **Desktop:** One-shot **local upload** to Firestore after sign-in (pre-sync SQLite entries). **OAuth (DMG):** loopback + system browser instead of **`native_apple_sign_in`**. |
 | 2026-04-30 | **Desktop:** If the Firebase user / `users/{uid}` cloud path is invalid (e.g. account removed on mobile), ingest and profile listeners stop, tombstone outbox is cleared, and the client signs out of Firebase for local-only use without tight error retries. |
 | 2026-04-26 | **Desktop OAuth:** Packaged **Continue with Apple** uses **native** Sign in with Apple (`native_apple_sign_in`) + Firebase; register **`app.chinotto`** in Firebase alongside **`com.chinotto.mobile`**. **Dev** still uses Vite **`/chinotto-oauth`** + **`127.0.0.1`** bridge. |
 | 2026-04-13 | **Desktop:** After `update_entry` (detail debounce, unmount flush, stream late edit): `getEntry` → Firestore merge with `updatedAt: serverTimestamp()`; `generate_embedding` refresh. **Rust:** Firestore ingest `INSERT` includes `updated_at`. **Wire:** optional `updatedAt` on entry docs for mobile ordering. |

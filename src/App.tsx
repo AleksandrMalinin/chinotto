@@ -103,6 +103,7 @@ import {
   notifyEntryDeletedForSync,
   pushEntryUpsertToFirestore,
   startDesktopFirestoreIngest,
+  startLocalEntriesFirestoreUploadOnAuth,
 } from "@/lib/desktopFirestoreSync";
 import { isFirebaseSyncConfigured } from "@/lib/firebaseConfig";
 import { syncSavedEntryTextToRemote } from "@/lib/syncSavedEntryTextToRemote";
@@ -431,6 +432,13 @@ export default function App() {
     const t = setTimeout(() => refresh(search), 120);
     return () => clearTimeout(t);
   }, [search, refresh]);
+
+  useEffect(() => {
+    if (!isFirebaseSyncConfigured()) {
+      return undefined;
+    }
+    return startLocalEntriesFirestoreUploadOnAuth();
+  }, []);
 
   useEffect(() => {
     if (!isFirebaseSyncConfigured()) {
