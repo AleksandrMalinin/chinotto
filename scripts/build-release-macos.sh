@@ -23,5 +23,11 @@ if [ -n "$APPLE_API_KEY_PATH" ] && [ ! -f "$APPLE_API_KEY_PATH" ]; then
   exit 1
 fi
 
-cd "$(dirname "$0")/.."
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PROFILE="$ROOT/src-tauri/Chinotto.developer-id.provisionprofile"
+if [ ! -f "$PROFILE" ]; then
+  echo "Missing $PROFILE (Developer ID provisioning profile for app.chinotto with Sign in with Apple)." >&2
+  echo "Copy your .provisionprofile there, or set CHINOTTO_PROVISIONING_PROFILE and copy it in this script." >&2
+  exit 1
+fi
 npm run build && CI=false npx tauri build

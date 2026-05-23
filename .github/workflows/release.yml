@@ -136,6 +136,16 @@ jobs:
             } >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Write Developer ID provisioning profile
+        env:
+          CHINOTTO_DEVELOPER_ID_PROVISIONING_PROFILE: ${{ secrets.CHINOTTO_DEVELOPER_ID_PROVISIONING_PROFILE }}
+        run: |
+          if [ -z "${CHINOTTO_DEVELOPER_ID_PROVISIONING_PROFILE:-}" ]; then
+            echo "::error::Set Actions secret CHINOTTO_DEVELOPER_ID_PROVISIONING_PROFILE (base64 Developer ID .provisionprofile for app.chinotto with Sign in with Apple). See docs/sync.md"
+            exit 1
+          fi
+          printf '%s' "$CHINOTTO_DEVELOPER_ID_PROVISIONING_PROFILE" | base64 -D > src-tauri/Chinotto.developer-id.provisionprofile
+
       - name: Build and upload release
         uses: tauri-apps/tauri-action@v0
         env:

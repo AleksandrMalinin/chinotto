@@ -33,6 +33,7 @@ scripts/apple-release-env.sh
 scripts/mas-testflight-env.sh
 src-tauri/updater.key
 src-tauri/updater.key.pub
+src-tauri/*.provisionprofile
 
 # Local-only (not in repo)
 docs/pre-release-checklist.md

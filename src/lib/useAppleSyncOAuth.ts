@@ -63,14 +63,20 @@ function messageFromAppleSyncStartFailure(
     return raw ? `${prefix}${raw}` : `${prefix}(no error text — see console)`;
   }
 
+  if (/Another Sign in with Apple flow is already in progress/i.test(raw)) {
+    return "A sign-in attempt is still active. Quit Chinotto fully, then try again.";
+  }
+  if (/Sign in with Apple timed out/i.test(raw)) {
+    return "Sign in with Apple timed out. Try again.";
+  }
   if (/Not allowed to open url/i.test(raw)) {
     return "The app could not open the sign-in page. Rebuild from the latest sources or check security settings.";
   }
   if (/Permission denied|operation not permitted|Address already in use/i.test(raw)) {
     return "Sign-in could not start (system blocked the local helper). Quit Chinotto fully and try again.";
   }
-  if (raw) {
-    return "Could not start sign-in. Quit Chinotto fully and try again.";
+  if (raw && raw.length <= 160 && !raw.startsWith("{")) {
+    return raw;
   }
   return "Could not start sign-in. Quit Chinotto fully and try again.";
 }
@@ -91,7 +97,8 @@ type UseAppleSyncOAuthOptions = {
 };
 
 /**
- * Apple / Firebase device sync: dev uses Vite + bridge; packaged macOS uses native `native_apple_sign_in` only (no Safari loopback).
+ * Apple / Firebase device sync: dev uses Vite + localhost bridge; packaged macOS uses native
+ * `native_apple_sign_in` (requires Sign in with Apple entitlement + embedded provisioning profile in the DMG).
  */
 export function useAppleSyncOAuth({ active }: UseAppleSyncOAuthOptions) {
   const [user, setUser] = useState<User | null>(null);

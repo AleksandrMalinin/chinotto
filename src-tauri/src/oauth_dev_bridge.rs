@@ -1,6 +1,6 @@
 //! Short-lived `127.0.0.1` listener: receives `{ nonce, credential }` after Firebase Apple sign-in
 //! in a **browser** session. Used by **`npm run tauri dev`** (Vite on `localhost` + POST here).
-//! Packaged desktop uses **`native_apple_sign_in`** instead; this module is not on that path.
+//! Packaged desktop uses **`native_apple_sign_in`** instead.
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use std::io::{BufRead, BufReader, Read, Write};

@@ -64,7 +64,10 @@
       "minimumSystemVersion": "12.0",
       "exceptionDomain": null,
       "infoPlist": "Info.plist",
-      "entitlements": "Chinotto.developer-id.entitlements",
+      "entitlements": "Chinotto.entitlements",
+      "files": {
+        "embedded.provisionprofile": "Chinotto.developer-id.provisionprofile"
+      },
       "dmg": {
         "background": "dmg-background.png"
       }

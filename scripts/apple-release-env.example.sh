@@ -7,3 +7,5 @@
 # export APPLE_API_KEY='XXXXXXXXXX'
 # export APPLE_API_ISSUER='xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
 # export APPLE_API_KEY_PATH="$HOME/.appstoreconnect/AuthKey_XXXXXXXXXX.p8"
+# Developer ID profile for release DMG (Sign in with Apple + app launch on macOS 26+):
+# export CHINOTTO_PROVISIONING_PROFILE="$HOME/Downloads/Chinotto_Developer_ID.provisionprofile"

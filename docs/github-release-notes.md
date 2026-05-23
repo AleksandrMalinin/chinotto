@@ -6,7 +6,8 @@ Add **`## vX.Y.Z`** before you push tag **`vX.Y.Z`**.
 
 ## v2.1.1
 
-* **Sync (release):** CI requires `VITE_FIREBASE_API_KEY` and `VITE_FIREBASE_PROJECT_ID` Actions secrets before building; embeds all `VITE_FIREBASE_*` env in the packaged SPA so `isFirebaseSyncConfigured()` is true and **Continue with Apple** works in production DMGs (see `docs/sync.md`)
+* **Sync (release):** CI requires `VITE_FIREBASE_API_KEY` and `VITE_FIREBASE_PROJECT_ID` Actions secrets before building; embeds all `VITE_FIREBASE_*` env in the packaged SPA so `isFirebaseSyncConfigured()` is true (see `docs/sync.md`)
+* **Sync (release):** restore **`Chinotto.entitlements`** + **`embedded.provisionprofile`** in notarized DMG builds so **`native_apple_sign_in`** works in production (regression since v2.0.0 stripped SIWA for launch-only entitlements); CI secret **`CHINOTTO_DEVELOPER_ID_PROVISIONING_PROFILE`**; clearer sync start errors in `useAppleSyncOAuth.ts`
 
 ## v2.1.0
 
