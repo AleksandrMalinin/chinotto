@@ -25,14 +25,17 @@ export function getFirebaseWebOptions() {
 }
 
 /**
- * Packaged desktop: OAuth runs in a WebviewWindow. Firebase Auth rejects `tauri://localhost`
- * even when `localhost` / `tauri.localhost` are in Authorized domains. Load the same SPA from
- * Firebase Hosting (https) instead. Optional `VITE_OAUTH_BRIDGE_ORIGIN` when Hosting uses a custom domain.
+ * Packaged desktop + dev browser OAuth: Firebase Hosting (https) so Apple accepts redirect_uri.
+ * Optional `VITE_OAUTH_BRIDGE_ORIGIN` when Hosting uses a custom domain.
  */
 export function getOauthBridgeWebviewUrl(nonce: string): string {
   const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID!.trim();
   const override = import.meta.env.VITE_OAUTH_BRIDGE_ORIGIN?.trim();
-  const base = (override || `https://${projectId}.web.app`).replace(/\/+$/, "");
+  const authDomain =
+    import.meta.env.VITE_FIREBASE_AUTH_DOMAIN?.trim() || `${projectId}.firebaseapp.com`;
+  /* Use authDomain (firebaseapp.com), not web.app: Apple Services ID return URLs must match
+   * the redirect_uri Firebase sends (see docs/sync.md § Apple Services ID). */
+  const base = (override || `https://${authDomain}`).replace(/\/+$/, "");
   const u = new URL(`${base}/chinotto-oauth`);
   u.searchParams.set("nonce", nonce);
   return u.toString();

@@ -151,13 +151,28 @@ Use the **same** Firebase **project** as mobile (`EXPO_PUBLIC_*` → `VITE_*` fo
 ### OAuth (this Mac, when Firebase is configured)
 
 - **Sync modal:** QR + Firestore gate; **Continue with Apple** is enabled only after mobile confirms unlock (`sync_desktop_sessions` or user taps **Already finished on your iPhone?**). **Sync is on** requires `users/{uid}.chinottoSyncAccess.active === true` from mobile (same field the modal polls via `getDocFromServer`).  
-- **Packaged desktop (GitHub / website DMG):** **`native_apple_sign_in`** is **not** available on Developer ID / notarized DMG builds: macOS refuses to launch when **`com.apple.developer.applesignin`** is in the signed entitlements but the Developer ID provisioning profile does not authorize it (**AMFI / error 163**). Release DMG uses **`Chinotto.developer-id.entitlements`** (mic/audio only). **Continue with Apple** in production requires the **Mac App Store** build (`Chinotto.mas.entitlements`, **`Chinotto Mac App Store`** profile, `scripts/build-mas-testflight.sh`) or local team signing via **`scripts/codesign-macos-dev.sh`** (`Chinotto.entitlements` + embedded profile from Xcode). **Dev (`npm run tauri dev`):** **`openUrl`** to **`http://localhost:5173/chinotto-oauth?…`** (Vite **`OAuthBridge`**), then a short-lived **`127.0.0.1`** listener in the app receives the credential via **`start_oauth_dev_bridge_listener`**. **Path:** `/chinotto-oauth` (path-based routing survives redirects better than query-only).  
+- **Packaged desktop (GitHub / website DMG):** **`Continue with Apple`** opens the **system browser** on Firebase Hosting **`/chinotto-oauth`** with **`oauthDevBridge`** params; after Apple sign-in the page **form-POSTs** the credential to **`http://127.0.0.1:<port>/chinotto-oauth-bridge`** (not `fetch` — Chrome PNA blocks that). Requires **`npm run deploy:hosting`** for the OAuth page. Release DMG uses **`Chinotto.developer-id.entitlements`**. **Do not** use embedded `tauri://` webview for OAuth — Firebase returns **`auth/unauthorized-domain`**. **Dev:** Vite localhost in the browser tab.  
 - **Firebase → Authentication → Settings → Authorized domains:** include **`localhost`** and **`127.0.0.1`** for the **dev** browser + loopback bridge.  
 - **`init.json`:** `https://{authDomain}/__/firebase/init.json` — **404** usually means wrong **`authDomain`** / project; it is not served from this repo’s Hosting root.
 
+### Apple Services ID (web OAuth — required for DMG browser sign-in)
+
+Firebase Apple sign-in for the **browser** flow uses Services ID **`app.chinotto.web`** (not bundle id **`app.chinotto`** used for native Mac sign-in).
+
+In [Apple Developer](https://developer.apple.com/account/resources/identifiers/list/serviceId) → **Identifiers** → **Services IDs** → **`app.chinotto.web`** → **Sign in with Apple** → **Configure**:
+
+| Field | Values |
+|-------|--------|
+| **Domains** | `chinotto.firebaseapp.com`, `chinotto.web.app` |
+| **Return URLs** | `https://chinotto.firebaseapp.com/__/auth/handler` |
+| | `https://chinotto.firebaseapp.com/chinotto-oauth` |
+| | `https://chinotto.web.app/chinotto-oauth` |
+
+Save, wait a few minutes, then retry. A **403** on `appleid.apple.com` with no login form means the **`redirect_uri` in the authorize URL is not listed** (check the browser address bar on the failed page, or call `accounts:createAuthUri` with your `continueUri`).
+
 ### Firebase Hosting (optional)
 
-Deploy with **`npm run deploy:hosting`** when you want **`https://<projectId>.web.app/`** (Mac-app-only landing) or other static pages. Packaged **Continue with Apple** does not load **`/chinotto-oauth`** from Hosting. The React **`OAuthBridge`** route is for **dev (Vite)** and for opening that URL in a normal browser. **`src-tauri/capabilities/oauth-host.json`** remains for hosted / webview flows if you use them.
+Deploy with **`npm run deploy:hosting`** when you want **`https://<projectId>.web.app/`** (Mac-app-only landing) or the **packaged OAuth page** at **`/chinotto-oauth`** (system browser loads Hosting; keep deploy current when OAuth bridge JS changes).
 
 ---
 
@@ -183,7 +198,9 @@ Deploy with **`npm run deploy:hosting`** when you want **`https://<projectId>.we
 | **400** `createAuthUri` | API key / Apple provider / authorized domains. |
 | **`auth/unauthorized-domain`** | Usually **dev**: OAuth ran on a host not listed under **Authorized domains** — add **`localhost`** / **`127.0.0.1`**. If you run Firebase inside **`tauri://`**, use the **Vite + localhost** dev flow instead. |
 | **`auth/invalid-credential`** — audience **`app.chinotto`** | Firebase project is missing an **Apple** app registration with bundle id **`app.chinotto`** (see **§ Configuration**). Add it in Console, wait a minute, retry. |
-| **“Could not start sign-in”** on packaged Mac (DMG) | Developer ID DMG does not ship **`com.apple.developer.applesignin`** — use **Mac App Store** build for native SIWA, or dev localhost OAuth. |
+| **“Could not hand sign-in back to Chinotto”** (browser after Apple OK) | **Private Network Access:** `fetch` from https → **`127.0.0.1`** is blocked. Use a build with **form POST** hand-off and bridge CORS that echoes **`Access-Control-Allow-Origin`** + **`Access-Control-Allow-Private-Network: true`**. Run **`npm run deploy:hosting`**. |
+| **“Could not start sign-in”** on packaged Mac (DMG) | Loopback listener blocked or Hosting OAuth page outdated. Quit Chinotto fully and retry; run **`npm run deploy:hosting`**; check **Authorized domains** include **`localhost`** / **`127.0.0.1`**. |
+| **`403 Forbidden`** on **`appleid.apple.com`** during sign-in | **Apple Services ID** return URL mismatch. Firebase sends `client_id=app.chinotto.web` and `redirect_uri` = your OAuth page (e.g. `https://chinotto.firebaseapp.com/chinotto-oauth` or `https://chinotto.web.app/chinotto-oauth`). Add **both** URLs under **Identifiers → Services IDs → `app.chinotto.web` → Sign in with Apple → Return URLs** (plus `https://chinotto.firebaseapp.com/__/auth/handler`). **`127.0.0.1` cannot be registered** — do not use loopback-only OAuth. |
 | **“Could not start sign-in”** on Mac App Store / dev-signed `.app` | Entitlements / provisioning for native SIWA, or Firebase **`app.chinotto`** registration — see **`auth/invalid-credential`** row. |
 | **App won’t open** — **RBSRequestErrorDomain** / **Launchd job spawn failed** (**163**) | Signed entitlements include **`com.apple.developer.applesignin`** but the embedded **Developer ID** profile does not authorize it. Release DMG must use **`Chinotto.developer-id.entitlements`** without SIWA in the signed plist. |
 | Blank OAuth | `VITE_FIREBASE_APP_ID`, `authDomain`. |
@@ -209,6 +226,7 @@ Deploy with **`npm run deploy:hosting`** when you want **`https://<projectId>.we
 
 | Date | Change |
 |------|--------|
+| 2026-05-23 | **Desktop OAuth (DMG):** Packaged **Continue with Apple** uses **127.0.0.1 loopback** + system browser instead of **`native_apple_sign_in`** (Developer ID cannot ship SIWA without launch failure). |
 | 2026-04-30 | **Desktop:** If the Firebase user / `users/{uid}` cloud path is invalid (e.g. account removed on mobile), ingest and profile listeners stop, tombstone outbox is cleared, and the client signs out of Firebase for local-only use without tight error retries. |
 | 2026-04-26 | **Desktop OAuth:** Packaged **Continue with Apple** uses **native** Sign in with Apple (`native_apple_sign_in`) + Firebase; register **`app.chinotto`** in Firebase alongside **`com.chinotto.mobile`**. **Dev** still uses Vite **`/chinotto-oauth`** + **`127.0.0.1`** bridge. |
 | 2026-04-13 | **Desktop:** After `update_entry` (detail debounce, unmount flush, stream late edit): `getEntry` → Firestore merge with `updatedAt: serverTimestamp()`; `generate_embedding` refresh. **Rust:** Firestore ingest `INSERT` includes `updated_at`. **Wire:** optional `updatedAt` on entry docs for mobile ordering. |

@@ -87,6 +87,35 @@ function clearDevBridgeSession(): void {
   }
 }
 
+/** Top-level form POST (not fetch) so Chrome PNA allows https → 127.0.0.1 hand-off after Apple sign-in. */
+function submitCredentialToDevBridge(
+  port: string,
+  secret: string,
+  oauthNonce: string,
+  credential: BridgedOAuthCredentialJson
+): void {
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = `http://127.0.0.1:${port}/chinotto-oauth-bridge`;
+  form.style.display = "none";
+  form.acceptCharset = "UTF-8";
+  const addField = (name: string, value: string) => {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    input.value = value;
+    form.appendChild(input);
+  };
+  addField("nonce", oauthNonce);
+  addField("credential", JSON.stringify(credential));
+  addField("secret", secret);
+  document.body.appendChild(form);
+  logOAuthDiagnostic("network", "dev_bridge_form_POST", {
+    message: `127.0.0.1:${port}${"/chinotto-oauth-bridge"}`,
+  });
+  form.submit();
+}
+
 /** OAuth bridge runs inside the auxiliary Tauri webview (not the Safari dev-browser flow). */
 function isTauriOAuthWebview(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -456,37 +485,13 @@ export function OAuthBridge() {
         }
         const devBridge = getDevBridgeSession();
         if (devBridge) {
-          const { port, secret } = devBridge;
-          try {
-            const r = await fetch(`http://127.0.0.1:${port}/chinotto-oauth-bridge`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "X-Chinotto-OAuth-Secret": secret,
-              },
-              body: JSON.stringify({ nonce: oauthNonce, credential }),
-            });
-            if (!r.ok) {
-              const detail = (await r.text()).slice(0, 500);
-              logOAuthDiagnostic("network", "dev_bridge_POST_failed", {
-                message: `HTTP ${r.status}`,
-                extra: { detail },
-              });
-              clearDevBridgeSession();
-              showDevBridgeSafariPage(
-                "Could not hand sign-in back to Chinotto. Quit the app completely and try again. Details: browser console → [Chinotto OAuth]."
-              );
-              return;
-            }
-            showDevBridgeSafariPage("Signed in. Close this tab and return to Chinotto.");
-            clearDevBridgeSession();
-          } catch (e) {
-            logOAuthUnknownError("dev_bridge_POST_fetch", e);
-            showDevBridgeSafariPage(
-              "Could not hand sign-in back to Chinotto. Quit the app completely and try again. Details: browser console → [Chinotto OAuth]."
-            );
-            clearDevBridgeSession();
-          }
+          clearDevBridgeSession();
+          submitCredentialToDevBridge(
+            devBridge.port,
+            devBridge.secret,
+            oauthNonce,
+            credential
+          );
           try {
             localStorage.removeItem(NONCE_STORAGE_KEY);
           } catch {

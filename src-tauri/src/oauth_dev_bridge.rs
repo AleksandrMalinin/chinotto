@@ -1,6 +1,5 @@
 //! Short-lived `127.0.0.1` listener: receives `{ nonce, credential }` after Firebase Apple sign-in
-//! in a **browser** session. Used by **`npm run tauri dev`** (Vite on `localhost` + POST here).
-//! Packaged desktop uses **`native_apple_sign_in`** instead.
+//! in a **browser** session. Dev: Vite on `localhost`. Packaged DMG: system browser on Firebase Hosting.
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use std::io::{BufRead, BufReader, Read, Write};
@@ -13,7 +12,16 @@ const BRIDGE_PATH: &str = "/chinotto-oauth-bridge";
 const OAUTH_PAGE_PATH: &str = "/chinotto-oauth";
 const HEADER_SECRET: &str = "x-chinotto-oauth-secret";
 const MAX_BODY: usize = 256 * 1024;
-const LISTEN_TIMEOUT: Duration = Duration::from_secs(4 * 60);
+const LISTEN_TIMEOUT: Duration = Duration::from_secs(10 * 60);
+const BRIDGE_SUCCESS_HTML: &str = "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Signed in</title></head><body style=\"font-family:system-ui;background:#0a0a0e;color:#e4e4e9;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0\"><p>Signed in. Close this tab and return to Chinotto.</p></body></html>";
+
+struct HttpRequest {
+    request_line: String,
+    secret_header: String,
+    origin: Option<String>,
+    content_type: Option<String>,
+    body: Vec<u8>,
+}
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -47,13 +55,33 @@ struct LoopbackPageState {
     firebase: serde_json::Value,
 }
 
-fn cors_preflight_response() -> &'static str {
-    "HTTP/1.1 204 No Content\r\n\
-     Access-Control-Allow-Origin: *\r\n\
-     Access-Control-Allow-Methods: POST, OPTIONS\r\n\
-     Access-Control-Allow-Headers: Content-Type, X-Chinotto-OAuth-Secret\r\n\
-     Access-Control-Max-Age: 3600\r\n\
-     Connection: close\r\n\r\n"
+fn cors_allow_origin(origin: Option<&str>) -> String {
+    const HOSTED: &[&str] = &[
+        "https://chinotto.firebaseapp.com",
+        "https://chinotto.web.app",
+    ];
+    if let Some(o) = origin {
+        if HOSTED.contains(&o)
+            || o.starts_with("http://localhost:")
+            || o.starts_with("http://127.0.0.1:")
+        {
+            return o.to_string();
+        }
+    }
+    "https://chinotto.firebaseapp.com".to_string()
+}
+
+fn cors_preflight_response(origin: Option<&str>) -> String {
+    let allow = cors_allow_origin(origin);
+    format!(
+        "HTTP/1.1 204 No Content\r\n\
+         Access-Control-Allow-Origin: {allow}\r\n\
+         Access-Control-Allow-Methods: POST, OPTIONS\r\n\
+         Access-Control-Allow-Headers: Content-Type, X-Chinotto-OAuth-Secret\r\n\
+         Access-Control-Allow-Private-Network: true\r\n\
+         Access-Control-Max-Age: 3600\r\n\
+         Connection: close\r\n\r\n"
+    )
 }
 
 fn respond_json(
@@ -61,11 +89,14 @@ fn respond_json(
     code: u16,
     reason: &str,
     body: &str,
+    origin: Option<&str>,
 ) -> Result<(), std::io::Error> {
+    let allow = cors_allow_origin(origin);
     let text = format!(
         "HTTP/1.1 {code} {reason}\r\n\
          Content-Type: application/json; charset=utf-8\r\n\
-         Access-Control-Allow-Origin: *\r\n\
+         Access-Control-Allow-Origin: {allow}\r\n\
+         Access-Control-Allow-Private-Network: true\r\n\
          Content-Length: {}\r\n\
          Connection: close\r\n\r\n\
          {body}",
@@ -74,10 +105,17 @@ fn respond_json(
     stream.write_all(text.as_bytes())
 }
 
-fn respond_html(stream: &mut TcpStream, body: &str) -> Result<(), std::io::Error> {
+fn respond_html(
+    stream: &mut TcpStream,
+    body: &str,
+    origin: Option<&str>,
+) -> Result<(), std::io::Error> {
+    let allow = cors_allow_origin(origin);
     let text = format!(
         "HTTP/1.1 200 OK\r\n\
          Content-Type: text/html; charset=utf-8\r\n\
+         Access-Control-Allow-Origin: {allow}\r\n\
+         Access-Control-Allow-Private-Network: true\r\n\
          Content-Length: {}\r\n\
          Connection: close\r\n\r\n\
          {body}",
@@ -86,7 +124,7 @@ fn respond_html(stream: &mut TcpStream, body: &str) -> Result<(), std::io::Error
     stream.write_all(text.as_bytes())
 }
 
-fn read_request(stream: &mut TcpStream) -> Result<(String, String, Vec<u8>), String> {
+fn read_request(stream: &mut TcpStream) -> Result<HttpRequest, String> {
     let mut reader = BufReader::new(stream);
     let mut request_line = String::new();
     reader
@@ -96,6 +134,8 @@ fn read_request(stream: &mut TcpStream) -> Result<(String, String, Vec<u8>), Str
 
     let mut content_length = 0usize;
     let mut secret_header: Option<String> = None;
+    let mut origin: Option<String> = None;
+    let mut content_type: Option<String> = None;
     loop {
         let mut line = String::new();
         reader.read_line(&mut line).map_err(|e| e.to_string())?;
@@ -116,6 +156,10 @@ fn read_request(stream: &mut TcpStream) -> Result<(String, String, Vec<u8>), Str
                 .split(':')
                 .nth(1)
                 .map(|s| s.trim().to_string());
+        } else if lower.starts_with("origin:") {
+            origin = Some(line.split_once(':').and_then(|(_, v)| Some(v.trim().to_string())).unwrap_or_default());
+        } else if lower.starts_with("content-type:") {
+            content_type = Some(line.split_once(':').and_then(|(_, v)| Some(v.trim().to_string())).unwrap_or_default());
         }
     }
 
@@ -126,11 +170,64 @@ fn read_request(stream: &mut TcpStream) -> Result<(String, String, Vec<u8>), Str
     let mut body = vec![0u8; content_length];
     reader.read_exact(&mut body).map_err(|e| e.to_string())?;
 
-    Ok((
+    Ok(HttpRequest {
         request_line,
-        secret_header.unwrap_or_default(),
+        secret_header: secret_header.unwrap_or_default(),
+        origin,
+        content_type,
         body,
-    ))
+    })
+}
+
+fn url_decode(input: &str) -> String {
+    let bytes = input.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'+' {
+            out.push(b' ');
+            i += 1;
+        } else if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let Ok(v) = u8::from_str_radix(std::str::from_utf8(&bytes[i + 1..i + 3]).unwrap_or(""), 16) {
+                out.push(v);
+                i += 3;
+            } else {
+                out.push(bytes[i]);
+                i += 1;
+            }
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+fn parse_form_field(body: &str, key: &str) -> Option<String> {
+    for pair in body.split('&') {
+        let mut parts = pair.splitn(2, '=');
+        let k = parts.next()?.trim();
+        if k == key {
+            return Some(url_decode(parts.next().unwrap_or("")));
+        }
+    }
+    None
+}
+
+fn parse_bridge_body(content_type: Option<&str>, body: &[u8]) -> Result<(BridgeBody, Option<String>), String> {
+    let ct = content_type.unwrap_or("");
+    if ct.contains("application/x-www-form-urlencoded") {
+        let form = std::str::from_utf8(body).map_err(|e| e.to_string())?;
+        let nonce = parse_form_field(form, "nonce").ok_or_else(|| "missing nonce".to_string())?;
+        let credential_raw =
+            parse_form_field(form, "credential").ok_or_else(|| "missing credential".to_string())?;
+        let credential: serde_json::Value =
+            serde_json::from_str(&credential_raw).map_err(|e| e.to_string())?;
+        let secret = parse_form_field(form, "secret");
+        return Ok((BridgeBody { nonce, credential }, secret));
+    }
+    let parsed: BridgeBody = serde_json::from_slice(body).map_err(|e| e.to_string())?;
+    Ok((parsed, None))
 }
 
 fn parse_path_query(request_target: &str) -> (&str, &str) {
@@ -206,7 +303,7 @@ fn handle_get_oauth(
             return Ok(());
         }
     };
-    respond_html(stream, &html)
+    respond_html(stream, &html, None)
 }
 
 fn handle_connection(
@@ -215,9 +312,10 @@ fn handle_connection(
     app: &tauri::AppHandle,
     loop_state: &Arc<Mutex<Option<LoopbackPageState>>>,
 ) -> Result<bool, String> {
-    let (request_line, header_secret, body) = read_request(&mut stream)?;
+    let req = read_request(&mut stream)?;
+    let origin = req.origin.as_deref();
 
-    let parts: Vec<&str> = request_line.split_whitespace().collect();
+    let parts: Vec<&str> = req.request_line.split_whitespace().collect();
     if parts.len() < 2 {
         let _ = stream.write_all(b"HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
         return Ok(false);
@@ -231,8 +329,8 @@ fn handle_connection(
         return Ok(false);
     }
 
-    if method == "OPTIONS" && path == BRIDGE_PATH {
-        let _ = stream.write_all(cors_preflight_response().as_bytes());
+    if method == "OPTIONS" && (path == BRIDGE_PATH || path == OAUTH_PAGE_PATH) {
+        let _ = stream.write_all(cors_preflight_response(origin).as_bytes());
         return Ok(false);
     }
 
@@ -241,14 +339,21 @@ fn handle_connection(
         return Ok(false);
     }
 
-    if header_secret != expected_secret {
+    let (parsed, form_secret) =
+        parse_bridge_body(req.content_type.as_deref(), &req.body)?;
+    let secret = if !req.secret_header.is_empty() {
+        req.secret_header.as_str()
+    } else if let Some(ref s) = form_secret {
+        s.as_str()
+    } else {
+        ""
+    };
+
+    if secret != expected_secret {
         let msg = r#"{"ok":false,"error":"unauthorized"}"#;
-        let _ = respond_json(&mut stream, 401, "Unauthorized", msg);
+        let _ = respond_json(&mut stream, 401, "Unauthorized", msg, origin);
         return Ok(false);
     }
-
-    let parsed: BridgeBody =
-        serde_json::from_slice(&body).map_err(|e| e.to_string())?;
 
     let payload = serde_json::json!({
         "nonce": parsed.nonce,
@@ -258,8 +363,16 @@ fn handle_connection(
     app.emit("chinotto-sync-oauth-success", payload)
         .map_err(|e| e.to_string())?;
 
-    let ok = r#"{"ok":true}"#;
-    let _ = respond_json(&mut stream, 200, "OK", ok);
+    let form_post = req
+        .content_type
+        .as_deref()
+        .is_some_and(|ct| ct.contains("application/x-www-form-urlencoded"));
+    if form_post {
+        let _ = respond_html(&mut stream, BRIDGE_SUCCESS_HTML, origin);
+    } else {
+        let ok = r#"{"ok":true}"#;
+        let _ = respond_json(&mut stream, 200, "OK", ok, origin);
+    }
     Ok(true)
 }
 

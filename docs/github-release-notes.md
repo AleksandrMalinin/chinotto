@@ -7,7 +7,8 @@ Add **`## vX.Y.Z`** before you push tag **`vX.Y.Z`**.
 ## v2.1.1
 
 * **Sync (release):** CI requires `VITE_FIREBASE_API_KEY` and `VITE_FIREBASE_PROJECT_ID` Actions secrets before building; embeds all `VITE_FIREBASE_*` env in the packaged SPA so `isFirebaseSyncConfigured()` is true (see `docs/sync.md`)
-* **DMG (launch):** keep **`Chinotto.developer-id.entitlements`** for notarized Developer ID builds — shipping **`com.apple.developer.applesignin`** in the signed plist with a Developer ID profile makes macOS refuse launch (**AMFI / error 163**) even when the portal lists Sign in with Apple on the profile; native SIWA on outside-App-Store builds remains **Mac App Store** (`Chinotto.mas.entitlements`) or local **`scripts/codesign-macos-dev.sh`**
+* **DMG (launch):** keep **`Chinotto.developer-id.entitlements`** for notarized Developer ID builds (no SIWA in signed plist — avoids **AMFI / error 163**)
+* **Sync (DMG):** packaged **Continue with Apple** opens **Firebase Hosting `/chinotto-oauth`** in the system browser and **form-POSTs** credential to **`127.0.0.1` bridge** (not **`native_apple_sign_in`**; requires current **`deploy:hosting`**)
 * **Sync (UX):** clearer sync start errors in `useAppleSyncOAuth.ts`
 
 ## v2.1.0

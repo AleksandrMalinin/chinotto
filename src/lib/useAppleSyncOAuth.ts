@@ -3,7 +3,7 @@ import type { User } from "firebase/auth";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { isFirebaseSyncConfigured } from "@/lib/firebaseConfig";
+import { getOauthBridgeWebviewUrl, isFirebaseSyncConfigured } from "@/lib/firebaseConfig";
 import {
   signInWithAppleCredential,
   signOutFirebaseSync,
@@ -86,19 +86,15 @@ const OAUTH_TIMEOUT_MS = 4 * 60 * 1000;
 type OauthSuccessPayload = { nonce: string; credential: BridgedOAuthCredentialJson };
 type OauthErrorPayload = { nonce: string; message: string };
 
-type NativeAppleSignInResult = {
-  idToken: string;
-  rawNonce: string;
-};
-
 type UseAppleSyncOAuthOptions = {
   /** When false, auth subscription is inactive (saves work when modal is closed). */
   active: boolean;
 };
 
 /**
- * Apple / Firebase device sync: dev uses Vite + localhost bridge; packaged macOS uses native
- * `native_apple_sign_in` (requires Sign in with Apple entitlement + embedded provisioning profile in the DMG).
+ * Apple / Firebase device sync: system browser on Firebase Hosting `/chinotto-oauth` (Apple accepts
+ * https redirect_uri). Credential returns via loopback bridge POST (form navigation, not fetch — PNA).
+ * Dev uses Vite localhost in the browser tab instead of Hosting.
  */
 export function useAppleSyncOAuth({ active }: UseAppleSyncOAuthOptions) {
   const [user, setUser] = useState<User | null>(null);
@@ -201,57 +197,32 @@ export function useAppleSyncOAuth({ active }: UseAppleSyncOAuthOptions) {
         message: `no success/error event within ${OAUTH_TIMEOUT_MS}ms`,
       });
       track({ event: "sync_oauth_failed", reason: "timeout" });
-      setError(userMessageOAuthTimeoutMainWindow(import.meta.env.DEV));
+      setError(userMessageOAuthTimeoutMainWindow(true));
     }, OAUTH_TIMEOUT_MS);
 
     try {
+      const bridgeSecret = crypto.randomUUID();
+      const bridgePort = await invoke<number>("start_oauth_dev_bridge_listener", {
+        args: { secret: bridgeSecret },
+      });
+      const oauthUrl = import.meta.env.DEV
+        ? new URL(window.location.href)
+        : new URL(getOauthBridgeWebviewUrl(nonce));
       if (import.meta.env.DEV) {
-        const returnUrl = new URL(window.location.href);
-        returnUrl.pathname = "/chinotto-oauth";
-        returnUrl.search = "";
-        returnUrl.hash = "";
-        returnUrl.searchParams.set("nonce", nonce);
-        const bridgeSecret = crypto.randomUUID();
-        const bridgePort = await invoke<number>("start_oauth_dev_bridge_listener", {
-          args: { secret: bridgeSecret },
-        });
-        returnUrl.searchParams.set("oauthDevBridge", "1");
-        returnUrl.searchParams.set("oauthDevBridgePort", String(bridgePort));
-        returnUrl.searchParams.set("oauthDevBridgeSecret", bridgeSecret);
-        await openUrl(returnUrl.toString());
-      } else {
-        try {
-          const out = await invoke<NativeAppleSignInResult>("native_apple_sign_in");
-          cleanup();
-          try {
-            localStorage.removeItem("chinotto_oauth_nonce");
-          } catch {
-            /* ignore */
-          }
-          await signInWithAppleCredential({
-            providerId: "apple.com",
-            signInMethod: "apple.com",
-            idToken: out.idToken,
-            nonce: out.rawNonce,
-          });
-          track({ event: "sync_oauth_completed" });
-          setBusy(false);
-          return;
-        } catch (nativeErr) {
-          cleanup();
-          try {
-            localStorage.removeItem("chinotto_oauth_nonce");
-          } catch {
-            /* ignore */
-          }
-          track({ event: "sync_oauth_failed", reason: "start" });
-          logOAuthUnknownError("onContinueApple_native_apple_sign_in", nativeErr);
-          console.warn("[Chinotto sync oauth] native_apple_sign_in failed", nativeErr);
-          setError(messageFromAppleSyncStartFailure(nativeErr));
-          setBusy(false);
-          return;
-        }
+        oauthUrl.pathname = "/chinotto-oauth";
+        oauthUrl.search = "";
+        oauthUrl.hash = "";
       }
+      oauthUrl.searchParams.set("nonce", nonce);
+      oauthUrl.searchParams.set("oauthDevBridge", "1");
+      oauthUrl.searchParams.set("oauthDevBridgePort", String(bridgePort));
+      oauthUrl.searchParams.set("oauthDevBridgeSecret", bridgeSecret);
+      logOAuthDiagnostic(
+        "config",
+        import.meta.env.DEV ? "dev_browser_open" : "packaged_hosted_browser_open",
+        { message: oauthUrl.origin + oauthUrl.pathname }
+      );
+      await openUrl(oauthUrl.toString());
     } catch (e) {
       cleanup();
       track({ event: "sync_oauth_failed", reason: "start" });
