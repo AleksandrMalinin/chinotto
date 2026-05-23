@@ -79,12 +79,6 @@ If `APPLE_CONNECT_P8` / `APPLE_API_KEY` / `APPLE_API_ISSUER` are omitted, CI sti
 | `VITE_FIREBASE_MESSAGING_SENDER_ID` | Optional |
 | `VITE_FIREBASE_APP_ID` | Optional |
 
-### Sign in with Apple (CI) — required for sync in DMG
-
-| Secret | Purpose |
-|--------|---------|
-| `CHINOTTO_DEVELOPER_ID_PROVISIONING_PROFILE` | Base64-encoded **Developer ID** `.provisionprofile` for **`app.chinotto`** with **Sign in with Apple**. Embedded as `Contents/embedded.provisionprofile` during `tauri build`. See `docs/sync.md`. |
-
 ## CI artifacts
 
 On push of tag `v*`, the workflow builds `--target aarch64-apple-darwin`, uploads bundles, signatures, and **`latest.json`** (via `tauri-action`, `uploadUpdaterJson` default).
