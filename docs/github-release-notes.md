@@ -9,6 +9,7 @@ Add **`## vX.Y.Z`** before you push tag **`vX.Y.Z`**.
 * **Sync (release):** CI requires `VITE_FIREBASE_API_KEY` and `VITE_FIREBASE_PROJECT_ID` Actions secrets before building; embeds all `VITE_FIREBASE_*` env in the packaged SPA so `isFirebaseSyncConfigured()` is true (see `docs/sync.md`)
 * **DMG (launch):** keep **`Chinotto.developer-id.entitlements`** for notarized Developer ID builds (no SIWA in signed plist — avoids **AMFI / error 163**)
 * **Sync (DMG):** packaged **Continue with Apple** opens **Firebase Hosting `/chinotto-oauth`** in the system browser and **form-POSTs** credential to **`127.0.0.1` bridge** (not **`native_apple_sign_in`**; requires current **`deploy:hosting`**)
+* **Sync (DMG):** one-shot upload of pre-sync local SQLite entries to Firestore on first sign-in per uid (`startLocalEntriesFirestoreUploadOnAuth` in `desktopFirestoreSync.ts`) so mobile ingest receives desktop history
 * **Sync (UX):** clearer sync start errors in `useAppleSyncOAuth.ts`
 
 ## v2.1.0
