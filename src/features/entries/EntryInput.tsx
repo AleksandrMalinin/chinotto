@@ -1,13 +1,12 @@
 import {
   useRef,
   useEffect,
+  useLayoutEffect,
   useImperativeHandle,
   forwardRef,
   useCallback,
   useState,
 } from "react";
-import { Maximize2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ComposeExpandOverlay } from "./ComposeExpandOverlay";
 import { shouldAutoExpandCapture } from "./captureInputHeight";
@@ -39,6 +38,7 @@ export const EntryInput = forwardRef<EntryInputRef, Props>(function EntryInput(
   const [draft, setDraft] = useState("");
   const [expanded, setExpanded] = useState(false);
   const userCollapsedExpandRef = useRef(false);
+  const pastePendingExpandRef = useRef(false);
 
   const setExpandedState = useCallback(
     (open: boolean) => {
@@ -47,28 +47,6 @@ export const EntryInput = forwardRef<EntryInputRef, Props>(function EntryInput(
     },
     [onComposeExpandedChange]
   );
-
-  const collapseExpand = useCallback(() => {
-    userCollapsedExpandRef.current = true;
-    setExpandedState(false);
-    requestAnimationFrame(() => inputRef.current?.focus());
-  }, [setExpandedState]);
-
-  const openExpand = useCallback(() => {
-    if (!showExpandTrigger) return;
-    userCollapsedExpandRef.current = false;
-    setExpandedState(true);
-  }, [showExpandTrigger, setExpandedState]);
-
-  useImperativeHandle(ref, () => ({
-    focus: () => {
-      if (expanded) return;
-      inputRef.current?.focus();
-    },
-    collapseComposeExpand: () => {
-      if (expanded) collapseExpand();
-    },
-  }));
 
   const updateDraft = useCallback(
     (next: string) => {
@@ -83,6 +61,30 @@ export const EntryInput = forwardRef<EntryInputRef, Props>(function EntryInput(
     updateDraft("");
   }, [updateDraft]);
 
+  const dismissExpand = useCallback(() => {
+    userCollapsedExpandRef.current = true;
+    pastePendingExpandRef.current = false;
+    updateDraft("");
+    setExpandedState(false);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, [updateDraft, setExpandedState]);
+
+  const openExpand = useCallback(() => {
+    if (!showExpandTrigger) return;
+    userCollapsedExpandRef.current = false;
+    setExpandedState(true);
+  }, [showExpandTrigger, setExpandedState]);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      if (expanded) return;
+      inputRef.current?.focus();
+    },
+    collapseComposeExpand: () => {
+      if (expanded) dismissExpand();
+    },
+  }));
+
   const submitDraft = useCallback(
     (raw: string) => {
       const trimmed = raw.trim();
@@ -94,15 +96,24 @@ export const EntryInput = forwardRef<EntryInputRef, Props>(function EntryInput(
     [onSubmit, clearDraft, expanded, setExpandedState]
   );
 
-  const considerAutoExpand = useCallback(
-    (el: HTMLTextAreaElement | null, text: string) => {
-      if (!showExpandTrigger || userCollapsedExpandRef.current || expanded) return;
-      if (shouldAutoExpandCapture(el, text)) {
-        setExpandedState(true);
-      }
+  const tryAutoExpand = useCallback(
+    (text: string, options?: { ignoreUserCollapsed?: boolean }) => {
+      if (!showExpandTrigger || expanded) return;
+      if (!options?.ignoreUserCollapsed && userCollapsedExpandRef.current) return;
+      const el = inputRef.current;
+      if (!shouldAutoExpandCapture(el, text)) return;
+      userCollapsedExpandRef.current = false;
+      setExpandedState(true);
     },
     [showExpandTrigger, expanded, setExpandedState]
   );
+
+  useLayoutEffect(() => {
+    if (expanded) return;
+    const ignoreCollapsed = pastePendingExpandRef.current;
+    pastePendingExpandRef.current = false;
+    tryAutoExpand(draft, { ignoreUserCollapsed: ignoreCollapsed });
+  }, [draft, expanded, tryAutoExpand]);
 
   useEffect(() => {
     if (expanded) return;
@@ -130,36 +141,31 @@ export const EntryInput = forwardRef<EntryInputRef, Props>(function EntryInput(
     submitDraft((e.target as HTMLTextAreaElement).value);
   }
 
-  const canExpand = showExpandTrigger && draft.length > 0;
-
   return (
     <>
-      <div className="entry-input-area">
-        {canExpand ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="entry-input-expand-btn"
-            onClick={openExpand}
-            aria-label="Expand capture (⌘⇧Enter)"
-          >
-            <Maximize2 size={16} strokeWidth={1.75} aria-hidden />
-          </Button>
-        ) : null}
+      <div
+        className={
+          expanded
+            ? "entry-input-area entry-input-area--compose-open"
+            : "entry-input-area"
+        }
+      >
         <Textarea
           ref={inputRef}
           className="entry-input entry-input--inline !min-h-0 !py-0"
           placeholder="Capture a thought…"
-          value={draft}
+          value={expanded ? "" : draft}
+          readOnly={expanded}
+          tabIndex={expanded ? -1 : 0}
+          aria-hidden={expanded}
           onKeyDown={handleInlineKeyDown}
           onChange={(e) => {
-            const el = e.target;
-            const next = el.value;
-            updateDraft(next);
-            requestAnimationFrame(() => {
-              considerAutoExpand(el, next);
-            });
+            if (expanded) return;
+            updateDraft(e.target.value);
+          }}
+          onPaste={() => {
+            if (expanded) return;
+            pastePendingExpandRef.current = true;
           }}
           rows={1}
           aria-label="New thought"
@@ -169,7 +175,7 @@ export const EntryInput = forwardRef<EntryInputRef, Props>(function EntryInput(
         open={expanded}
         value={draft}
         onChange={updateDraft}
-        onClose={collapseExpand}
+        onClose={dismissExpand}
         onSubmit={submitDraft}
       />
     </>

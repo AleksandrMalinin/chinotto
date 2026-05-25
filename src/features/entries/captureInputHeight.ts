@@ -1,4 +1,4 @@
-export const CAPTURE_INPUT_MIN_HEIGHT_PX = 28;
+export const CAPTURE_INPUT_MIN_HEIGHT_PX = 32;
 
 /**
  * Inline capture is one visual line; expand when the draft clearly outgrows it.

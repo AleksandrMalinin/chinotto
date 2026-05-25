@@ -78,7 +78,7 @@ export function ComposeExpandOverlay({
           aria-label="Expanded capture"
         />
         <p className="compose-expand-hint">
-          Enter — save · Shift+Enter — line · Esc — back
+          Enter — save · Shift+Enter — line · Esc — discard
         </p>
       </div>
     </div>
