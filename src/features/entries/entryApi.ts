@@ -41,7 +41,9 @@ export async function setEntrySpace(
 }
 
 export function generateEmbedding(entryId: string): void {
-  invoke("generate_embedding", { entryId }).catch(() => {});
+  invoke("generate_embedding", { entryId }).catch((err) => {
+    console.warn("[chinotto] generate_embedding failed", entryId, err);
+  });
 }
 
 export async function findSimilarEntries(

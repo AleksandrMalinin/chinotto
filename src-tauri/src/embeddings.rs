@@ -39,3 +39,22 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     }
     dot / (norm_a * norm_b)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Regression: pair from manual Related-thoughts QA (English, shared Chinotto/Tauri/SQLite terms).
+    #[test]
+    fn chinotto_pair_similarity_meets_related_threshold() {
+        let a = "Working on the Chinotto macOS app today. Tauri 2 shell, React UI, SQLite with FTS5 for search.";
+        let b = "Chinotto desktop: Tauri backend, React frontend, local SQLite. Testing whether embedding similarity shows related entries in the detail view.";
+        let ea = embed_text(a).expect("embed a");
+        let eb = embed_text(b).expect("embed b");
+        let sim = cosine_similarity(&ea, &eb);
+        assert!(
+            sim >= 0.5,
+            "expected cosine similarity >= 0.5, got {sim}"
+        );
+    }
+}
