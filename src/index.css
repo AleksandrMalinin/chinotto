@@ -3013,20 +3013,20 @@ body.welcome .app-bg {
 .entry-input-area .entry-input,
 .entry-input {
   width: 100%;
-  padding: 0 0 0 0;
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
+  padding: 0.2rem 0 0.35rem;
   font-size: 18px;
   font-weight: 500;
   letter-spacing: 0.01em;
-  line-height: 1;
+  line-height: 1.45;
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--border);
   border-radius: 0;
   color: var(--fg);
   resize: none;
-  min-height: 1.125rem;
+  min-height: 1.75rem;
+  max-height: min(40vh, 16rem);
+  overflow-y: auto;
   transition: border-color var(--transition), box-shadow var(--transition);
   box-sizing: border-box;
 }
@@ -3035,7 +3035,7 @@ body.welcome .app-bg {
   color: var(--ui-dim);
   font-weight: 400;
   font-size: 15px;
-  line-height: 1;
+  line-height: 1.45;
 }
 
 .entry-input:hover {
