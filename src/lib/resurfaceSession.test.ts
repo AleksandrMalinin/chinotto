@@ -35,6 +35,7 @@ const baseGuards = {
   loading: false,
   searchTrimmed: true,
   isSearchOpen: false,
+  composeExpanded: false,
   editingEntryId: null as string | null,
   triedResurface: false,
 };
@@ -59,6 +60,13 @@ describe("resurface session", () => {
   it("resurfacing does not trigger when search is open", () => {
     assert.strictEqual(
       mayAttemptResurface({ ...baseGuards, isSearchOpen: true }),
+      false
+    );
+  });
+
+  it("resurfacing does not trigger when compose expand is open", () => {
+    assert.strictEqual(
+      mayAttemptResurface({ ...baseGuards, composeExpanded: true }),
       false
     );
   });

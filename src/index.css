@@ -1084,6 +1084,26 @@ body.welcome .app-bg {
 .entry-input-row .entry-input-area {
   flex: 1;
   min-width: 0;
+  position: relative;
+}
+
+.entry-input-expand-btn {
+  position: absolute;
+  right: 0;
+  top: 0.05rem;
+  z-index: 1;
+  padding: 0.2rem 0.35rem;
+  min-height: auto;
+  color: var(--muted);
+}
+
+.entry-input-expand-btn:hover,
+.entry-input-expand-btn:focus-visible {
+  color: var(--fg-dim);
+}
+
+.entry-input-area:has(.entry-input-expand-btn) .entry-input {
+  padding-right: 2.25rem;
 }
 
 .search-trigger-inline {
@@ -3008,7 +3028,7 @@ body.welcome .app-bg {
   border-radius: 6px;
 }
 
-/* Entry input – compact editor */
+/* Entry input – one-line quick capture in stream; long drafts use compose expand */
 
 .entry-input-area .entry-input,
 .entry-input {
@@ -3024,11 +3044,18 @@ body.welcome .app-bg {
   border-radius: 0;
   color: var(--fg);
   resize: none;
-  min-height: 1.75rem;
-  max-height: min(40vh, 16rem);
-  overflow-y: auto;
   transition: border-color var(--transition), box-shadow var(--transition);
   box-sizing: border-box;
+}
+
+.entry-input-area textarea.entry-input--inline {
+  height: 1.75rem;
+  min-height: 1.75rem;
+  max-height: 1.75rem;
+  padding-top: 0.2rem;
+  padding-bottom: 0.35rem;
+  overflow: hidden;
+  line-height: 1.45;
 }
 
 .entry-input::placeholder {
@@ -3047,6 +3074,53 @@ body.welcome .app-bg {
   border-color: var(--border-focus);
   box-shadow: 0 1px 0 0 var(--border-focus);
   caret-color: var(--caret-accent);
+}
+
+/* Compose expand – calm overlay for long capture drafts */
+.compose-expand-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem;
+  background: rgba(10, 10, 14, 0.78);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: compose-expand-overlay-in 0.2s ease-out both;
+}
+
+@keyframes compose-expand-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.compose-expand-panel {
+  width: 100%;
+  max-width: 42rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.compose-expand-input {
+  min-height: 12rem;
+  max-height: min(60vh, 24rem);
+  overflow-y: auto;
+  padding: 0.35rem 0 0.5rem;
+}
+
+.compose-expand-hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--meta-fg);
+  letter-spacing: 0.01em;
 }
 
 /* Resurfaced card – subtle surface, no heavy card */

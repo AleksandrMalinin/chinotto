@@ -76,6 +76,7 @@ export interface ResurfaceEffectGuards {
   loading: boolean;
   searchTrimmed: boolean;
   isSearchOpen: boolean;
+  composeExpanded: boolean;
   editingEntryId: string | null;
   triedResurface: boolean;
 }
@@ -88,6 +89,7 @@ export function mayAttemptResurface(guards: ResurfaceEffectGuards): boolean {
     !guards.loading &&
     guards.searchTrimmed &&
     !guards.isSearchOpen &&
+    !guards.composeExpanded &&
     guards.editingEntryId === null &&
     !guards.triedResurface
   );
