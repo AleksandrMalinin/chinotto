@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 import { Textarea } from "@/components/ui/textarea";
-import { syncComposeExpandInputHeight } from "./captureInputHeight";
 
 type Props = {
   open: boolean;
@@ -23,7 +22,6 @@ export function ComposeExpandOverlay({
     if (!open) return;
     const el = textareaRef.current;
     if (!el) return;
-    syncComposeExpandInputHeight(el);
     el.focus();
     const len = el.value.length;
     try {
@@ -32,11 +30,6 @@ export function ComposeExpandOverlay({
       /* ignore */
     }
   }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    syncComposeExpandInputHeight(textareaRef.current);
-  }, [open, value]);
 
   if (!open) return null;
 
@@ -66,15 +59,11 @@ export function ComposeExpandOverlay({
       <div className="compose-expand-panel">
         <Textarea
           ref={textareaRef}
-          className="compose-expand-input entry-input"
+          className="compose-expand-input entry-input !min-h-0"
           value={value}
           placeholder="Capture a thought…"
-          onChange={(e) => {
-            onChange(e.target.value);
-            syncComposeExpandInputHeight(e.target);
-          }}
+          onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          rows={1}
           aria-label="Expanded capture"
         />
         <p className="compose-expand-hint">

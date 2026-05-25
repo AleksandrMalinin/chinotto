@@ -3098,12 +3098,16 @@ body.welcome .app-bg {
   gap: 0.65rem;
 }
 
-.compose-expand-input {
+.compose-expand-panel .compose-expand-input {
+  box-sizing: border-box;
+  height: 12rem;
   min-height: 12rem;
-  max-height: min(60vh, 24rem);
+  max-height: 12rem;
+  overflow-x: hidden;
   overflow-y: auto;
   padding: 0.35rem 0 0.5rem;
   line-height: 1.5;
+  resize: none;
 }
 
 .compose-expand-hint {

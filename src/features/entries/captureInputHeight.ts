@@ -8,13 +8,6 @@ export const COMPOSE_AUTO_EXPAND_CHARS = 64;
 
 const SCROLL_OVERFLOW_TOLERANCE_PX = 2;
 
-/** Auto-grow height for compose-expand overlay only (inline capture stays one line). */
-export function syncComposeExpandInputHeight(el: HTMLTextAreaElement | null) {
-  if (!el) return;
-  el.style.height = "auto";
-  el.style.height = `${Math.max(el.scrollHeight, CAPTURE_INPUT_MIN_HEIGHT_PX)}px`;
-}
-
 function inlineCaptureOverflows(el: HTMLTextAreaElement): boolean {
   return (
     el.scrollHeight > el.clientHeight + SCROLL_OVERFLOW_TOLERANCE_PX ||
