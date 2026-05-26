@@ -14,6 +14,7 @@ import { isFirebaseSyncConfigured } from "@/lib/firebaseConfig";
 import { getDevSimulateNewUser } from "@/lib/devSimulateNewUser";
 import { track } from "@/lib/analytics";
 import { setHasEverSavedThought } from "@/lib/streamOnboarding";
+import { applyStoredUiZoom } from "@/lib/uiZoom";
 
 /** Fully transparent host; rounded chrome is only the HTML card (no native popover material). */
 const TRAY_CAPTURE_CHROME_RGBA: [number, number, number, number] = [0, 0, 0, 0];
@@ -52,6 +53,7 @@ export function TrayCapturePanel() {
   }, []);
 
   useEffect(() => {
+    void applyStoredUiZoom();
     document.documentElement.classList.add("tray-capture-page");
     const win = getCurrentWindow();
     const wv = WebviewWindow.getCurrent();
