@@ -1,6 +1,6 @@
 [package]
 name = "Chinotto"
-version = "2.1.1"
+version = "2.2.1"
 description = "Minimal desktop thinking tool for capturing thoughts instantly and revisiting them later."
 authors = ["you"]
 license = ""

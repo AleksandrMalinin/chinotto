@@ -4,6 +4,13 @@ These sections feed the **GitHub Release** description in CI (see `.github/workf
 
 Add **`## vX.Y.Z`** before you push tag **`vX.Y.Z`**.
 
+## v2.2.1
+
+* **UI (entries):** add explicit delete confirmation before removing a thought (`confirmDeleteThought` in `src/lib/deleteEntryConfirmation.ts`, wired in `App.tsx`) for both row delete click and keyboard delete flow
+* **Related thoughts (indexing):** lazy backfill of missing embeddings during `find_similar_entries` (`ensure_embeddings_for_related_search` in `src-tauri/src/lib.rs`) so older rows can appear in related results without manual reindex
+* **UI (zoom):** persist and restore webview zoom with shortcut controls (`src/lib/uiZoom.ts`, startup `applyStoredUiZoom` in `App.tsx`)
+* **Tests:** add coverage for delete confirmation copy/confirm decisions (`src/lib/deleteEntryConfirmation.test.ts`) and keep `uiZoom` behavior covered (`src/lib/uiZoom.test.ts`)
+
 ## v2.1.1
 
 * **Sync (release):** CI requires `VITE_FIREBASE_API_KEY` and `VITE_FIREBASE_PROJECT_ID` Actions secrets before building; embeds all `VITE_FIREBASE_*` env in the packaged SPA so `isFirebaseSyncConfigured()` is true (see `docs/sync.md`)
