@@ -76,6 +76,12 @@ import {
   getDevPreviewEmptyStream,
   setDevPreviewEmptyStream,
 } from "@/lib/devPreviewEmptyStream";
+import {
+  adjustUiZoom,
+  applyStoredUiZoom,
+  isUiZoomInKey,
+  isUiZoomOutKey,
+} from "@/lib/uiZoom";
 import { useAppUpdater } from "@/lib/appUpdater";
 import {
   hasEverSavedThought,
@@ -1027,7 +1033,16 @@ export default function App() {
   }, [isSearchOpen]);
 
   useEffect(() => {
+    void applyStoredUiZoom();
+  }, []);
+
+  useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      if (isUiZoomInKey(e) || isUiZoomOutKey(e)) {
+        e.preventDefault();
+        void adjustUiZoom(isUiZoomInKey(e) ? 1 : -1);
+        return;
+      }
       if (isTypingInInput()) return;
       if (e.key === "Escape") {
         if (jumpPopoverOpen) {
