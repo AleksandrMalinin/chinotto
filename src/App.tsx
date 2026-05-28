@@ -243,6 +243,7 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [composeExpanded, setComposeExpanded] = useState(false);
   const [searchOverlayClosing, setSearchOverlayClosing] = useState(false);
   const [jumpPopoverOpen, setJumpPopoverOpen] = useState(false);
   const [jumpContextYmd, setJumpContextYmd] = useState<string | null>(null);
@@ -309,6 +310,12 @@ export default function App() {
     if (!isSearchOpen || searchOverlayClosing) return;
     setSearchOverlayClosing(true);
   }, [isSearchOpen, searchOverlayClosing]);
+
+  const openSearch = useCallback(() => {
+    entryInputRef.current?.collapseComposeExpand();
+    setJumpPopoverOpen(false);
+    setIsSearchOpen(true);
+  }, []);
 
   const searchRef = useRef(search);
   searchRef.current = search;
@@ -697,7 +704,8 @@ export default function App() {
     return () => clearTimeout(id);
   }, [introDismissed, introTransitioning]);
 
-  const chromeOverlayOpen = isChinottoCardOpen || isSyncModalOpen || isSearchOpen;
+  const chromeOverlayOpen =
+    isChinottoCardOpen || isSyncModalOpen || isSearchOpen || composeExpanded;
 
   useEffect(() => {
     let raf0 = 0;
@@ -1004,6 +1012,7 @@ export default function App() {
         loading,
         searchTrimmed: search.trim() === "",
         isSearchOpen,
+        composeExpanded,
         editingEntryId,
         triedResurface: triedResurfaceOnOpenRef.current,
       })
@@ -1021,6 +1030,7 @@ export default function App() {
     loading,
     search,
     isSearchOpen,
+    composeExpanded,
     editingEntryId,
     tryResurface,
   ]);
@@ -1045,6 +1055,11 @@ export default function App() {
       }
       if (isTypingInInput()) return;
       if (e.key === "Escape") {
+        if (composeExpanded) {
+          entryInputRef.current?.collapseComposeExpand();
+          e.preventDefault();
+          return;
+        }
         if (jumpPopoverOpen) {
           setJumpPopoverOpen(false);
           e.preventDefault();
@@ -1058,8 +1073,7 @@ export default function App() {
       }
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        setJumpPopoverOpen(false);
-        setIsSearchOpen(true);
+        openSearch();
       }
       if (
         showJumpTrigger &&
@@ -1073,6 +1087,9 @@ export default function App() {
       if (e.key === "n" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         if (selectedEntry) setSelectedEntry(null);
+        if (composeExpanded) {
+          entryInputRef.current?.collapseComposeExpand();
+        }
         if (isSearchOpen) {
           handleSearchClose();
         } else {
@@ -1103,9 +1120,11 @@ export default function App() {
     selectedEntry,
     voiceCaptureOpen,
     isSearchOpen,
+    composeExpanded,
     jumpPopoverOpen,
     showJumpTrigger,
     handleSearchClose,
+    openSearch,
   ]);
 
   const EPHEMERAL_WINDOW_MS = 15_000;
@@ -1622,6 +1641,11 @@ export default function App() {
   const emptyOnboardingIntroReady =
     introDismissed || (introTransitioning && emptyOnboardingIntroDelayReady);
 
+  const showComposeExpandTrigger =
+    introDismissed &&
+    !selectedEntry &&
+    emptyOnboardingForStream?.variant !== "full";
+
   const canOpenStreamShowcase = introDismissed && hasEntriesInDb;
 
   const syncHeaderCta = useDesktopSyncHeaderCta();
@@ -1842,6 +1866,8 @@ export default function App() {
               ref={entryInputRef}
               onSubmit={handleSubmit}
               onDraftChange={onCaptureDraftChange}
+              showExpandTrigger={showComposeExpandTrigger}
+              onComposeExpandedChange={setComposeExpanded}
             />
             <div
               className={`entry-input-row-aside ${showJumpTrigger ? "entry-input-row-aside--with-jump" : ""}`}
@@ -1866,10 +1892,7 @@ export default function App() {
                   variant="ghost"
                   size="sm"
                   className="search-trigger-inline text-[var(--muted)] hover:text-[var(--ui-dim)]"
-                  onClick={() => {
-                    setJumpPopoverOpen(false);
-                    setIsSearchOpen(true);
-                  }}
+                  onClick={() => openSearch()}
                   aria-label="Search (⌘K)"
                 >
                   ⌘K

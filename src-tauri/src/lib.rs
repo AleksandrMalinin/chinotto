@@ -264,17 +264,64 @@ fn generate_embedding(db: tauri::State<Db>, entry_id: String) -> Result<(), Stri
     let entry = db
         .get_entry_by_id(&entry_id)
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| "entry not found")?;
-    let vec = embeddings::embed_text(&entry.text).map_err(|e| e.to_string())?;
-    db.insert_embedding(&entry_id, &vec)
-        .map_err(|e| e.to_string())?;
-    Ok(())
+        .ok_or_else(|| "entry not found".to_string())?;
+    store_embedding_for_entry(&db, &entry_id, &entry.text)
 }
 
 /// Minimum cosine similarity for an entry to appear in "Related thoughts".
 /// Without this, the top-N by score included weak matches (e.g. entry about Tauri → movie title).
 /// Embedding similarity has no cutoff, so unrelated text can still score 0.2–0.4; we require ~0.5+.
 const MIN_RELATED_SIMILARITY: f32 = 0.5;
+
+/// Recent entries scanned for missing embeddings (aligned with thought-trail candidate window).
+const RELATED_EMBED_BACKFILL_SCAN: usize = 250;
+/// Cap embeddings computed per related lookup so first detail open stays responsive.
+const RELATED_EMBED_BACKFILL_PER_CALL: usize = 32;
+
+fn store_embedding_for_entry(db: &Db, entry_id: &str, text: &str) -> Result<(), String> {
+    let vec = embeddings::embed_text(text).map_err(|e| e.to_string())?;
+    db.insert_embedding(entry_id, &vec)
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Index the current entry and recent rows missing embeddings (frontend `generate_embedding` is fire-and-forget and can fail silently).
+fn ensure_embeddings_for_related_search(db: &Db, entry_id: &str) -> Result<(), String> {
+    let current = db
+        .get_entry_by_id(entry_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "entry not found".to_string())?;
+    if db
+        .get_embedding(entry_id)
+        .map_err(|e| e.to_string())?
+        .is_none()
+    {
+        store_embedding_for_entry(db, entry_id, &current.text)?;
+    }
+
+    let all = db.list_entries().map_err(|e| e.to_string())?;
+    let mut embedded_this_call = 0usize;
+    for row in all.into_iter().take(RELATED_EMBED_BACKFILL_SCAN) {
+        if row.id == entry_id {
+            continue;
+        }
+        if embedded_this_call >= RELATED_EMBED_BACKFILL_PER_CALL {
+            break;
+        }
+        if db
+            .get_embedding(&row.id)
+            .map_err(|e| e.to_string())?
+            .is_some()
+        {
+            continue;
+        }
+        match store_embedding_for_entry(db, &row.id, &row.text) {
+            Ok(()) => embedded_this_call += 1,
+            Err(e) => log::warn!("embedding backfill failed for {}: {}", row.id, e),
+        }
+    }
+    Ok(())
+}
 
 /// Filter (id, similarity) pairs by min_sim, sort by score descending, take top `limit` ids.
 /// Used by find_similar_entries so threshold is applied before sort/limit; testable in isolation.
@@ -290,6 +337,7 @@ fn find_similar_entries(
     entry_id: String,
     limit: u32,
 ) -> Result<Vec<EntryPayload>, String> {
+    ensure_embeddings_for_related_search(&db, &entry_id)?;
     let query_embedding = match db.get_embedding(&entry_id).map_err(|e| e.to_string())? {
         Some(v) => v,
         None => return Ok(vec![]),
@@ -643,7 +691,14 @@ fn update_entry(db: tauri::State<Db>, entry_id: String, text: String) -> Result<
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "entry not found".to_string())?;
     db.update_entry_text(&entry_id, &text)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    let trimmed = text.trim();
+    if !trimmed.is_empty() {
+        if let Err(e) = store_embedding_for_entry(&db, &entry_id, trimmed) {
+            log::warn!("embedding refresh failed for {}: {}", entry_id, e);
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -1152,6 +1207,31 @@ mod related_entries_tests {
         let ids = top_related_ids(with_sim, MIN_RELATED_SIMILARITY, 2);
         assert_eq!(ids.len(), 2);
         assert_eq!(ids, ["1", "2"]);
+    }
+
+    #[test]
+    fn find_similar_indexes_missing_embeddings_then_matches_pair() {
+        let db = Db::open(std::path::PathBuf::from(":memory:")).unwrap();
+        let t1 = "2026-05-25T22:34:00Z";
+        let t2 = "2026-05-25T22:37:00Z";
+        let a = "Working on the Chinotto macOS app today. Tauri 2 shell, React UI, SQLite with FTS5 for search.";
+        let b = "Chinotto desktop: Tauri backend, React frontend, local SQLite. Testing whether embedding similarity shows related entries in the detail view.";
+        db.create_entry("a", a, t1, None).unwrap();
+        db.create_entry("b", b, t2, None).unwrap();
+        ensure_embeddings_for_related_search(&db, "b").unwrap();
+        let query = db.get_embedding("b").unwrap();
+        assert!(query.is_some(), "current entry should be embedded");
+        let others = db.get_all_embeddings_excluding("b").unwrap();
+        assert!(!others.is_empty(), "peer entry should be embedded");
+        let with_sim: Vec<(String, f32)> = others
+            .into_iter()
+            .map(|(id, emb)| {
+                let sim = embeddings::cosine_similarity(query.as_ref().unwrap(), &emb);
+                (id, sim)
+            })
+            .collect();
+        let ids = top_related_ids(with_sim, MIN_RELATED_SIMILARITY, 5);
+        assert_eq!(ids, vec!["a"]);
     }
 }
 

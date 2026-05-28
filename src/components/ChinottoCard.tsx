@@ -28,6 +28,7 @@ const SHORTCUTS: ShortcutRow[] = [
     keyHint: "Command-Shift-J",
   },
   { keys: "⌘ N", action: "Focus input" },
+  { keys: "⌘ ⇧ Enter", action: "Expand capture" },
   { keys: "⌘ ⌫", action: "Delete thought" },
   { keys: "Esc", action: "Close overlays" },
 ];

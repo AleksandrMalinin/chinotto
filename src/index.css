@@ -1084,6 +1084,7 @@ body.welcome .app-bg {
 .entry-input-row .entry-input-area {
   flex: 1;
   min-width: 0;
+  position: relative;
 }
 
 .search-trigger-inline {
@@ -3008,34 +3009,50 @@ body.welcome .app-bg {
   border-radius: 6px;
 }
 
-/* Entry input – compact editor */
+/* Entry input – one-line quick capture in stream; long drafts use compose expand */
 
 .entry-input-area .entry-input,
 .entry-input {
   width: 100%;
-  padding: 0 0 0 0;
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
+  padding: 0.25rem 0 0.4rem;
   font-size: 18px;
   font-weight: 500;
   letter-spacing: 0.01em;
-  line-height: 1;
+  line-height: 1.5;
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--border);
   border-radius: 0;
   color: var(--fg);
   resize: none;
-  min-height: 1.125rem;
   transition: border-color var(--transition), box-shadow var(--transition);
   box-sizing: border-box;
+}
+
+.entry-input-area textarea.entry-input--inline {
+  height: 2rem;
+  min-height: 2rem;
+  max-height: 2rem;
+  padding-top: 0.25rem;
+  padding-bottom: 0.4rem;
+  overflow: hidden;
+  line-height: 1.5;
+}
+
+.entry-input-area--compose-open textarea.entry-input--inline {
+  color: transparent;
+  caret-color: transparent;
+}
+
+.entry-input-area--compose-open textarea.entry-input--inline::placeholder {
+  color: transparent;
 }
 
 .entry-input::placeholder {
   color: var(--ui-dim);
   font-weight: 400;
   font-size: 15px;
-  line-height: 1;
+  line-height: 1.5;
 }
 
 .entry-input:hover {
@@ -3047,6 +3064,58 @@ body.welcome .app-bg {
   border-color: var(--border-focus);
   box-shadow: 0 1px 0 0 var(--border-focus);
   caret-color: var(--caret-accent);
+}
+
+/* Compose expand – calm overlay for long capture drafts */
+.compose-expand-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem;
+  background: rgba(10, 10, 14, 0.78);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: compose-expand-overlay-in 0.2s ease-out both;
+}
+
+@keyframes compose-expand-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.compose-expand-panel {
+  width: 100%;
+  max-width: 42rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.compose-expand-panel .compose-expand-input {
+  box-sizing: border-box;
+  height: 12rem;
+  min-height: 12rem;
+  max-height: 12rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0.35rem 0 0.5rem;
+  line-height: 1.5;
+  resize: none;
+}
+
+.compose-expand-hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--meta-fg);
+  letter-spacing: 0.01em;
 }
 
 /* Resurfaced card – subtle surface, no heavy card */
