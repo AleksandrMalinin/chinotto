@@ -118,6 +118,7 @@ import {
   quietEmptyStreamMessage,
   shouldShowFullEmptyOnboarding,
 } from "@/lib/emptyStreamLensMessage";
+import { confirmDeleteThought } from "@/lib/deleteEntryConfirmation";
 import {
   SPACE_SCOPE_STORAGE_KEY,
   captureSpaceId,
@@ -1333,7 +1334,10 @@ export default function App() {
   );
 
   const handleEntryDelete = useCallback(
-    (entry: Entry) => {
+    async (entry: Entry) => {
+      if (deletingIds.has(entry.id)) return;
+      const ok = await confirmDeleteThought(dialogAsk, entry.text);
+      if (!ok) return;
       track({ event: "entry_deleted" });
       setDeletingIds((prev) => new Set(prev).add(entry.id));
       setLastDeletedEntry({
@@ -1354,7 +1358,7 @@ export default function App() {
           setLastDeletedEntry(null);
         });
     },
-    [selectedEntry?.id, pinnedIds]
+    [selectedEntry?.id, pinnedIds, deletingIds]
   );
 
   const handleDeleteAnimationEnd = useCallback((entryId: string) => {
