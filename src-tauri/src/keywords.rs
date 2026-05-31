@@ -1,7 +1,9 @@
 // Lightweight keyword extraction for thought trails and micro topics.
 // No ML, no external deps: tokenize, drop stopwords, count, take top N.
 
-const MIN_LEN: usize = 3;
+// Length 2 so short acronyms ("AI", "ML", "UI") survive. Two-letter grammatical
+// noise (pronouns, auxiliaries, contraction fragments) is excluded via STOPWORDS.
+const MIN_LEN: usize = 2;
 const DEFAULT_TOPIC_LIMIT: usize = 5;
 const THOUGHT_TRAIL_MIN_OVERLAP: usize = 2;
 const THOUGHT_TRAIL_CANDIDATES: usize = 250;
@@ -14,7 +16,7 @@ static STOPWORDS: &[&str] = &[
     "through", "during", "before", "after", "and", "but", "if", "or", "because", "until", "while",
     "this", "that", "these", "those", "it", "its", "not", "no", "only", "same", "so", "than",
     "too", "very", "just", "all", "each", "every", "both", "few", "more", "most", "other", "some",
-    "such", "own",
+    "such", "own", "am", "we", "us", "he", "me", "my", "ll", "re", "ve",
 ];
 
 fn is_stopword(w: &str) -> bool {
