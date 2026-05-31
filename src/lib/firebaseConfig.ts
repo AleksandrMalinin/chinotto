@@ -34,7 +34,7 @@ export function getOauthBridgeWebviewUrl(nonce: string): string {
   const authDomain =
     import.meta.env.VITE_FIREBASE_AUTH_DOMAIN?.trim() || `${projectId}.firebaseapp.com`;
   /* Use authDomain (firebaseapp.com), not web.app: Apple Services ID return URLs must match
-   * the redirect_uri Firebase sends (see docs/sync.md § Apple Services ID). */
+   * the redirect_uri Firebase sends (see sync.md § Apple Services ID). */
   const base = (override || `https://${authDomain}`).replace(/\/+$/, "");
   const u = new URL(`${base}/chinotto-oauth`);
   u.searchParams.set("nonce", nonce);

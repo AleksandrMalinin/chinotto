@@ -2,7 +2,7 @@
 
 This file defines how agents must behave when working in the Chinotto repository. Deviations are bugs.
 
-**Agents must read this file when working here.** It overrides generic tooling defaults (batch commits, branch-name templates, “commit all and push” shortcuts). For commits and git history, **`docs/commit-convention.md` is mandatory reading** before writing any commit message or deciding commit boundaries.
+**Agents must read this file when working here.** It overrides generic tooling defaults (batch commits, branch-name templates, “commit all and push” shortcuts). For commits and git history, **`docs/internal/commit-convention.md` is mandatory reading** before writing any commit message or deciding commit boundaries.
 
 ---
 
@@ -34,15 +34,15 @@ Do not propose or implement features that contradict the above. When in doubt, p
 2. **Local-first.** Data lives in SQLite on the user’s machine. No network for core flows. No dependency on external services for capture or search.
 3. **Minimal UI.** UI supports capture and search. No chrome that doesn’t serve those. No “nice to have” UI without a clear product justification.
 4. **Boring tech.** Use the stack that’s already there. New dependencies and new patterns need justification; default is “no.”
-5. **One logical change per unit of work.** Commits and PRs follow `docs/commit-convention.md`. One feature slice, one fix, one refactor—no bundling unrelated changes.
+5. **One logical change per unit of work.** Commits and PRs follow `docs/internal/commit-convention.md`. One feature slice, one fix, one refactor—no bundling unrelated changes.
 
 ---
 
 ## Behavior expectations for agents
 
 - **Read before changing.** Use the codebase and `docs/` to understand current behavior and constraints. Do not assume; verify paths, APIs, and data shapes.
-- **Preserve existing contracts.** Frontend invokes Tauri commands (`create_entry`, `list_entries`, `search_entries`, and others in `docs/architecture.md`). Entry has `id`, `text`, `created_at`. Do not change the entry/search trio or Entry shape without explicit requirement and approval.
-- **Follow the commit convention.** Before any commit: read `docs/commit-convention.md` (format, types, **granularity** — when to split commits). Every message must match that doc: `type(scope): imperative subject`, one logical change, no vague or emotional wording. **Unrelated work (e.g. schema + UI polish + unrelated fix) → separate commits.** Do not squash distinct changes into one commit to satisfy a push workflow or automation unless the user **explicitly** asks for a single commit.
+- **Preserve existing contracts.** Frontend invokes Tauri commands (`create_entry`, `list_entries`, `search_entries`, and others in `docs/internal/architecture.md`). Entry has `id`, `text`, `created_at`. Do not change the entry/search trio or Entry shape without explicit requirement and approval.
+- **Follow the commit convention.** Before any commit: read `docs/internal/commit-convention.md` (format, types, **granularity** — when to split commits). Every message must match that doc: `type(scope): imperative subject`, one logical change, no vague or emotional wording. **Unrelated work (e.g. schema + UI polish + unrelated fix) → separate commits.** Do not squash distinct changes into one commit to satisfy a push workflow or automation unless the user **explicitly** asks for a single commit.
 - **Do not invent product scope.** Do not add features (e.g. tags, folders, AI chat, sync) unless the user explicitly asks. If the user’s request conflicts with product constraints, state the conflict and ask.
 - **Prefer the smallest change.** Fix or add what’s asked. Avoid “while I’m here” refactors or scope creep. Refactors are separate from feature work unless the user asks for both.
 - **Leave the codebase buildable and runnable.** Do not leave broken imports, commented-out code that should be removed, or half-finished work. If something is intentionally incomplete (e.g. stub), say so in the change or a short comment.
@@ -53,7 +53,7 @@ Do not propose or implement features that contradict the above. When in doubt, p
 
 ## How agents should make decisions
 
-1. **Product and scope:** Resolve against `docs/product-spec.md` and `docs/architecture.md`. If the request is ambiguous, choose the option that fits MVP and local-first; ask only when the choice materially affects outcome.
+1. **Product and scope:** Resolve against `docs/internal/product-spec.md` and `docs/architecture.md` (public overview) or `docs/internal/architecture.md` (detail). If the request is ambiguous, choose the option that fits MVP and local-first; ask only when the choice materially affects outcome.
 2. **Implementation:** Prefer existing patterns (e.g. how entries are created, how search is invoked). New patterns require a reason (e.g. “current approach doesn’t support X”).
 3. **Dependencies:** See “Dependencies and abstractions” below. Default is no new dependency. If a new dep is needed, name it and state why the current stack is insufficient.
 4. **Naming and structure:** Follow existing layout (`src/features/entries`, `src-tauri`, `docs/`). New modules go in a logical place; do not proliferate top-level folders or generic names (“utils”, “helpers”) without clear boundaries.
@@ -66,8 +66,8 @@ Do not propose or implement features that contradict the above. When in doubt, p
 - **Scope creep.** No “and we could also…” unless the user asked for it. No adding docs, tests, or refactors “for completeness” unless that was the task.
 - **Vague or gimmicky AI.** No placeholders like “AI-powered search” or “smart suggestions” without a concrete design and acceptance that the app stays useful without them. No wording that sounds like marketing.
 - **Over-engineering.** No premature abstractions, no “framework” patterns, no layers that don’t yet have a concrete use. No generic “service” or “manager” classes unless they consolidate real duplication.
-- **Ignoring constraints.** No mandatory cloud, no Chinotto accounts, no collaboration. Optional Firestore sync when env is set (`docs/sync.md`; contract `chinotto-mobile/docs/sync/sync.md`). No pages, folders, documents, tasks, kanban, or templates in MVP. No new runtimes or targets (e.g. mobile shell) unless explicitly requested.
-- **Breaking the contract.** Do not change Tauri command names, Entry shape, or frontend–backend invocation pattern without explicit requirement. Do not suggest commits that violate `docs/commit-convention.md`.
+- **Ignoring constraints.** No mandatory cloud, no Chinotto accounts, no collaboration. Optional Firestore sync when env is set (`docs/internal/sync.md`; contract `chinotto-mobile/docs/sync/sync.md`). No pages, folders, documents, tasks, kanban, or templates in MVP. No new runtimes or targets (e.g. mobile shell) unless explicitly requested.
+- **Breaking the contract.** Do not change Tauri command names, Entry shape, or frontend–backend invocation pattern without explicit requirement. Do not suggest commits that violate `docs/internal/commit-convention.md`.
 - **Motivational or filler language.** In code comments, commits, and docs: no “awesome,” “nice,” “simple but powerful,” or similar. Be factual.
 
 ---
@@ -75,9 +75,9 @@ Do not propose or implement features that contradict the above. When in doubt, p
 ## Documentation expectations
 
 - **In-code:** Comment only when the “why” or contract is not obvious from the code. No comments that restate what the code does. No TODOs without an owner or next step if they are long-lived.
-- **Repo docs:** `docs/` holds product and architecture. Update `docs/architecture.md` when the stack or high-level design changes; update `docs/product-spec.md` when scope or constraints change. Keep README aligned with run instructions and MVP scope.
+- **Repo docs:** Public: `docs/privacy.md`, `docs/architecture.md`, `docs/development.md`, README. Internal: `docs/internal/` (product spec, detailed architecture, sync, release). Update public `docs/architecture.md` when stack or high-level design changes; update `docs/internal/product-spec.md` when scope or constraints change. Keep README aligned with run instructions and MVP scope.
 - **App Store product URL (for user-facing links):** `https://apps.apple.com/us/app/chinotto/id6761345307` — `CHINOTTO_MAC_APP_STORE_URL` in `src/lib/chinottoLinks.ts` (menu **Chinotto → View on Mac App Store…**, Hosting). One App Store record covers iPhone and Mac; Apple’s web preview is phone-first.
-- **Release version bumps:** Follow `docs/release-process.md`: same semver in `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and **`src-tauri/Info.plist`** (`CFBundleShortVersionString`, `CFBundleVersion`).
+- **Release version bumps:** Follow `docs/internal/release-process.md` (local-only; see `.gitignore`): same semver in `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and **`src-tauri/Info.plist`** (`CFBundleShortVersionString`, `CFBundleVersion`).
 - **AGENTS.md and commit-convention:** Treat these as binding. Do not water them down or add generic “best practices” that duplicate them. When changing them, preserve strictness and practicality.
 
 ---
@@ -97,10 +97,10 @@ Do not propose or implement features that contradict the above. When in doubt, p
 **Architecture changes**
 
 - Structural changes (new layers, new runtimes, splitting the backend, changing data model) are out of scope unless the user explicitly requests them. If a task implies such a change, describe the implication and confirm before proceeding.
-- When changing architecture, update `docs/architecture.md` and any affected product or commit conventions in the same pass. Do not leave the docs out of date.
+- When changing architecture, update `docs/architecture.md` and `docs/internal/architecture.md`, and any affected product or commit conventions in the same pass. Do not leave the docs out of date.
 
 ---
 
 ## Summary
 
-Agents work in Chinotto under a strict, product-aligned contract: minimal scope, local-first, debuggable code, no fluff. **Re-read this file and `docs/commit-convention.md` when committing.** Follow product/architecture docs and the “what is / what is not” boundaries. Prefer the smallest change; avoid new deps and abstractions unless justified. Documentation stays accurate and minimal. This file is the source of truth for agent behavior in this repo.
+Agents work in Chinotto under a strict, product-aligned contract: minimal scope, local-first, debuggable code, no fluff. **Re-read this file and `docs/internal/commit-convention.md` when committing.** Follow product/architecture docs and the “what is / what is not” boundaries. Prefer the smallest change; avoid new deps and abstractions unless justified. Documentation stays accurate and minimal. This file is the source of truth for agent behavior in this repo.

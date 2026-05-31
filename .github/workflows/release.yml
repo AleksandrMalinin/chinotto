@@ -31,7 +31,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
           if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
-            echo "::error::Set Actions secret TAURI_SIGNING_PRIVATE_KEY (minisign private key contents). See docs/updater.md"
+            echo "::error::Set Actions secret TAURI_SIGNING_PRIVATE_KEY (minisign private key contents). See docs/internal/updater.md"
             exit 1
           fi
 
@@ -41,7 +41,7 @@ jobs:
           VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
         run: |
           if [ -z "$VITE_FIREBASE_API_KEY" ] || [ -z "$VITE_FIREBASE_PROJECT_ID" ]; then
-            echo "::error::Set Actions secrets VITE_FIREBASE_API_KEY and VITE_FIREBASE_PROJECT_ID so packaged builds embed Firebase sync config. See docs/sync.md"
+            echo "::error::Set Actions secrets VITE_FIREBASE_API_KEY and VITE_FIREBASE_PROJECT_ID so packaged builds embed Firebase sync config. See docs/internal/sync.md"
             exit 1
           fi
 
@@ -65,7 +65,7 @@ jobs:
         run: npm ci
 
       # Optional: Developer ID .p12 (base64) + password + full signing identity string.
-      # See docs/updater.md → “Apple code signing & notarization (CI)”.
+      # See docs/internal/updater.md → “Apple code signing & notarization (CI)”.
       - name: Import Apple Developer ID certificate
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}

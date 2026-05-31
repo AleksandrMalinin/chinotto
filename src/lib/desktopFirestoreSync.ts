@@ -578,7 +578,7 @@ export async function notifyEntryDeletedForSync(entryId: string): Promise<void> 
 }
 
 /**
- * Subscribe to auth + Firestore `users/{uid}/entries` (see `docs/sync.md`; wire contract: mobile `docs/sync.md`).
+ * Subscribe to auth + Firestore `users/{uid}/entries` (see docs/internal/sync.md; wire contract: mobile `docs/sync.md`).
  * Applies remote tombstones (physical local delete) and ingests active docs.
  */
 export function startDesktopFirestoreIngest(onIngested: () => void): () => void {

@@ -10,7 +10,7 @@ Chinotto is a **desktop-first personal thinking tool**. Main purpose: help a sin
 
 - **Capture first, structure later.** One stream, one entity (Entry). No workspace overhead, no document mindset, no manual organization at write time.
 - **Stack:** Tauri 2, React + TypeScript, SQLite + FTS5. Local-only; no sync, auth, or cloud in MVP.
-- **MVP:** Capture (type → Enter → entry), stream (newest first), full-text search. See `docs/product-spec.md` and `docs/architecture.md`.
+- **MVP:** Capture (type → Enter → entry), stream (newest first), full-text search. See `docs/internal/product-spec.md` and `docs/architecture.md`.
 
 ---
 
@@ -41,7 +41,7 @@ When a request pushes toward any of these, choose the minimal interpretation or 
 ## Preferred implementation behavior
 
 - **Read before changing.** Check `docs/`, existing code paths, and Tauri command contracts. Verify; don’t assume.
-- **Preserve contracts.** Core entry/search commands: `create_entry`, `list_entries`, `search_entries` (full list in `docs/architecture.md`). Entry: `id`, `text`, `created_at`. Don’t change the trio or Entry shape without explicit requirement.
+- **Preserve contracts.** Core entry/search commands: `create_entry`, `list_entries`, `search_entries` (full list in `docs/internal/architecture.md`). Entry: `id`, `text`, `created_at`. Don’t change the trio or Entry shape without explicit requirement.
 - **Smallest change that satisfies the ask.** Implement what’s requested. No “while I’m here” refactors or extra features. Refactor only when the user asks or when it’s the stated task.
 - **Match existing patterns.** Use the same invocation style, component structure, and file layout. New code goes in the right feature or `lib` area; no random new top-level folders or vague “utils.”
 - **Leave the tree buildable and runnable.** No broken imports, no dead commented code, no half-done work. If something is intentionally stubbed, say so briefly.
@@ -72,7 +72,7 @@ When searching for APIs, docs, or solutions:
 ## Documentation policy
 
 - **In-code:** Comment only when the “why” or contract isn’t obvious. No comments that repeat what the code does. No long-lived TODOs without a clear next step or owner.
-- **Repo docs:** `docs/` is the source for product and architecture. Update `docs/architecture.md` when the stack or design changes; update `docs/product-spec.md` when scope or constraints change. Keep README in sync with how to run and MVP scope.
+- **Repo docs:** Public: `docs/privacy.md`, `docs/architecture.md`, `docs/development.md`. Internal: `docs/internal/`. Update public `docs/architecture.md` when the stack or design changes; update `docs/internal/product-spec.md` when scope or constraints change. Keep README in sync with how to run and MVP scope.
 - **Tone:** Factual. No marketing speak, no “awesome” or “simple but powerful” in comments or docs.
 - When changing `AGENTS.md`, `docs/commit-convention.md`, or this file, keep them strict and practical; don’t dilute with generic advice.
 
