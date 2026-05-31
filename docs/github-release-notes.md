@@ -2,7 +2,11 @@
 
 These sections feed the **GitHub Release** description in CI (see `.github/workflows/release.yml`). Use **factual / technical** bullets: short **topic label**, colon, then details (backticks for paths, crates, env names). **User-facing marketing copy** belongs on the website, not here.
 
-Add `**## vX.Y.Z`** before you push tag `**vX.Y.Z`**.
+Add **`## vX.Y.Z`** before you push tag **`vX.Y.Z`**.
+
+## v2.2.2
+
+- **Thought trails (keywords):** keep two-letter acronyms such as `AI` in tokenizer output (`MIN_LEN` 2 in `src-tauri/src/keywords.rs`) so related entries can link on shared short tokens; two-letter grammatical noise stays in `STOPWORDS`
 
 ## v2.2.1
 
