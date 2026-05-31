@@ -87,7 +87,7 @@ const SYNC_ACCESS_EMIT_FALSE_DEBOUNCE_MS = 450;
 const FIRESTORE_RULES_SYNC_MODAL_HINT =
   "Firestore Security Rules must allow: (1) anyone may read sync_desktop_sessions/{sessionId}; " +
   "(2) signed-in users may read/write users/{userId} when request.auth.uid == userId. " +
-  "Paste rules from chinotto-mobile docs/sync/sync.md (Security Rules) and Publish in Firebase Console.";
+  "Paste rules from chinotto-mobile docs/internal/sync/sync.md (Security Rules) and Publish in Firebase Console.";
 
 function isFirestorePermissionDenied(e: unknown): boolean {
   if (e && typeof e === "object" && "code" in e) {
@@ -578,7 +578,7 @@ export async function notifyEntryDeletedForSync(entryId: string): Promise<void> 
 }
 
 /**
- * Subscribe to auth + Firestore `users/{uid}/entries` (see docs/internal/sync.md; wire contract: mobile `docs/sync.md`).
+ * Subscribe to auth + Firestore `users/{uid}/entries` (see docs/internal/sync.md; wire contract: mobile `docs/internal/sync/sync.md`).
  * Applies remote tombstones (physical local delete) and ingests active docs.
  */
 export function startDesktopFirestoreIngest(onIngested: () => void): () => void {

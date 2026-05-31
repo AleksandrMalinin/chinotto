@@ -16,7 +16,7 @@ Chinotto is a minimal desktop thinking tool for instantly capturing thoughts and
 - Desktop app only
 - Local-first (SQLite authoritative on device)
 - Single-user
-- **Sync:** Optional bidirectional Firestore sync when Firebase env is configured and the user signs in with Apple (same project as mobile); see `sync.md` (desktop) and `chinotto-mobile/docs/sync/sync.md` (contract). Release QA: `sync-release-checklist.md`. Not required for core use.
+- **Sync:** Optional bidirectional Firestore sync when Firebase env is configured and the user signs in with Apple (same project as mobile); see `sync.md` (desktop) and `chinotto-mobile/docs/internal/sync/sync.md` (contract). Release QA: `sync-release-checklist.md`. Not required for core use.
 - **Mobile (companion):** One chronological capture stream—no Spaces lens or desktop-only organization there in the current stance (capture-pocket tool). When sync is on, captures must **reach storage reliably**—nothing dropped through the pipeline.
 - No collaboration
 - No Chinotto password / separate account product

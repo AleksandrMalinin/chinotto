@@ -1,8 +1,8 @@
 # Firestore sync — architecture, status, and operations
 
-**Repo:** `chinotto-app` (this file). **Release QA:** [sync-release-checklist.md](./sync-release-checklist.md) (mirror: `chinotto-mobile/docs/sync/sync-release-checklist.md`).
+**Repo:** `chinotto-app` (this file). **Release QA:** [sync-release-checklist.md](./sync-release-checklist.md) (mirror: `chinotto-mobile/docs/internal/sync/sync-release-checklist.md`).
 
-**Normative wire contract (cross-repo):** `chinotto-mobile/docs/sync/sync.md` — paths, field shapes, §8 tombstones, §4 module map. **Unlock / Enable sync UX:** `chinotto-mobile/docs/sync/cross-device-sync-unlock-flow.md`. When mobile’s contract changes, update this file’s **§ Cross-platform parity** and **§ Changelog**.
+**Normative wire contract (cross-repo):** `chinotto-mobile/docs/internal/sync/sync.md` — paths, field shapes, §8 tombstones, §4 module map. **Unlock / Enable sync UX:** `chinotto-mobile/docs/internal/sync/cross-device-sync-unlock-flow.md`. When mobile’s contract changes, update this file’s **§ Cross-platform parity** and **§ Changelog**.
 
 ---
 
@@ -11,7 +11,7 @@
 | When | Do |
 |------|-----|
 | Sync **code** changes (ingest, tombstone, push, IPC) | Update **§ Desktop implementation** and **§ Runtime behavior**; add a **§ Changelog** row. |
-| Mobile **`chinotto-mobile/docs/sync/sync.md`** changes | Diff §4/§8; refresh **§ Cross-platform parity** and mobile table below. |
+| Mobile **`chinotto-mobile/docs/internal/sync/sync.md`** changes | Diff §4/§8; refresh **§ Cross-platform parity** and mobile table below. |
 | Preparing a release | Walk [sync-release-checklist.md](./sync-release-checklist.md) (P0 → P1 → P2). |
 
 ---
@@ -20,10 +20,10 @@
 
 | Area | State |
 |------|--------|
-| **Phase 2** | **Shipped** on desktop when `VITE_FIREBASE_*` is set and the user signs in with Apple (non-anonymous). **Create** + **tombstone delete** across devices. **First sign-in per uid:** one-shot upload of existing local entries to Firestore (mobile ingest). **Text edits:** desktop merges `text` + `updatedAt` to Firestore after local save; **mobile** must apply remote `text` changes to existing SQLite rows (see `chinotto-mobile/docs/sync/sync.md`). |
+| **Phase 2** | **Shipped** on desktop when `VITE_FIREBASE_*` is set and the user signs in with Apple (non-anonymous). **Create** + **tombstone delete** across devices. **First sign-in per uid:** one-shot upload of existing local entries to Firestore (mobile ingest). **Text edits:** desktop merges `text` + `updatedAt` to Firestore after local save; **mobile** must apply remote `text` changes to existing SQLite rows (see `chinotto-mobile/docs/internal/sync/sync.md`). |
 | **Optional** | Core capture/search work **without** Firebase. |
 | **Parity** | Desktop matches mobile on live **500** / tombstone **1000**, **post–sign-in backfill** (~20k actives), suppression + outbox, `createdAt` ingest shapes. |
-| **Mobile** | Assumed shipped for the same Phase 2; see `chinotto-mobile/docs/sync/sync.md`. |
+| **Mobile** | Assumed shipped for the same Phase 2; see `chinotto-mobile/docs/internal/sync/sync.md`. |
 
 ---
 
@@ -122,7 +122,7 @@ Command **`delete_local_entries_for_sync`** expects **top-level** `entryIds` (ca
 
 **SQLite lock on flush (`database is locked`):** mobile only — do not hold a DB transaction across `await` to Firestore; serialize writers; retry on `SQLITE_BUSY`.
 
-**QA:** `chinotto-mobile/docs/sync-apple-qa.md` (edge cases, two-device).
+**QA:** `chinotto-mobile/docs/internal/sync/sync-apple-qa.md` (edge cases, two-device).
 
 ---
 
@@ -144,7 +144,7 @@ Use the **same** Firebase **project** as mobile (`EXPO_PUBLIC_*` → `VITE_*` fo
 ### QR bridge → mobile (always)
 
 - **Header:** **Enable sync** opens `SyncModal` for every user (does not require `VITE_FIREBASE_*`).  
-- **QR URL:** `https://getchinotto.app/sync` plus per-open **`?ds=<uuid-v4>`** for Firestore `sync_desktop_sessions` (contract: `chinotto-mobile/docs/sync/desktop-handoff-monetization-deeplinks.md`, `chinotto-mobile/docs/sync/sync.md` §3). **Copy App Store link** copies `CHINOTTO_MAC_APP_STORE_URL` (`src/lib/chinottoLinks.ts`) for install-only — no `ds`; after installing, scan QR again or use bypass on desktop.  
+- **QR URL:** `https://getchinotto.app/sync` plus per-open **`?ds=<uuid-v4>`** for Firestore `sync_desktop_sessions` (contract: `chinotto-mobile/docs/internal/sync/desktop-handoff-monetization-deeplinks.md`, `chinotto-mobile/docs/internal/sync/sync.md` §3). **Copy App Store link** copies `CHINOTTO_MAC_APP_STORE_URL` (`src/lib/chinottoLinks.ts`) for install-only — no `ds`; after installing, scan QR again or use bypass on desktop.  
 - **Constant:** `CHINOTTO_SYNC_MOBILE_UNIVERSAL_LINK` in `src/components/SyncModal.tsx` — change there if the host/path changes (desktop still appends `ds`).  
 - **Clipboard:** App Store link only; sync handoff is QR or bypass (see modal copy).
 
@@ -208,7 +208,7 @@ Deploy with **`npm run deploy:hosting`** when you want **`https://<projectId>.we
 | **`tombstone snapshot error` / `tombstone getDocs failed`** | Missing Firestore **composite index** (link in error). |
 | **`tombstone apply failed`** | IPC: use **`entryIds`** at top level — see **§ Desktop IPC**. |
 | **`database is locked`** on tombstone flush | **Mobile** — see **§ Mobile reference**. |
-| **`permission-denied`** on `sync_desktop_sessions` or `users/{uid}` (desktop console: `[chinotto sync] … gate` / `user sync access`) | **Firestore rules** in the Firebase project do not match the wire contract. Publish the **Security Rules** block from `chinotto-mobile/docs/sync/sync.md` (public read on `sync_desktop_sessions`; authenticated owner read/write on `users/{userId}` and `entries`). |
+| **`permission-denied`** on `sync_desktop_sessions` or `users/{uid}` (desktop console: `[chinotto sync] … gate` / `user sync access`) | **Firestore rules** in the Firebase project do not match the wire contract. Publish the **Security Rules** block from `chinotto-mobile/docs/internal/sync/sync.md` (public read on `sync_desktop_sessions`; authenticated owner read/write on `users/{userId}` and `entries`). |
 
 ---
 
@@ -232,7 +232,7 @@ Deploy with **`npm run deploy:hosting`** when you want **`https://<projectId>.we
 | 2026-04-30 | **Desktop:** If the Firebase user / `users/{uid}` cloud path is invalid (e.g. account removed on mobile), ingest and profile listeners stop, tombstone outbox is cleared, and the client signs out of Firebase for local-only use without tight error retries. |
 | 2026-04-26 | **Desktop OAuth:** Packaged **Continue with Apple** uses **native** Sign in with Apple (`native_apple_sign_in`) + Firebase; register **`app.chinotto`** in Firebase alongside **`com.chinotto.mobile`**. **Dev** still uses Vite **`/chinotto-oauth`** + **`127.0.0.1`** bridge. |
 | 2026-04-13 | **Desktop:** After `update_entry` (detail debounce, unmount flush, stream late edit): `getEntry` → Firestore merge with `updatedAt: serverTimestamp()`; `generate_embedding` refresh. **Rust:** Firestore ingest `INSERT` includes `updated_at`. **Wire:** optional `updatedAt` on entry docs for mobile ordering. |
-| 2026-04-02 | **Docs:** Canonical **Enable sync / unlock** flow — `chinotto-mobile/docs/sync/cross-device-sync-unlock-flow.md` (desktop `SyncModal` states, `ds` gate, `chinottoSyncAccess`). |
+| 2026-04-02 | **Docs:** Canonical **Enable sync / unlock** flow — `chinotto-mobile/docs/internal/sync/cross-device-sync-unlock-flow.md` (desktop `SyncModal` states, `ds` gate, `chinottoSyncAccess`). |
 | 2026-03-29 | **Docs:** Merged `sync-deletion-v2.md`, `sync-v2-as-built.md`, `sync-mobile-parity-and-followups.md`, and `firestore-sync.md` into this file. Release QA lives only in `sync-release-checklist.md`. |
 
 *(Add a row when sync behavior or contract alignment changes materially.)*
