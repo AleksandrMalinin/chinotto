@@ -47,4 +47,5 @@ Installed builds check [GitHub Releases](https://github.com/AleksandrMalinin/chi
 
 ## Related
 
+- [Chinotto mobile](https://github.com/AleksandrMalinin/chinotto-mobile) — iOS companion for capture on the go
 - [Chinotto web](https://github.com/AleksandrMalinin/chinotto-web) — web companion / info site
