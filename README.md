@@ -12,51 +12,38 @@ Capture it instantly — without projects, folders, or workspaces.
 
 Structure can come later — when you revisit.
 
-Local-first. Desktop only. Optional **device sync** with the mobile app via Firebase (Sign in with Apple) when you configure env vars — see `docs/sync.md`.
-
-Your entries stay local; analytics never include thought text.  
-Export them anytime.
+Local-first. Desktop only. Optional device sync with the mobile app when you enable it in Settings.
 
 ## Download (macOS)
 
-**App Store:** [Chinotto](https://apps.apple.com/us/app/chinotto/id6761345307) — one listing for iPhone and Mac (Apple’s web preview is phone-first). On Mac, install from the App Store app or use menu **Chinotto → View on Mac App Store…** inside Chinotto.
+[GitHub Releases](https://github.com/AleksandrMalinin/chinotto/releases/latest)
 
-## Run locally
+## Features
 
-Prerequisites: Node.js, Rust, and system dependencies for [Tauri 2](https://v2.tauri.app/start/prerequisites/).
+- Capture thoughts instantly
+- One continuous stream instead of documents and folders
+- Full-text search
+- Spaces (All, Inbox, Work, Personal)
+- Thought trails
+- Related thoughts
+- Quiet resurfacing of past thoughts
 
-```bash
-npm install
-npm run tauri dev
-```
-
-This repo is **source code** for the desktop app. End users install from the App Store (above). Shipping binaries is a maintainer concern and follows normal [Tauri macOS distribution](https://v2.tauri.app/distribute/macos/) tooling — not documented here.
-
-## Stack
-
-- Tauri
-- Rust
-- React
-- TypeScript
-- SQLite
-- Tailwind CSS
-
-## Core behavior
-
-- **Capture** — open the app and start typing
-- **Stream** — entries appear in reverse chronological order
-- **Detail** — open an entry to continue the thought
-- **Search** — full-text search across entries
-- **Jump to date** — small calendar to scroll the stream to a remembered day (same stream, not a filtered mode)
-
-**Data ownership**
+## Data ownership
 
 - **Export** — entries can be exported as Markdown
 - **Backup** — automatic local backups
 
+See [Privacy](docs/privacy.md) for local storage, optional sync, and analytics.
+
 ## Updates
 
-In-app updates use GitHub Releases (`latest.json`). Configure signing and CI secrets per [docs/updater.md](docs/updater.md).
+Installed builds check [GitHub Releases](https://github.com/AleksandrMalinin/chinotto/releases/latest) for updates.
+
+## Documentation
+
+- [Privacy](docs/privacy.md)
+- [Architecture](docs/architecture.md)
+- [Development](docs/development.md)
 
 ## Related
 

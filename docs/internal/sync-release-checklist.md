@@ -1,8 +1,8 @@
 # Sync — desktop & mobile alignment checklist
 
-**Mirror:** `chinotto-mobile/docs/sync-release-checklist.md` (align **Scope** for platform-only rows).
+**Mirror:** `chinotto-mobile/docs/sync/sync-release-checklist.md` (align **Scope** for platform-only rows).
 
-**Docs:** `chinotto-app/docs/sync.md` (desktop architecture + ops). **Wire contract:** `chinotto-mobile/docs/sync/sync.md`.
+**Docs:** `sync.md` (desktop architecture + ops). **Wire contract:** `chinotto-mobile/docs/sync/sync.md`.
 
 ---
 
@@ -10,7 +10,7 @@
 
 | Symbol | Meaning |
 |--------|---------|
-| **✅** | **Done** — true until the code or product changes (update `docs/sync.md` § Changelog when you change behavior). |
+| **✅** | **Done** — true until the code or product changes (update `sync.md` § Changelog when you change behavior). |
 | **☐** | **Not done / not verified** — flip to **✅** when satisfied for **this** release (or leave ☐ to mean “still open”). |
 | **⭕** | **Optional** — never blocks ship. |
 
@@ -18,7 +18,7 @@
 
 ## 1. Codebase status — `chinotto-app` (desktop)
 
-*These are **already implemented** in this repo. If something regresses, fix the code and update **`docs/sync.md` § Changelog — not this table.*
+*These are **already implemented** in this repo. If something regresses, fix the code and update **`sync.md` § Changelog — not this table.*
 
 | Item | Status | Notes |
 |------|:------:|-------|
@@ -26,13 +26,13 @@
 | Live ingest **`limit(500)`** + tombstone query **`limit(1000)`** + `deletedAt` ordering | ✅ | Same query shape as mobile `docs/sync/sync.md` |
 | Tombstone **`getDocs`** backup (sign-in, each ingest snapshot, ~12s poll) + `lastTombstoneQueryDocIds` | ✅ | WKWebView reliability |
 | **Suppression** table + **tombstone outbox** + flush with `setDoc` merge | ✅ | SQLite + `entryApi` |
-| **`delete_local_entries_for_sync`** IPC: top-level **`entryIds`** (not nested `args`) | ✅ | `docs/sync.md` § Desktop IPC |
+| **`delete_local_entries_for_sync`** IPC: top-level **`entryIds`** (not nested `args`) | ✅ | `sync.md` § Desktop IPC |
 | **Push** after create + **Cmd+Z restore** (`deleteField` on `deletedAt`) | ✅ | `App.tsx` |
 | **Push** after local **text** save (detail / stream / unmount flush) + Firestore **`updatedAt`** | ✅ | `syncSavedEntryTextToRemote` + `desktopFirestoreSync.ts` |
 | **Push** from menu bar **tray** (`#tray-capture`) when sync on | ✅ | `TrayCapturePanel.tsx` |
 | **Ingest** `INSERT` sets **`updated_at`** for new rows from cloud | ✅ | Rust `db/mod.rs` |
 | **`normalizeFirestoreCreatedAtForIngest`** (ISO, `Timestamp`, `{seconds}`) | ✅ | `desktopFirestoreSync.test.ts` |
-| Vitest + Rust tests for ingest / tombstone / outbox | ✅ | See `docs/sync.md` § Tests |
+| Vitest + Rust tests for ingest / tombstone / outbox | ✅ | See `sync.md` § Tests |
 
 **Mobile (`chinotto-mobile`):** Phase 2 + **2+ text apply** are **assumed shipped** per mobile `docs/sync/sync.md` (ingest, outbox, suppression, `linkWithCredential`, `ingestRemoteFirestoreRows`, etc.). This table does not track mobile code — only verify in **§3** when you cut a mobile release.
 
@@ -46,7 +46,7 @@
 |------|:------:|-------|-------|
 | Firestore **rules** allow owning user read/write on `users/{uid}/entries/{entryId}` including **`deletedAt`** | ☐ | Both | |
 | **Composite index** for tombstone query exists | ☐ | Both | Error URL from console if missing |
-| **Apple** provider on; **authorized domains** complete | ☐ | Both | **Dev desktop:** `localhost`, `127.0.0.1` (Vite + OAuth bridge). **Packaged desktop:** native Sign in with Apple — Firebase project must include an **Apple** app with bundle id **`app.chinotto`** (see `docs/sync.md` § OAuth / Configuration). |
+| **Apple** provider on; **authorized domains** complete | ☐ | Both | **Dev desktop:** `localhost`, `127.0.0.1` (Vite + OAuth bridge). **Packaged desktop:** native Sign in with Apple — Firebase project must include an **Apple** app with bundle id **`app.chinotto`** (see `sync.md` § OAuth / Configuration). |
 | Desktop **release** build has **`VITE_FIREBASE_*`** set | ☐ | Desktop | CI / notarization pipeline |
 | Same **Firebase project** + same **Auth uid** for one user on Mac + phone | ☐ | Both | |
 
@@ -64,7 +64,7 @@
 | **Local delete** does not resurrect | ☐ | Both | Suppression + tombstone |
 | **Undo / restore** still pushes active doc (desktop) | ☐ | Desktop | `deleteField` on `deletedAt` |
 | Mobile **anonymous → Apple**: **uid** stable (`linkWithCredential`) | ☐ | Mobile | `sync-apple-qa.md` |
-| **Two-device QA** pass | ☐ | Both | Mobile `sync-apple-qa.md`; desktop `docs/sync.md` § Troubleshooting |
+| **Two-device QA** pass | ☐ | Both | Mobile `sync-apple-qa.md`; desktop `sync.md` § Troubleshooting |
 
 ---
 
@@ -84,7 +84,7 @@
 
 | Item | Status | Scope | Notes |
 |------|:------:|-------|-------|
-| **`docs/sync.md` § Changelog** updated after last sync change | ⭕ | Desktop | |
+| **`sync.md` § Changelog** updated after last sync change | ⭕ | Desktop | |
 | **`AGENTS.md` / README** link to mobile `docs/sync/sync.md` | ⭕ | Desktop | |
 | Unify **`[ChinottoSync]`** vs **`[chinotto sync]`** | ⭕ | Both | |
 | E2E automated sync tests | ⭕ | Both | |
@@ -94,7 +94,7 @@
 
 ## 6. Out of scope (do not block)
 
-- **Concurrent** edits to the same entry on two writers with explicit conflict UX — Phase **2+** is desktop-led text merge + mobile **`text`** apply only; see `chinotto-mobile/docs/sync/sync.md` §8.7 and `docs/sync.md` § Limits.  
+- **Concurrent** edits to the same entry on two writers with explicit conflict UX — Phase **2+** is desktop-led text merge + mobile **`text`** apply only; see `chinotto-mobile/docs/sync/sync.md` §8.7 and `sync.md` § Limits.  
 - Tombstone window **>1000** — rare edge case.  
 - Desktop **extra** tombstone `getDocs` vs mobile — intentional.
 
