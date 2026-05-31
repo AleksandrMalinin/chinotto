@@ -16,7 +16,7 @@ Chinotto is a minimal desktop thinking tool for instantly capturing thoughts and
 - Desktop app only
 - Local-first (SQLite authoritative on device)
 - Single-user
-- **Sync:** Optional bidirectional Firestore sync when Firebase env is configured and the user signs in with Apple (same project as mobile); see `docs/sync.md` (desktop) and `chinotto-mobile/docs/sync/sync.md` (contract). Release QA: `docs/sync-release-checklist.md`. Not required for core use.
+- **Sync:** Optional bidirectional Firestore sync when Firebase env is configured and the user signs in with Apple (same project as mobile); see `sync.md` (desktop) and `chinotto-mobile/docs/sync/sync.md` (contract). Release QA: `sync-release-checklist.md`. Not required for core use.
 - **Mobile (companion):** One chronological capture stream—no Spaces lens or desktop-only organization there in the current stance (capture-pocket tool). When sync is on, captures must **reach storage reliably**—nothing dropped through the pipeline.
 - No collaboration
 - No Chinotto password / separate account product
@@ -97,7 +97,7 @@ When the **main stream has no entries** (unpinned stream only; not the “no sea
 
 | Feature | Description |
 |---------|-------------|
-| **Resurface** | At most one per session; attempted once when the main view is ready after intro (not immediately after saving an entry). Temporal recall (24h / 7d / 30d ±3h or random fallback). Message is memory-style. Entries shown recently are in cooldown (7 days). Sometimes the app shows nothing—silence is acceptable. See `docs/recall-guardrails.md`. |
+| **Resurface** | At most one per session; attempted once when the main view is ready after intro (not immediately after saving an entry). Temporal recall (24h / 7d / 30d ±3h or random fallback). Message is memory-style. Entries shown recently are in cooldown (7 days). Sometimes the app shows nothing—silence is acceptable. See `recall-guardrails.md`. |
 | **Thought trail** | From an entry’s detail view: “Thought trail” shows how the thought evolved—entries ordered earlier → current → later, scored by keyword similarity (IDF-weighted) and temporal proximity. Max 4 related; labels like “12 days earlier” / “3 days later”. Keyword-based only (no embeddings in this view). |
 
 ### App chrome and settings
@@ -140,7 +140,7 @@ Pinned state is stored separately (pinned entry id(s)); no extra fields on Entry
 
 | Item | Status |
 |------|--------|
-| **Voice capture** | Implemented (macOS native speech) but **disabled** in the main flow. Gated by `EXPERIMENTAL_VOICE_CAPTURE`; see `docs/architecture.md` (Experimental / disabled features). |
+| **Voice capture** | Implemented (macOS native speech) but **disabled** in the main flow. Gated by `EXPERIMENTAL_VOICE_CAPTURE`; see `architecture.md` (Experimental / disabled features). |
 | **Embeddings / similarity** | Backend can generate embeddings and find similar entries; used for thought trail and resurface logic. Not exposed as a standalone “similar entries” UI beyond thought trail. |
 
 ---

@@ -11,7 +11,7 @@
 | When | Do |
 |------|-----|
 | Sync **code** changes (ingest, tombstone, push, IPC) | Update **§ Desktop implementation** and **§ Runtime behavior**; add a **§ Changelog** row. |
-| Mobile **`docs/sync.md`** changes | Diff §4/§8; refresh **§ Cross-platform parity** and mobile table below. |
+| Mobile **`chinotto-mobile/docs/sync/sync.md`** changes | Diff §4/§8; refresh **§ Cross-platform parity** and mobile table below. |
 | Preparing a release | Walk [sync-release-checklist.md](./sync-release-checklist.md) (P0 → P1 → P2). |
 
 ---

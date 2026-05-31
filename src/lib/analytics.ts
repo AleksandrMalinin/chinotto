@@ -1,6 +1,6 @@
 /**
  * Minimal product analytics via Umami. Anonymous, opt-in, batched, non-blocking.
- * Never sends entry text, search queries, or identifiers. See docs/analytics-design.md.
+ * Never sends entry text, search queries, or identifiers. See docs/internal/analytics-design.md.
  * Uses Tauri HTTP plugin fetch to avoid CORS (webview origin not allowed by Umami).
  */
 

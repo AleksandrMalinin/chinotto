@@ -16,4 +16,4 @@ Chinotto is a **desktop-first personal thinking tool**: fast capture, context re
 
 **When asked for a feature that crosses these boundaries:** Choose the minimal interpretation that fits (e.g. “search” = FTS over entries, not “smart” or embedded AI), or state the conflict and ask.
 
-**Reference:** `docs/product-spec.md`, `docs/architecture.md`.
+**Reference:** `docs/internal/product-spec.md`, `docs/architecture.md`.
