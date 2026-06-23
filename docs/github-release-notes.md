@@ -4,6 +4,10 @@ These sections feed the **GitHub Release** description in CI (see `.github/workf
 
 Add **`## vX.Y.Z`** before you push tag **`vX.Y.Z`**.
 
+## v2.2.3
+
+- **UI (background):** reduce visible banding in the ambient cosmic glow (`--bg-fade`, `oklab` gradient interpolation, eased radial stops in `src/index.css`); remove ineffective grain overlay on `.app-bg`
+
 ## v2.2.2
 
 - **Thought trails (keywords):** keep two-letter acronyms such as `AI` in tokenizer output (`MIN_LEN` 2 in `src-tauri/src/keywords.rs`) so related entries can link on shared short tokens; two-letter grammatical noise stays in `STOPWORDS`
