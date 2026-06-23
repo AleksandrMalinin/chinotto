@@ -10,6 +10,8 @@
 
 :root {
   --bg: #0a0a0e;
+  /* `transparent` in gradients lerps through gray in sRGB and banding on near-black. */
+  --bg-fade: rgb(from var(--bg) r g b / 0);
   --bg-elevated: #0f0f14;
   --atmosphere-soft-base: rgba(72, 88, 132, 0.11);
   --atmosphere-soft: var(--atmosphere-soft-base);
@@ -55,7 +57,7 @@
 
   /* Intro, empty-stream title, header title hover */
   --chinotto-headline-text-gradient: linear-gradient(
-    102deg,
+    102deg in oklab,
     rgba(255, 255, 255, 0.96) 0%,
     rgba(198, 206, 255, 0.92) 45%,
     rgba(255, 255, 255, 0.9) 100%
@@ -228,11 +230,14 @@ body.chinotto-card-open {
   position: relative;
   min-height: 100vh;
   background-color: var(--bg);
-  /* Charcoal depth on #0a0a0e (brand); hue comes from .app-bg per space */
+  /* Charcoal depth on --bg; hue comes from .app-bg per space */
   background-image: radial-gradient(
-    ellipse 95% 55% at 50% -8%,
-    rgba(14, 16, 24, 0.55) 0%,
-    transparent 58%
+    in oklab,
+    ellipse 100% 62% at 50% -8%,
+    color-mix(in oklab, rgb(14 16 24) 42%, var(--bg-fade)) 0%,
+    color-mix(in oklab, rgb(14 16 24) 16%, var(--bg-fade)) 34%,
+    color-mix(in oklab, rgb(14 16 24) 4%, var(--bg-fade)) 54%,
+    var(--bg-fade) 72%
   );
 }
 
@@ -255,26 +260,23 @@ body.chinotto-card-open {
   transition: background 0.5s ease-out;
   background:
     radial-gradient(
-      ellipse 62vmax 42vmax at var(--space-ambient-primary-at),
+      in oklab,
+      ellipse 70vmax 50vmax at var(--space-ambient-primary-at),
       var(--space-ambient-primary) 0%,
-      transparent 44%
+      color-mix(in oklab, var(--space-ambient-primary) 38%, var(--bg-fade)) 28%,
+      color-mix(in oklab, var(--space-ambient-primary) 10%, var(--bg-fade)) 52%,
+      var(--bg-fade) 78%
     ),
     radial-gradient(
-      ellipse 54vmax 46vmax at var(--space-ambient-secondary-at),
+      in oklab,
+      ellipse 62vmax 54vmax at var(--space-ambient-secondary-at),
       var(--space-ambient-secondary) 0%,
-      transparent 44%
+      color-mix(in oklab, var(--space-ambient-secondary) 38%, var(--bg-fade)) 28%,
+      color-mix(in oklab, var(--space-ambient-secondary) 10%, var(--bg-fade)) 52%,
+      var(--bg-fade) 78%
     );
   filter: blur(96px);
   animation: ambient-glow 32s ease-in-out infinite;
-}
-
-.app-bg::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
-  mix-blend-mode: overlay;
-  pointer-events: none;
 }
 
 @keyframes ambient-glow {
