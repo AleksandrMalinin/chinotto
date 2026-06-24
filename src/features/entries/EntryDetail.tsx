@@ -5,10 +5,14 @@ import { EntryTextWithLinks } from "./EntryTextWithLinks";
 import { track } from "@/lib/analytics";
 import {
   findSimilarEntries,
+  getEntry,
   getThoughtTrail,
   listSpaces,
+  markEntryContinuation,
+  type ContinuationMarker,
   type SpaceRow,
 } from "./entryApi";
+import { detectContinuationAppend } from "@/lib/detectContinuationAppend";
 
 type Props = {
   entry: Entry;
@@ -16,6 +20,13 @@ type Props = {
   onSelectEntry: (entry: Entry) => void;
   /** When set, thought body is editable with debounced save from the parent. */
   onEntryTextChange?: (entryId: string, text: string) => void;
+  /** After the first continuation break is stored for this entry. */
+  onEntryContinuationMarked?: (
+    entryId: string,
+    marker: ContinuationMarker
+  ) => void;
+  /** Merge fresh entry fields from SQLite (e.g. after continuation save). */
+  onEntrySynced?: (entry: Entry) => void;
   /** Assign entry to Inbox (null) or a seeded space (`work` / `personal`). */
   onEntrySpaceChange?: (
     entryId: string,
@@ -56,6 +67,8 @@ export function EntryDetail({
   onBack,
   onSelectEntry,
   onEntryTextChange,
+  onEntryContinuationMarked,
+  onEntrySynced,
   onEntrySpaceChange,
 }: Props) {
   const [related, setRelated] = useState<Entry[]>([]);
@@ -86,19 +99,33 @@ export function EntryDetail({
   }, [entry.space_id, spaceSegments]);
 
   const textRef = useRef<HTMLTextAreaElement>(null);
+  const textAtEditStartRef = useRef("");
   const hasInsertedContinuationBreakRef = useRef(false);
   const editable = Boolean(onEntryTextChange);
+  const [isEditingText, setIsEditingText] = useState(false);
 
   useEffect(() => {
+    setIsEditingText(false);
     hasInsertedContinuationBreakRef.current = false;
   }, [entry.id]);
+
+  useEffect(() => {
+    if (!editable || isEditingText) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "e") return;
+      e.preventDefault();
+      beginEditingText();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [editable, isEditingText]);
 
   useEffect(() => {
     setSpaceLensDismissed(false);
   }, [entry.id]);
 
   useEffect(() => {
-    if (!editable) return;
+    if (!editable || !isEditingText) return;
     let pulseClearTimer: ReturnType<typeof setTimeout> | null = null;
     let innerRaf = 0;
     const outerRaf = requestAnimationFrame(() => {
@@ -127,15 +154,15 @@ export function EntryDetail({
       if (innerRaf) cancelAnimationFrame(innerRaf);
       if (pulseClearTimer) clearTimeout(pulseClearTimer);
     };
-  }, [entry.id, editable]);
+  }, [entry.id, editable, isEditingText]);
 
   useEffect(() => {
-    if (!editable) return;
+    if (!editable || !isEditingText) return;
     const el = textRef.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${Math.max(el.scrollHeight, 24)}px`;
-  }, [entry.text, editable]);
+  }, [entry.text, editable, isEditingText]);
 
   useEffect(() => {
     let cancelled = false;
@@ -169,6 +196,45 @@ export function EntryDetail({
     if (!el) return;
     const end = el.value.length;
     el.setSelectionRange(end, end);
+  };
+
+  const noteContinuationStart = (fromOffset: number, text: string) => {
+    if (entry.continuation_from != null) return;
+    onEntryContinuationMarked?.(entry.id, {
+      continuation_from: fromOffset,
+      continuation_at: new Date().toISOString(),
+    });
+    void markEntryContinuation(entry.id, fromOffset, text)
+      .then((marker) => {
+        if (marker) onEntryContinuationMarked?.(entry.id, marker);
+      })
+      .catch(() => {});
+  };
+
+  const beginEditingText = () => {
+    textAtEditStartRef.current = entry.text;
+    hasInsertedContinuationBreakRef.current = false;
+    setIsEditingText(true);
+  };
+
+  const finalizeContinuationOnBlur = (finalText: string) => {
+    if (entry.continuation_from != null) return;
+    const detected = detectContinuationAppend(textAtEditStartRef.current, finalText);
+    if (!detected) return;
+    if (detected.normalizedText !== finalText) {
+      onEntryTextChange?.(entry.id, detected.normalizedText);
+    }
+    noteContinuationStart(detected.fromOffset, detected.normalizedText);
+  };
+
+  const handleTextBlur = (finalText: string) => {
+    finalizeContinuationOnBlur(finalText);
+    setIsEditingText(false);
+    window.setTimeout(() => {
+      void getEntry(entry.id).then((fresh) => {
+        if (fresh) onEntrySynced?.(fresh);
+      });
+    }, 400);
   };
 
   const beginExitToStream = () => {
@@ -299,7 +365,7 @@ export function EntryDetail({
           {formatTimestamp(entry.created_at)}
         </time>
       )}
-      {editable && onEntryTextChange ? (
+      {editable && onEntryTextChange && isEditingText ? (
         <textarea
           ref={textRef}
           className="entry-detail-editable"
@@ -313,6 +379,9 @@ export function EntryDetail({
             if (e.currentTarget !== document.activeElement) {
               moveCaretToEnd();
             }
+          }}
+          onBlur={() => {
+            handleTextBlur(textRef.current?.value ?? entry.text);
           }}
           onInput={(e) => {
             const el = e.currentTarget;
@@ -333,6 +402,7 @@ export function EntryDetail({
             const end = el.value.length;
             el.setRangeText(`\n${native.data}`, end, end, "end");
             onEntryTextChange(entry.id, el.value);
+            noteContinuationStart(end + 1, el.value);
           }}
           onKeyDown={(e) => {
             if (e.key === "Escape") {
@@ -357,13 +427,40 @@ export function EntryDetail({
               e.preventDefault();
               hasInsertedContinuationBreakRef.current = true;
               onEntryTextChange(entry.id, `${el.value}\n${pasted}`);
+              noteContinuationStart(el.value.length + 1, `${el.value}\n${pasted}`);
               requestAnimationFrame(moveCaretToEnd);
             }
           }}
           onChange={(e) => onEntryTextChange(entry.id, e.target.value)}
         />
+      ) : editable && onEntryTextChange ? (
+        <div
+          className="entry-detail-text-readable"
+          role="button"
+          tabIndex={0}
+          aria-label="Thought text, click to edit"
+          onClick={() => beginEditingText()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              beginEditingText();
+            }
+          }}
+        >
+          <EntryTextWithLinks
+            text={entry.text}
+            variant="detail"
+            continuationFrom={entry.continuation_from}
+            continuationAt={entry.continuation_at}
+          />
+        </div>
       ) : (
-        <EntryTextWithLinks text={entry.text} variant="detail" />
+        <EntryTextWithLinks
+          text={entry.text}
+          variant="detail"
+          continuationFrom={entry.continuation_from}
+          continuationAt={entry.continuation_at}
+        />
       )}
       {trailLoading ? null : trail.length > 1 ? (
         <section className="entry-detail-trail" aria-label="Thought trail">

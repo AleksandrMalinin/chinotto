@@ -40,6 +40,7 @@ import {
   deleteAllEntries,
   deleteEntry,
   setEntrySpace,
+  type ContinuationMarker,
 } from "./features/entries/entryApi";
 import {
   JumpToDatePopover,
@@ -1271,6 +1272,27 @@ export default function App() {
     detailSaveTimersRef.current.set(entryId, t);
   }, []);
 
+  const handleEntryContinuationMarked = useCallback(
+    (entryId: string, marker: ContinuationMarker) => {
+      const patch = {
+        continuation_from: marker.continuation_from,
+        continuation_at: marker.continuation_at,
+      };
+      setEntries((prev) =>
+        prev.map((e) => (e.id === entryId ? { ...e, ...patch } : e))
+      );
+      setSelectedEntry((prev) =>
+        prev && prev.id === entryId ? { ...prev, ...patch } : prev
+      );
+    },
+    []
+  );
+
+  const handleEntrySynced = useCallback((entry: Entry) => {
+    setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, ...entry } : e)));
+    setSelectedEntry((prev) => (prev && prev.id === entry.id ? { ...prev, ...entry } : prev));
+  }, []);
+
   const handleEntryDetailSpaceChange = useCallback(
     async (entryId: string, spaceId: string | null) => {
       try {
@@ -1941,6 +1963,8 @@ export default function App() {
           onBack={handleCloseEntryDetail}
           onSelectEntry={handleOpenEntry}
           onEntryTextChange={handleEntryDetailTextChange}
+          onEntryContinuationMarked={handleEntryContinuationMarked}
+          onEntrySynced={handleEntrySynced}
           onEntrySpaceChange={handleEntryDetailSpaceChange}
         />
       ) : (
