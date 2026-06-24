@@ -95,6 +95,44 @@ describe("EntryTextWithLinks", () => {
     expect(container.querySelector(".entry-domain-badge")).toHaveTextContent("example.com");
   });
 
+  it("detail variant renders readable blocks for structured text", () => {
+    const { container } = render(
+      <EntryTextWithLinks
+        text={"Intro\n\n- one\n- two\n\n> quoted context\n\nOpen loop?"}
+        variant="detail"
+      />
+    );
+    expect(container.querySelector(".entry-readable")).toBeInTheDocument();
+    expect(container.querySelector(".entry-readable-list")).toBeInTheDocument();
+    expect(container.querySelector(".entry-readable-blockquote")).toBeInTheDocument();
+    expect(container.querySelector(".entry-readable-question")).toHaveTextContent(
+      "Open loop?"
+    );
+    expect(screen.getByText("quoted context")).toBeInTheDocument();
+  });
+
+  it("detail variant renders continuation block with date label", () => {
+    const { container } = render(
+      <EntryTextWithLinks
+        text={"Original thought\nContinued later"}
+        variant="detail"
+        continuationFrom={17}
+        continuationAt="2025-03-12T18:30:00Z"
+      />
+    );
+    expect(container.querySelector(".entry-readable-continuation")).toBeInTheDocument();
+    expect(container.querySelector(".entry-readable-continuation-label")).toBeInTheDocument();
+    expect(screen.getByText("Continued later")).toBeInTheDocument();
+  });
+
+  it("stream variant renders bullet preview for first line", () => {
+    const { container } = render(
+      <EntryTextWithLinks text={"- push back in writing?"} variant="stream" />
+    );
+    expect(container.querySelector(".entry-readable-stream-bullet")).toBeInTheDocument();
+    expect(screen.getByText("push back in writing?")).toBeInTheDocument();
+  });
+
   it("detail variant with plain text has no badge", () => {
     const { container } = render(
       <EntryTextWithLinks text="Just some text" variant="detail" />
@@ -162,6 +200,7 @@ describe("EntryTextWithLinks", () => {
           onEntryTextChange={onEntryTextChange}
         />
       );
+      fireEvent.click(screen.getByRole("button", { name: /thought text, click to edit/i }));
       const thoughtInput = screen.getByLabelText("Thought text");
       fireEvent.change(thoughtInput, {
         target: { value: "Read this https://detail-link.com/doc\ncontinued" },
@@ -216,7 +255,7 @@ describe("EntryTextWithLinks", () => {
         created_at: "2025-01-15T12:00:00Z",
       };
 
-      render(
+      const { unmount: unmountWithContext } = render(
         <EntryDetail
           entry={entryWithContext}
           onBack={() => {}}
@@ -224,9 +263,11 @@ describe("EntryTextWithLinks", () => {
           onEntryTextChange={() => {}}
         />
       );
+      fireEvent.click(screen.getByRole("button", { name: /thought text, click to edit/i }));
       expect(screen.getByLabelText("Thought text")).toHaveValue(
         "Check out https://example.com/resource"
       );
+      unmountWithContext();
 
       render(
         <EntryDetail
@@ -236,8 +277,8 @@ describe("EntryTextWithLinks", () => {
           onEntryTextChange={() => {}}
         />
       );
-      const inputs = screen.getAllByLabelText("Thought text");
-      expect(inputs[1]).toHaveValue("https://example.com/only");
+      fireEvent.click(screen.getByRole("button", { name: /thought text, click to edit/i }));
+      expect(screen.getByLabelText("Thought text")).toHaveValue("https://example.com/only");
     });
 
     it("clicking link in stream opens external URL and does not trigger entry row", () => {

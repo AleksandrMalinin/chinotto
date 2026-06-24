@@ -4184,13 +4184,106 @@ body.welcome .app-bg {
   font-size: 16px;
   font-weight: 400;
   line-height: 1.5;
-  white-space: pre-wrap;
   word-break: break-word;
   color: rgba(255, 255, 255, 0.9);
 }
 
+.entry-readable {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.entry-readable-paragraph {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.entry-readable-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  list-style: disc;
+}
+
+.entry-readable-list li {
+  line-height: 1.5;
+}
+
+.entry-readable-list li + li {
+  margin-top: 0.2rem;
+}
+
+.entry-readable-blockquote {
+  margin: 0;
+  padding-left: 0.85rem;
+  border-left: 2px solid rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.entry-readable-blockquote-line {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.entry-readable-blockquote-line + .entry-readable-blockquote-line {
+  margin-top: 0.35rem;
+}
+
+.entry-readable-question {
+  color: rgba(255, 255, 255, 0.96);
+}
+
+.entry-readable-continuation {
+  margin: 0.5rem 0 0;
+  padding: 0.15rem 0 0 0.9rem;
+  border-top: none;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 42%, transparent);
+}
+
+.entry-readable-continuation-label {
+  margin: 0 0 0.4rem;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: var(--meta-fg);
+}
+
+.entry-readable-continuation .entry-readable-paragraph,
+.entry-readable-continuation .entry-readable-list,
+.entry-readable-continuation .entry-readable-blockquote {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.entry-readable-stream-bullet-mark {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.entry-readable-stream-blockquote {
+  color: rgba(255, 255, 255, 0.62);
+}
+
 .entry-detail-text .entry-domain-badge {
   margin-top: 0.35rem;
+}
+
+.entry-detail-text-readable {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  cursor: text;
+}
+
+.entry-detail-text-readable:focus-visible {
+  outline: 1px solid var(--border-focus);
+  outline-offset: 4px;
+  border-radius: 4px;
 }
 
 .entry-detail-editable {
