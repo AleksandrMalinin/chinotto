@@ -33,6 +33,23 @@ export async function updateEntry(entryId: string, text: string): Promise<void> 
   return invoke("update_entry", { entryId, text });
 }
 
+export type ContinuationMarker = {
+  continuation_from: number;
+  continuation_at: string;
+};
+
+export async function markEntryContinuation(
+  entryId: string,
+  fromOffset: number,
+  text: string
+): Promise<ContinuationMarker | null> {
+  return invoke<ContinuationMarker | null>("mark_entry_continuation", {
+    entryId,
+    fromOffset,
+    text,
+  });
+}
+
 export async function setEntrySpace(
   entryId: string,
   spaceId: string | null
