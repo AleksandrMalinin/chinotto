@@ -90,6 +90,9 @@ pub struct SpaceRow {
     pub sort_order: i32,
 }
 
+const ENTRY_SELECT: &str =
+    "id, text, created_at, updated_at, COALESCE(edit_count, 0), COALESCE(open_count, 0), space_id, continuation_from, continuation_at";
+
 fn ensure_spaces(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute_batch(
         r#"
@@ -139,6 +142,50 @@ fn ensure_importance_columns(conn: &Connection) -> Result<(), rusqlite::Error> {
     Ok(())
 }
 
+fn ensure_continuation_columns(conn: &Connection) -> Result<(), rusqlite::Error> {
+    for col in ["continuation_from", "continuation_at"] {
+        let has_column = conn.query_row(
+            &format!("SELECT 1 FROM pragma_table_info('entries') WHERE name = '{col}'"),
+            [],
+            |r| r.get::<_, i32>(0),
+        );
+        if !matches!(has_column, Ok(1)) {
+            let sql = if col == "continuation_from" {
+                "ALTER TABLE entries ADD COLUMN continuation_from INTEGER"
+            } else {
+                "ALTER TABLE entries ADD COLUMN continuation_at TEXT"
+            };
+            conn.execute(sql, [])?;
+        }
+    }
+    Ok(())
+}
+
+/// JS string index (UTF-16 code units) → byte index in Rust `str`.
+fn js_offset_to_byte(text: &str, js_offset: usize) -> Option<usize> {
+    let mut utf16 = 0usize;
+    for (byte_i, ch) in text.char_indices() {
+        if utf16 == js_offset {
+            return Some(byte_i);
+        }
+        utf16 += ch.len_utf16();
+    }
+    if utf16 == js_offset {
+        return Some(text.len());
+    }
+    None
+}
+
+fn continuation_marker_valid(text: &str, js_offset: i32) -> bool {
+    if js_offset < 1 {
+        return false;
+    }
+    let Some(byte_idx) = js_offset_to_byte(text, js_offset as usize) else {
+        return false;
+    };
+    byte_idx > 0 && text.as_bytes().get(byte_idx - 1) == Some(&b'\n')
+}
+
 fn ensure_updated_at_column(conn: &Connection) -> Result<(), rusqlite::Error> {
     let has_column = conn.query_row(
         "SELECT 1 FROM pragma_table_info('entries') WHERE name = 'updated_at'",
@@ -164,6 +211,7 @@ impl Db {
         schema::run_migrations(&conn)?;
         ensure_importance_columns(&conn)?;
         ensure_updated_at_column(&conn)?;
+        ensure_continuation_columns(&conn)?;
         ensure_spaces(&conn)?;
         Ok(Self(Mutex::new(conn)))
     }
@@ -255,7 +303,49 @@ impl Db {
             "UPDATE entries SET text = ?1, updated_at = ?2, edit_count = COALESCE(edit_count, 0) + 1 WHERE id = ?3",
             rusqlite::params![text, updated_at, id],
         )?;
+        let cont_from: Option<i32> = conn.query_row(
+            "SELECT continuation_from FROM entries WHERE id = ?1",
+            [id],
+            |r| r.get(0),
+        )?;
+        if let Some(from) = cont_from {
+            if !continuation_marker_valid(text, from) {
+                conn.execute(
+                    "UPDATE entries SET continuation_from = NULL, continuation_at = NULL WHERE id = ?1",
+                    [id],
+                )?;
+            }
+        }
         Ok(())
+    }
+
+    /// Marks where a later continuation starts (UTF-16 code unit offset). Set once per entry.
+    pub fn mark_entry_continuation(
+        &self,
+        id: &str,
+        from_offset: i32,
+        text: &str,
+    ) -> Result<Option<(i32, String)>, rusqlite::Error> {
+        if !continuation_marker_valid(text, from_offset) {
+            return Ok(None);
+        }
+        let conn = self.0.lock().unwrap();
+        let now = chrono::Utc::now().to_rfc3339();
+        let n = conn.execute(
+            "UPDATE entries SET continuation_from = ?1, continuation_at = ?2 WHERE id = ?3 AND continuation_from IS NULL",
+            rusqlite::params![from_offset, now, id],
+        )?;
+        if n == 0 {
+            let existing: Option<(i32, String)> = conn
+                .query_row(
+                    "SELECT continuation_from, continuation_at FROM entries WHERE id = ?1 AND continuation_from IS NOT NULL",
+                    [id],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .ok();
+            return Ok(existing);
+        }
+        Ok(Some((from_offset, now)))
     }
 
     pub fn update_entry_space(
@@ -292,23 +382,26 @@ impl Db {
         let conn = self.0.lock().unwrap();
         match filter {
             SpaceFilter::All => {
-                let mut stmt = conn.prepare(
-                    "SELECT id, text, created_at, COALESCE(edit_count, 0), COALESCE(open_count, 0), space_id FROM entries ORDER BY created_at DESC, id ASC",
-                )?;
+                let sql = format!(
+                    "SELECT {ENTRY_SELECT} FROM entries ORDER BY created_at DESC, id ASC"
+                );
+                let mut stmt = conn.prepare(&sql)?;
                 let out: Vec<EntryRow> = stmt.query_map([], row_to_entry)?.collect::<Result<_, _>>()?;
                 Ok(out)
             }
             SpaceFilter::Inbox => {
-                let mut stmt = conn.prepare(
-                    "SELECT id, text, created_at, COALESCE(edit_count, 0), COALESCE(open_count, 0), space_id FROM entries WHERE space_id IS NULL ORDER BY created_at DESC, id ASC",
-                )?;
+                let sql = format!(
+                    "SELECT {ENTRY_SELECT} FROM entries WHERE space_id IS NULL ORDER BY created_at DESC, id ASC"
+                );
+                let mut stmt = conn.prepare(&sql)?;
                 let out: Vec<EntryRow> = stmt.query_map([], row_to_entry)?.collect::<Result<_, _>>()?;
                 Ok(out)
             }
             SpaceFilter::Space(id) => {
-                let mut stmt = conn.prepare(
-                    "SELECT id, text, created_at, COALESCE(edit_count, 0), COALESCE(open_count, 0), space_id FROM entries WHERE space_id = ?1 ORDER BY created_at DESC, id ASC",
-                )?;
+                let sql = format!(
+                    "SELECT {ENTRY_SELECT} FROM entries WHERE space_id = ?1 ORDER BY created_at DESC, id ASC"
+                );
+                let mut stmt = conn.prepare(&sql)?;
                 let out: Vec<EntryRow> =
                     stmt.query_map([id.as_str()], row_to_entry)?.collect::<Result<_, _>>()?;
                 Ok(out)
@@ -418,9 +511,8 @@ impl Db {
 
     pub fn get_entry_by_id(&self, id: &str) -> Result<Option<EntryRow>, rusqlite::Error> {
         let conn = self.0.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT id, text, created_at, COALESCE(edit_count, 0), COALESCE(open_count, 0), space_id FROM entries WHERE id = ?1",
-        )?;
+        let sql = format!("SELECT {ENTRY_SELECT} FROM entries WHERE id = ?1");
+        let mut stmt = conn.prepare(&sql)?;
         let mut rows = stmt.query([id])?;
         if let Some(row) = rows.next()? {
             return Ok(Some(row_to_entry(&row)?));
@@ -484,7 +576,7 @@ impl Db {
         let conn = self.0.lock().unwrap();
         let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
         let sql = format!(
-            "SELECT id, text, created_at, COALESCE(edit_count, 0), COALESCE(open_count, 0), space_id FROM entries WHERE id IN ({})",
+            "SELECT {ENTRY_SELECT} FROM entries WHERE id IN ({})",
             placeholders
         );
         let mut stmt = conn.prepare(&sql)?;
@@ -754,9 +846,12 @@ fn row_to_entry(r: &rusqlite::Row<'_>) -> Result<EntryRow, rusqlite::Error> {
         id: r.get(0)?,
         text: r.get(1)?,
         created_at: r.get(2)?,
-        edit_count: r.get::<_, i64>(3)? as u32,
-        open_count: r.get::<_, i64>(4)? as u32,
-        space_id: r.get(5)?,
+        updated_at: r.get(3)?,
+        edit_count: r.get::<_, i64>(4)? as u32,
+        open_count: r.get::<_, i64>(5)? as u32,
+        space_id: r.get(6)?,
+        continuation_from: r.get(7)?,
+        continuation_at: r.get(8)?,
     })
 }
 
@@ -765,9 +860,12 @@ pub struct EntryRow {
     pub id: String,
     pub text: String,
     pub created_at: String,
+    pub updated_at: String,
     pub edit_count: u32,
     pub open_count: u32,
     pub space_id: Option<String>,
+    pub continuation_from: Option<i32>,
+    pub continuation_at: Option<String>,
 }
 
 pub struct SearchEntryRow {
@@ -1031,6 +1129,39 @@ mod tests {
         db.enqueue_sync_tombstone("b").unwrap();
         db.clear_sync_tombstone_outbox_all().unwrap();
         assert!(db.list_sync_tombstone_outbox().unwrap().is_empty());
+    }
+
+    #[test]
+    fn mark_entry_continuation_sets_marker_once() {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        db.create_entry("e1", "original", "2025-01-01T12:00:00Z", None)
+            .unwrap();
+        db.update_entry_text("e1", "original\ncontinued").unwrap();
+        let first = db
+            .mark_entry_continuation("e1", 9, "original\ncontinued")
+            .unwrap();
+        assert!(first.is_some());
+        let row = db.get_entry_by_id("e1").unwrap().unwrap();
+        assert_eq!(row.continuation_from, Some(9));
+        assert!(row.continuation_at.is_some());
+
+        let second = db
+            .mark_entry_continuation("e1", 9, "original\ncontinued")
+            .unwrap();
+        assert_eq!(second, first);
+    }
+
+    #[test]
+    fn update_entry_text_clears_invalid_continuation_marker() {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        db.create_entry("e1", "hello", "2025-01-01T12:00:00Z", None)
+            .unwrap();
+        db.update_entry_text("e1", "hello\nmore").unwrap();
+        db.mark_entry_continuation("e1", 6, "hello\nmore").unwrap();
+        db.update_entry_text("e1", "short").unwrap();
+        let row = db.get_entry_by_id("e1").unwrap().unwrap();
+        assert_eq!(row.continuation_from, None);
+        assert_eq!(row.continuation_at, None);
     }
 
     #[test]

@@ -15,7 +15,9 @@ CREATE TABLE IF NOT EXISTS entries (
   updated_at TEXT NOT NULL,
   edit_count INTEGER DEFAULT 0,
   open_count INTEGER DEFAULT 0,
-  space_id TEXT REFERENCES spaces(id) ON DELETE SET NULL
+  space_id TEXT REFERENCES spaces(id) ON DELETE SET NULL,
+  continuation_from INTEGER,
+  continuation_at TEXT
 );
 
 -- FTS5 virtual table (external content); content_rowid links to entries.rowid

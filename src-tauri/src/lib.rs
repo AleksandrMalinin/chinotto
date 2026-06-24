@@ -357,24 +357,10 @@ fn find_similar_entries(
     let rows = db.get_entries_by_ids(&top_ids).map_err(|e| e.to_string())?;
     let by_id: std::collections::HashMap<String, db::EntryRow> =
         rows.into_iter().map(|r| (r.id.clone(), r)).collect();
-    let limit = keywords::default_topic_limit();
     let out: Vec<EntryPayload> = top_ids
         .into_iter()
         .filter_map(|id| by_id.get(&id))
-        .map(|r| {
-            let topics = extract_keywords(&r.text, limit);
-            EntryPayload {
-                id: r.id.clone(),
-                text: r.text.clone(),
-                created_at: r.created_at.clone(),
-                topics: if topics.is_empty() {
-                    None
-                } else {
-                    Some(topics)
-                },
-                space_id: r.space_id.clone(),
-            }
-        })
+        .map(|r| entry_row_to_payload(r))
         .collect();
     Ok(out)
 }
@@ -388,24 +374,7 @@ fn list_entries(
     let rows = db
         .list_entries_filtered(&filter)
         .map_err(|e| e.to_string())?;
-    let limit = keywords::default_topic_limit();
-    Ok(rows
-        .into_iter()
-        .map(|r| {
-            let topics = extract_keywords(&r.text, limit);
-            EntryPayload {
-                id: r.id,
-                text: r.text,
-                created_at: r.created_at,
-                topics: if topics.is_empty() {
-                    None
-                } else {
-                    Some(topics)
-                },
-                space_id: r.space_id,
-            }
-        })
-        .collect())
+    Ok(rows.into_iter().map(|r| entry_row_to_payload(&r)).collect())
 }
 
 #[tauri::command]
@@ -426,24 +395,7 @@ fn get_entry(db: tauri::State<Db>, entry_id: String) -> Result<Option<EntryPaylo
     let row = db
         .get_entry_by_id(&entry_id)
         .map_err(|e| e.to_string())?;
-    Ok(match row {
-        None => None,
-        Some(r) => {
-            let limit = keywords::default_topic_limit();
-            let topics = extract_keywords(&r.text, limit);
-            Some(EntryPayload {
-                id: r.id,
-                text: r.text,
-                created_at: r.created_at,
-                topics: if topics.is_empty() {
-                    None
-                } else {
-                    Some(topics)
-                },
-                space_id: r.space_id,
-            })
-        }
-    })
+    Ok(row.as_ref().map(entry_row_to_payload))
 }
 
 #[tauri::command]
@@ -525,19 +477,12 @@ pub(crate) fn get_resurfaced_entry_impl<R: rand::RngCore>(
             format!("From {}.", format_ago(created, now))
         }
     };
-    let topics = extract_keywords(&picked.text, keywords::default_topic_limit());
+    let row = db
+        .get_entry_by_id(&picked.id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "entry not found".to_string())?;
     Ok(Some(ResurfacedPayload {
-        entry: EntryPayload {
-            id: picked.id,
-            text: picked.text,
-            created_at: picked.created_at,
-            topics: if topics.is_empty() {
-                None
-            } else {
-                Some(topics)
-            },
-            space_id: picked.space_id,
-        },
+        entry: entry_row_to_payload(&row),
         reason,
     }))
 }
@@ -602,37 +547,9 @@ fn get_thought_trail(db: tauri::State<Db>, entry_id: String) -> Result<Vec<Entry
     let mut after_sorted = take_after;
     after_sorted.sort_by(|a, b| a.created_at.cmp(&b.created_at));
 
-    let limit = keywords::default_topic_limit();
-    let to_payload = |r: &db::EntryRow| {
-        let topics = extract_keywords(&r.text, limit);
-        EntryPayload {
-            id: r.id.clone(),
-            text: r.text.clone(),
-            created_at: r.created_at.clone(),
-            topics: if topics.is_empty() {
-                None
-            } else {
-                Some(topics)
-            },
-            space_id: r.space_id.clone(),
-        }
-    };
-    let mut out: Vec<EntryPayload> = before_sorted.iter().map(to_payload).collect();
-    out.push(EntryPayload {
-        id: current.id.clone(),
-        text: current.text.clone(),
-        created_at: current.created_at.clone(),
-        topics: {
-            let t = extract_keywords(&current.text, limit);
-            if t.is_empty() {
-                None
-            } else {
-                Some(t)
-            }
-        },
-        space_id: current.space_id.clone(),
-    });
-    out.extend(after_sorted.iter().map(to_payload));
+    let mut out: Vec<EntryPayload> = before_sorted.iter().map(|r| entry_row_to_payload(r)).collect();
+    out.push(entry_row_to_payload(&current));
+    out.extend(after_sorted.iter().map(|r| entry_row_to_payload(r)));
     Ok(out)
 }
 
@@ -683,6 +600,31 @@ fn unpin_entry(db: tauri::State<Db>, entry_id: String) -> Result<(), String> {
 #[tauri::command]
 fn get_pinned_entry_ids(db: tauri::State<Db>) -> Result<Vec<String>, String> {
     db.list_pinned_entry_ids().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn mark_entry_continuation(
+    db: tauri::State<Db>,
+    entry_id: String,
+    from_offset: i32,
+    text: String,
+) -> Result<Option<ContinuationMarkerPayload>, String> {
+    db.get_entry_by_id(&entry_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "entry not found".to_string())?;
+    let marked = db
+        .mark_entry_continuation(&entry_id, from_offset, &text)
+        .map_err(|e| e.to_string())?;
+    Ok(marked.map(|(continuation_from, continuation_at)| ContinuationMarkerPayload {
+        continuation_from,
+        continuation_at,
+    }))
+}
+
+#[derive(serde::Serialize)]
+struct ContinuationMarkerPayload {
+    continuation_from: i32,
+    continuation_at: String,
 }
 
 #[tauri::command]
@@ -868,9 +810,38 @@ struct EntryPayload {
     text: String,
     created_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    updated_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    continuation_from: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    continuation_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     topics: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     space_id: Option<String>,
+}
+
+fn entry_row_to_payload(r: &db::EntryRow) -> EntryPayload {
+    let limit = keywords::default_topic_limit();
+    let topics = extract_keywords(&r.text, limit);
+    EntryPayload {
+        id: r.id.clone(),
+        text: r.text.clone(),
+        created_at: r.created_at.clone(),
+        updated_at: if r.updated_at.is_empty() {
+            None
+        } else {
+            Some(r.updated_at.clone())
+        },
+        continuation_from: r.continuation_from,
+        continuation_at: r.continuation_at.clone(),
+        topics: if topics.is_empty() {
+            None
+        } else {
+            Some(topics)
+        },
+        space_id: r.space_id.clone(),
+    }
 }
 
 #[derive(serde::Serialize)]
@@ -1122,6 +1093,7 @@ pub fn run() {
             create_entry,
             restore_entry,
             update_entry,
+            mark_entry_continuation,
             set_entry_space,
             list_entries,
             list_spaces,
