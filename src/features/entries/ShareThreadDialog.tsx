@@ -6,6 +6,10 @@ import { shareThreadUrl } from "@/lib/chinottoLinks";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { createShareThread, writeUtf8File } from "./shareThreadApi";
+import {
+  publishShareThreadSnapshot,
+  shareThreadCreateMessage,
+} from "@/lib/shareThreadUpload";
 
 const MAX_ENTRIES = 15;
 const EXPIRY_OPTIONS = [7, 14, 30] as const;
@@ -106,6 +110,12 @@ export function ShareThreadDialog({
       if (path != null) {
         await writeUtf8File(path, html);
       }
+      const hosted = await publishShareThreadSnapshot({
+        token: thread.token,
+        html,
+        expiresAt: thread.expires_at,
+        contextNote: thread.context_note,
+      });
       const url = shareThreadUrl(thread.token);
       try {
         await navigator.clipboard.writeText(url);
@@ -113,9 +123,11 @@ export function ShareThreadDialog({
         /* clipboard optional */
       }
       await dialogMessage(
-        path != null
-          ? `Thread saved. Link copied to clipboard.\n\n${url}\n\nThe link will work when hosted sharing is enabled. Until then, send the HTML file.`
-          : `Thread created. Link copied to clipboard.\n\n${url}\n\nSave the HTML preview from Share thread again if you need a file.`,
+        shareThreadCreateMessage({
+          url,
+          savedHtml: path != null,
+          hosted,
+        }),
         { title: "Share thread" }
       );
       onClose();
