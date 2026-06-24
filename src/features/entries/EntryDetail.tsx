@@ -13,6 +13,7 @@ import {
   type SpaceRow,
 } from "./entryApi";
 import { detectContinuationAppend } from "@/lib/detectContinuationAppend";
+import { ShareThreadDialog } from "./ShareThreadDialog";
 
 type Props = {
   entry: Entry;
@@ -79,6 +80,7 @@ export function EntryDetail({
   const [spaceSaving, setSpaceSaving] = useState(false);
   /** After picking a space, :hover can stay true while the cursor rests on the control — fold until pointer leaves. */
   const [spaceLensDismissed, setSpaceLensDismissed] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const spaceSegments = useMemo(() => {
     const sorted = [...spaceOptions].sort((a, b) => a.sort_order - b.sort_order);
@@ -107,6 +109,7 @@ export function EntryDetail({
   useEffect(() => {
     setIsEditingText(false);
     hasInsertedContinuationBreakRef.current = false;
+    setShareOpen(false);
   }, [entry.id]);
 
   useEffect(() => {
@@ -277,16 +280,34 @@ export function EntryDetail({
 
   return (
     <div className="entry-detail">
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="entry-detail-back mb-7 h-auto min-h-0 px-0 py-1"
-        onClick={beginExitToStream}
-        aria-label="Back to stream"
-      >
-        ←
-      </Button>
+      <div className="entry-detail-toolbar">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="entry-detail-back h-auto min-h-0 px-0 py-1"
+          onClick={beginExitToStream}
+          aria-label="Back to stream"
+        >
+          ←
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="entry-detail-share h-auto min-h-0 px-2 py-1"
+          onClick={() => setShareOpen(true)}
+        >
+          Share thread…
+        </Button>
+      </div>
+      {shareOpen ? (
+        <ShareThreadDialog
+          currentEntry={entry}
+          trailEntries={trail}
+          onClose={() => setShareOpen(false)}
+        />
+      ) : null}
       {onEntrySpaceChange ? (
         <div className="entry-detail-meta">
           <time className="entry-detail-time" dateTime={entry.created_at}>
