@@ -29,8 +29,9 @@ share_threads table        ──►      GET /t/{token}
 | Commands | `create_share_thread`, `list_share_threads`, `revoke_share_thread`, `get_share_thread`, `write_utf8_file` |
 | HTML builder | `src/lib/shareThreadHtml.ts` |
 | API wrappers | `src/features/entries/shareThreadApi.ts` |
+| Upload client | `src/lib/shareThreadUpload.ts` (POST snapshot after create) |
 | UI | `src/features/entries/ShareThreadDialog.tsx`, entry from `EntryDetail` |
-| Link constant | `CHINOTTO_SHARE_BASE_URL` in `src/lib/chinottoLinks.ts` |
+| Link constant | `CHINOTTO_SHARE_BASE_URL`, `CHINOTTO_SHARE_API_BASE` in `src/lib/chinottoLinks.ts` |
 
 ### Limits
 
@@ -55,14 +56,34 @@ Standalone file, embedded CSS aligned with in-app readable plain text (paragraph
 
 ---
 
-## Slice 2 (planned)
+## Slice 2 (in progress)
 
-- Upload thread payload to share backend (minimal JSON + entries)
-- Public read route serves same HTML template
-- Revoke/delete remote copy on revoke
-- `noindex`, TLS, retention = expiry
+**Desktop (repo):** after create, POST pre-rendered HTML to share API (`publishShareThreadSnapshot`). On failure, user still gets local HTML + copied link.
 
-Optional: reuse Firebase project only if it fits retention/security; otherwise dedicated share service.
+**Hosted service (separate deploy):** not in this repo yet.
+
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `/api/threads` | POST | Store `{ token, html, expiresAt, contextNote? }` |
+| `/t/{token}` | GET | Serve HTML; `noindex`; 404 if missing, expired, or revoked |
+| `/api/threads/{token}` | DELETE | Remove snapshot (revoke) |
+
+Payload (POST body, camelCase JSON):
+
+```json
+{
+  "token": "uuid-v4",
+  "html": "<!DOCTYPE html>…",
+  "expiresAt": "2026-07-08T12:00:00Z",
+  "contextNote": "optional one line"
+}
+```
+
+- Response **201** on create; **204** on delete; **404** when read/revoke misses.
+- Retention: delete row at or before `expiresAt` (cron or TTL store).
+- Dev override: `VITE_CHINOTTO_SHARE_API_BASE` (e.g. local stub).
+
+Until the service ships, POST fails gracefully and Slice 1 HTML handoff still works.
 
 ---
 
@@ -106,3 +127,4 @@ Optional: reuse Firebase project only if it fits retention/security; otherwise d
 | Date | Change |
 |------|--------|
 | 2026-06 | Slice 1: local `share_threads`, HTML export, Share thread dialog |
+| 2026-06 | Slice 2 client: POST HTML to `/api/threads` after create |
