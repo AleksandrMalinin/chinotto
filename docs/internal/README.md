@@ -33,5 +33,7 @@ Release runbooks (`release-process.md`, `release-macos.md`, etc.) stay local-onl
 | [icon-variants.md](icon-variants.md) | Settings icon picker |
 | [analytics-design.md](analytics-design.md) | Umami events and integration |
 | [commit-convention.md](commit-convention.md) | Commit message format |
+| [sharing-proposal.md](sharing-proposal.md) | Private thread sharing (product) |
+| [sharing.md](sharing.md) | Sharing implementation slices |
 
 Public docs: [privacy.md](../privacy.md), [architecture.md](../architecture.md), [development.md](../development.md).
