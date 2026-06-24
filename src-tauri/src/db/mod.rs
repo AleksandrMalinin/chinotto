@@ -186,6 +186,22 @@ fn continuation_marker_valid(text: &str, js_offset: i32) -> bool {
     byte_idx > 0 && text.as_bytes().get(byte_idx - 1) == Some(&b'\n')
 }
 
+fn ensure_share_threads_table(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS share_threads (
+            token TEXT PRIMARY KEY,
+            entry_ids TEXT NOT NULL,
+            context_note TEXT,
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            revoked_at TEXT
+        );
+        "#,
+    )?;
+    Ok(())
+}
+
 fn ensure_updated_at_column(conn: &Connection) -> Result<(), rusqlite::Error> {
     let has_column = conn.query_row(
         "SELECT 1 FROM pragma_table_info('entries') WHERE name = 'updated_at'",
@@ -212,6 +228,7 @@ impl Db {
         ensure_importance_columns(&conn)?;
         ensure_updated_at_column(&conn)?;
         ensure_continuation_columns(&conn)?;
+        ensure_share_threads_table(&conn)?;
         ensure_spaces(&conn)?;
         Ok(Self(Mutex::new(conn)))
     }
@@ -839,6 +856,100 @@ impl Db {
             }
         }
     }
+
+    pub fn insert_share_thread(
+        &self,
+        token: &str,
+        entry_ids: &[String],
+        context_note: Option<&str>,
+        created_at: &str,
+        expires_at: &str,
+    ) -> Result<(), rusqlite::Error> {
+        let entry_ids_json = serde_json::to_string(entry_ids).map_err(|e| {
+            rusqlite::Error::ToSqlConversionFailure(Box::new(e))
+        })?;
+        let conn = self.0.lock().unwrap();
+        conn.execute(
+            "INSERT INTO share_threads (token, entry_ids, context_note, created_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![token, entry_ids_json, context_note, created_at, expires_at],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_share_thread_row(
+        &self,
+        token: &str,
+    ) -> Result<Option<ShareThreadRow>, rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT token, entry_ids, context_note, created_at, expires_at, revoked_at FROM share_threads WHERE token = ?1",
+        )?;
+        let mut rows = stmt.query([token])?;
+        if let Some(row) = rows.next()? {
+            return Ok(Some(row_to_share_thread(&row)?));
+        }
+        Ok(None)
+    }
+
+    pub fn list_share_thread_rows(&self) -> Result<Vec<ShareThreadRow>, rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT token, entry_ids, context_note, created_at, expires_at, revoked_at FROM share_threads ORDER BY created_at DESC",
+        )?;
+        let rows = stmt.query_map([], row_to_share_thread)?;
+        rows.collect()
+    }
+
+    pub fn revoke_share_thread(&self, token: &str) -> Result<bool, rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let revoked_at = chrono::Utc::now().to_rfc3339();
+        let n = conn.execute(
+            "UPDATE share_threads SET revoked_at = ?1 WHERE token = ?2 AND revoked_at IS NULL",
+            rusqlite::params![revoked_at, token],
+        )?;
+        Ok(n > 0)
+    }
+}
+
+pub const MAX_SHARE_ENTRY_COUNT: usize = 15;
+
+#[derive(Clone, Debug)]
+pub struct ShareThreadRow {
+    pub token: String,
+    pub entry_ids: Vec<String>,
+    pub context_note: Option<String>,
+    pub created_at: String,
+    pub expires_at: String,
+    pub revoked_at: Option<String>,
+}
+
+pub fn share_thread_is_active(row: &ShareThreadRow) -> bool {
+    if row.revoked_at.is_some() {
+        return false;
+    }
+    let Ok(expires) = chrono::DateTime::parse_from_rfc3339(&row.expires_at) else {
+        return false;
+    };
+    expires > chrono::Utc::now()
+}
+
+fn row_to_share_thread(r: &rusqlite::Row<'_>) -> Result<ShareThreadRow, rusqlite::Error> {
+    let entry_ids_json: String = r.get(1)?;
+    let entry_ids: Vec<String> = serde_json::from_str(&entry_ids_json).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(
+            1,
+            rusqlite::types::Type::Text,
+            Box::new(e),
+        )
+    })?;
+    Ok(ShareThreadRow {
+        token: r.get(0)?,
+        entry_ids,
+        context_note: r.get(2)?,
+        created_at: r.get(3)?,
+        expires_at: r.get(4)?,
+        revoked_at: r.get(5)?,
+    })
 }
 
 fn row_to_entry(r: &rusqlite::Row<'_>) -> Result<EntryRow, rusqlite::Error> {
@@ -1129,6 +1240,28 @@ mod tests {
         db.enqueue_sync_tombstone("b").unwrap();
         db.clear_sync_tombstone_outbox_all().unwrap();
         assert!(db.list_sync_tombstone_outbox().unwrap().is_empty());
+    }
+
+    #[test]
+    fn share_thread_create_get_revoke() {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        db.create_entry("e1", "one", "2025-01-01T12:00:00Z", None)
+            .unwrap();
+        db.create_entry("e2", "two", "2025-01-02T12:00:00Z", None)
+            .unwrap();
+        let ids = vec!["e1".to_string(), "e2".to_string()];
+        let token = "test-token";
+        let created = "2025-01-03T12:00:00Z";
+        let expires = "2099-01-01T12:00:00Z";
+        db.insert_share_thread(token, &ids, Some("note"), created, expires)
+            .unwrap();
+        let row = db.get_share_thread_row(token).unwrap().unwrap();
+        assert_eq!(row.entry_ids, ids);
+        assert_eq!(row.context_note.as_deref(), Some("note"));
+        assert!(share_thread_is_active(&row));
+        assert!(db.revoke_share_thread(token).unwrap());
+        let after = db.get_share_thread_row(token).unwrap().unwrap();
+        assert!(!share_thread_is_active(&after));
     }
 
     #[test]

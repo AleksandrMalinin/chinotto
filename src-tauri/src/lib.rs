@@ -627,6 +627,119 @@ struct ContinuationMarkerPayload {
     continuation_at: String,
 }
 
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CreateShareThreadInput {
+    entry_ids: Vec<String>,
+    context_note: Option<String>,
+    #[serde(default = "default_share_expires_days")]
+    expires_in_days: u32,
+}
+
+fn default_share_expires_days() -> u32 {
+    14
+}
+
+#[derive(serde::Serialize)]
+struct ShareThreadPayload {
+    token: String,
+    entry_ids: Vec<String>,
+    context_note: Option<String>,
+    created_at: String,
+    expires_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    revoked_at: Option<String>,
+}
+
+fn share_thread_to_payload(row: db::ShareThreadRow) -> ShareThreadPayload {
+    ShareThreadPayload {
+        token: row.token,
+        entry_ids: row.entry_ids,
+        context_note: row.context_note,
+        created_at: row.created_at,
+        expires_at: row.expires_at,
+        revoked_at: row.revoked_at,
+    }
+}
+
+#[tauri::command]
+fn create_share_thread(
+    db: tauri::State<Db>,
+    input: CreateShareThreadInput,
+) -> Result<ShareThreadPayload, String> {
+    if input.entry_ids.is_empty() {
+        return Err("select at least one thought".to_string());
+    }
+    if input.entry_ids.len() > db::MAX_SHARE_ENTRY_COUNT {
+        return Err(format!(
+            "at most {} thoughts per thread",
+            db::MAX_SHARE_ENTRY_COUNT
+        ));
+    }
+    let days = input.expires_in_days.clamp(1, 90);
+    let rows = db
+        .get_entries_by_ids(&input.entry_ids)
+        .map_err(|e| e.to_string())?;
+    if rows.len() != input.entry_ids.len() {
+        return Err("one or more thoughts were not found".to_string());
+    }
+    let token = uuid::Uuid::new_v4().to_string();
+    let created_at = chrono::Utc::now().to_rfc3339();
+    let expires_at = (chrono::Utc::now() + chrono::Duration::days(days as i64)).to_rfc3339();
+    let note = input
+        .context_note
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    db.insert_share_thread(&token, &input.entry_ids, note, &created_at, &expires_at)
+        .map_err(|e| e.to_string())?;
+    Ok(ShareThreadPayload {
+        token,
+        entry_ids: input.entry_ids,
+        context_note: note.map(str::to_string),
+        created_at,
+        expires_at,
+        revoked_at: None,
+    })
+}
+
+#[tauri::command]
+fn get_share_thread(
+    db: tauri::State<Db>,
+    token: String,
+) -> Result<Option<ShareThreadPayload>, String> {
+    let row = db
+        .get_share_thread_row(&token)
+        .map_err(|e| e.to_string())?;
+    Ok(row
+        .filter(db::share_thread_is_active)
+        .map(share_thread_to_payload))
+}
+
+#[tauri::command]
+fn list_share_threads(db: tauri::State<Db>) -> Result<Vec<ShareThreadPayload>, String> {
+    let rows = db.list_share_thread_rows().map_err(|e| e.to_string())?;
+    Ok(rows
+        .into_iter()
+        .filter(db::share_thread_is_active)
+        .map(share_thread_to_payload)
+        .collect())
+}
+
+#[tauri::command]
+fn revoke_share_thread(db: tauri::State<Db>, token: String) -> Result<(), String> {
+    if db.revoke_share_thread(&token).map_err(|e| e.to_string())? {
+        Ok(())
+    } else {
+        Err("thread not found or already revoked".to_string())
+    }
+}
+
+#[tauri::command]
+fn write_utf8_file(path: String, contents: String) -> Result<(), String> {
+    std::fs::write(path, contents).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn update_entry(db: tauri::State<Db>, entry_id: String, text: String) -> Result<(), String> {
     db.get_entry_by_id(&entry_id)
@@ -1113,6 +1226,11 @@ pub fn run() {
             delete_entry,
             delete_all_entries,
             export_entries,
+            create_share_thread,
+            get_share_thread,
+            list_share_threads,
+            revoke_share_thread,
+            write_utf8_file,
             create_backup,
             create_backup_if_needed,
             set_app_icon,

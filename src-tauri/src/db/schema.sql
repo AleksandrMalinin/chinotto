@@ -66,3 +66,13 @@ CREATE TABLE IF NOT EXISTS sync_tombstone_outbox (
   entry_id TEXT PRIMARY KEY,
   enqueued_at TEXT NOT NULL
 );
+
+-- Private thread links (Slice 1: local registry; hosted read in Slice 2).
+CREATE TABLE IF NOT EXISTS share_threads (
+  token TEXT PRIMARY KEY,
+  entry_ids TEXT NOT NULL,
+  context_note TEXT,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  revoked_at TEXT
+);
