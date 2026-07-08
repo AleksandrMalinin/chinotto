@@ -274,10 +274,7 @@ export function TimeStrand({
       </div>
 
       <div className="time-strand-footer">
-        <p className="time-strand-caption">
-          When you wrote
-          <span className="time-strand-caption-hint"> · tap a lit week</span>
-        </p>
+        <p className="time-strand-caption">Tap a lit week to jump</p>
         {onOpenCalendar ? (
           <button
             ref={calendarAnchorRef}

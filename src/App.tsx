@@ -564,6 +564,16 @@ export default function App() {
 
   const mainStreamEmpty = entries.length === 0;
 
+  const showHomeDepthZone =
+    !showFullStream && !mainStreamEmpty && !selectedEntry && !search.trim();
+
+  const appBodyClass = [
+    selectedEntry ? "app-body--detail-focus" : "",
+    showHomeDepthZone ? "app-body--home" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   const emptyLensMessage = useMemo(() => {
     if (!mainStreamEmpty) return undefined;
     return quietEmptyStreamMessage(spaceScope, hasEverSaved) ?? undefined;
@@ -596,7 +606,8 @@ export default function App() {
       !search.trim() &&
       !isSearchOpen &&
       showSearchTrigger &&
-      canJumpByDate,
+      canJumpByDate &&
+      !showHomeDepthZone,
     [
       introDismissed,
       loading,
@@ -605,6 +616,7 @@ export default function App() {
       isSearchOpen,
       showSearchTrigger,
       canJumpByDate,
+      showHomeDepthZone,
     ]
   );
 
@@ -1992,9 +2004,7 @@ export default function App() {
               </div>
             </div>
           )}
-          <div
-            className={`app-body${selectedEntry ? " app-body--detail-focus" : ""}`}
-          >
+          <div className={appBodyClass ? `app-body ${appBodyClass}` : "app-body"}>
           <div
             className={`entry-input-row${selectedEntry ? " entry-input-row--detail-focus" : ""}`}
           >
@@ -2255,18 +2265,18 @@ export default function App() {
         </>
       )}
         </div>
-        <div className="app-studio-signature" aria-hidden="true">
-          <span>Bogart Labs</span>
-        </div>
-        <button
-          type="button"
-          className="app-feedback-link"
-          onClick={handleSendFeedback}
-          aria-label="Send feedback by email"
-        >
-          Share feedback
-        </button>
-        </div>
+      </div>
+      <div className="app-studio-signature" aria-hidden="true">
+        <span>Bogart Labs</span>
+      </div>
+      <button
+        type="button"
+        className="app-feedback-link"
+        onClick={handleSendFeedback}
+        aria-label="Send feedback by email"
+      >
+        Share feedback
+      </button>
       </div>
       {!introDismissed && (
         <>
