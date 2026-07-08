@@ -15,6 +15,7 @@ import {
 import { detectContinuationAppend } from "@/lib/detectContinuationAppend";
 import { ShareThreadDialog } from "./ShareThreadDialog";
 import { ThoughtTrailStrip } from "./ThoughtTrailStrip";
+import { DetailWriteOverlay } from "./DetailWriteOverlay";
 
 type Props = {
   entry: Entry;
@@ -22,6 +23,8 @@ type Props = {
   onSelectEntry: (entry: Entry) => void;
   /** When set, thought body is editable with debounced save from the parent. */
   onEntryTextChange?: (entryId: string, text: string) => void;
+  /** Expanded writing overlay open — shell can hide capture chrome. */
+  onWriteExpandedChange?: (expanded: boolean) => void;
   /** After the first continuation break is stored for this entry. */
   onEntryContinuationMarked?: (
     entryId: string,
@@ -55,6 +58,7 @@ export function EntryDetail({
   onBack,
   onSelectEntry,
   onEntryTextChange,
+  onWriteExpandedChange,
   onEntryContinuationMarked,
   onEntrySynced,
   onEntrySpaceChange,
@@ -92,15 +96,18 @@ export function EntryDetail({
   const hasInsertedContinuationBreakRef = useRef(false);
   const editable = Boolean(onEntryTextChange);
   const [isEditingText, setIsEditingText] = useState(false);
+  const [writeExpanded, setWriteExpanded] = useState(false);
 
   useEffect(() => {
     setIsEditingText(false);
+    setWriteExpanded(false);
+    onWriteExpandedChange?.(false);
     hasInsertedContinuationBreakRef.current = false;
     setShareOpen(false);
-  }, [entry.id]);
+  }, [entry.id, onWriteExpandedChange]);
 
   useEffect(() => {
-    if (!editable || isEditingText) return;
+    if (!editable || isEditingText || writeExpanded) return;
     function onKeyDown(e: KeyboardEvent) {
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "e") return;
       e.preventDefault();
@@ -108,14 +115,14 @@ export function EntryDetail({
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [editable, isEditingText]);
+  }, [editable, isEditingText, writeExpanded]);
 
   useEffect(() => {
     setSpaceLensDismissed(false);
   }, [entry.id]);
 
   useEffect(() => {
-    if (!editable || !isEditingText) return;
+    if (!editable || !isEditingText || writeExpanded) return;
     let pulseClearTimer: ReturnType<typeof setTimeout> | null = null;
     let innerRaf = 0;
     const outerRaf = requestAnimationFrame(() => {
@@ -144,15 +151,15 @@ export function EntryDetail({
       if (innerRaf) cancelAnimationFrame(innerRaf);
       if (pulseClearTimer) clearTimeout(pulseClearTimer);
     };
-  }, [entry.id, editable, isEditingText]);
+  }, [entry.id, editable, isEditingText, writeExpanded]);
 
   useEffect(() => {
-    if (!editable || !isEditingText) return;
+    if (!editable || !isEditingText || writeExpanded) return;
     const el = textRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.max(el.scrollHeight, 24)}px`;
-  }, [entry.text, editable, isEditingText]);
+    el.style.height = `${Math.max(el.scrollHeight, 88)}px`;
+  }, [entry.text, editable, isEditingText, writeExpanded]);
 
   useEffect(() => {
     let cancelled = false;
@@ -207,6 +214,77 @@ export function EntryDetail({
     setIsEditingText(true);
   };
 
+  const openWriteExpanded = () => {
+    if (!editable) return;
+    if (!isEditingText) {
+      textAtEditStartRef.current = entry.text;
+      hasInsertedContinuationBreakRef.current = false;
+      setIsEditingText(true);
+    }
+    setWriteExpanded(true);
+    onWriteExpandedChange?.(true);
+  };
+
+  const closeWriteExpanded = () => {
+    if (!writeExpanded) return;
+    finalizeContinuationOnBlur(entry.text);
+    setWriteExpanded(false);
+    onWriteExpandedChange?.(false);
+    setIsEditingText(false);
+    window.setTimeout(() => {
+      void getEntry(entry.id).then((fresh) => {
+        if (fresh) onEntrySynced?.(fresh);
+      });
+    }, 400);
+  };
+
+  const handleTextBeforeInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
+    if (hasInsertedContinuationBreakRef.current) return;
+    const native = e.nativeEvent as InputEvent;
+    if (native.inputType !== "insertText" || !native.data) return;
+    const el = e.currentTarget;
+    const caretAtEnd =
+      el.selectionStart === el.value.length && el.selectionEnd === el.value.length;
+    if (!caretAtEnd || el.value.length === 0 || el.value.endsWith("\n")) return;
+    e.preventDefault();
+    hasInsertedContinuationBreakRef.current = true;
+    const end = el.value.length;
+    el.setRangeText(`\n${native.data}`, end, end, "end");
+    onEntryTextChange?.(entry.id, el.value);
+    noteContinuationStart(end + 1, el.value);
+  };
+
+  const handleTextPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const el = e.currentTarget;
+    const pasted = e.clipboardData.getData("text");
+    const caretAtEnd =
+      el.selectionStart === el.value.length && el.selectionEnd === el.value.length;
+    if (
+      pasted.length > 0 &&
+      caretAtEnd &&
+      el.value.length > 0 &&
+      !el.value.endsWith("\n") &&
+      !hasInsertedContinuationBreakRef.current
+    ) {
+      e.preventDefault();
+      hasInsertedContinuationBreakRef.current = true;
+      onEntryTextChange?.(entry.id, `${el.value}\n${pasted}`);
+      noteContinuationStart(el.value.length + 1, `${el.value}\n${pasted}`);
+      requestAnimationFrame(moveCaretToEnd);
+    }
+  };
+
+  useEffect(() => {
+    if (!editable || writeExpanded) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey || e.key !== "Enter") return;
+      e.preventDefault();
+      openWriteExpanded();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [editable, writeExpanded, entry.id, isEditingText]);
+
   const finalizeContinuationOnBlur = (finalText: string) => {
     if (entry.continuation_from != null) return;
     const detected = detectContinuationAppend(textAtEditStartRef.current, finalText);
@@ -228,7 +306,11 @@ export function EntryDetail({
   };
 
   const beginExitToStream = () => {
-    if (editable) textRef.current?.blur();
+    if (writeExpanded) {
+      closeWriteExpanded();
+    } else if (editable) {
+      textRef.current?.blur();
+    }
     onBack();
   };
 
@@ -287,9 +369,25 @@ export function EntryDetail({
   );
   const showTrail = !trailLoading && trailNeighbors.length > 0;
   const showRelated = !relatedLoading && related.length > 0;
+  const writingZoneClass = [
+    "entry-detail-writing-zone",
+    isEditingText && !writeExpanded ? "entry-detail-writing-zone--active" : "",
+    editable && !isEditingText && !writeExpanded
+      ? "entry-detail-writing-zone--readable"
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <div className="entry-detail entry-detail--focus">
+    <div
+      className={[
+        "entry-detail entry-detail--focus",
+        (isEditingText || writeExpanded) && "entry-detail--writing",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <div className="entry-detail-focus-stage">
       <div className="entry-detail-toolbar">
         <Button
@@ -302,23 +400,30 @@ export function EntryDetail({
         >
           ←
         </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="entry-detail-share h-auto min-h-0 px-2 py-1"
-          onClick={() => setShareOpen(true)}
-        >
-          Share…
-        </Button>
+        <div className="entry-detail-toolbar-actions">
+          {editable && !writeExpanded ? (
+            <>
+              <button
+                type="button"
+                className="entry-detail-toolbar-action"
+                onClick={openWriteExpanded}
+              >
+                Expand
+              </button>
+              <span className="entry-detail-toolbar-sep" aria-hidden="true">
+                ·
+              </span>
+            </>
+          ) : null}
+          <button
+            type="button"
+            className="entry-detail-toolbar-action"
+            onClick={() => setShareOpen(true)}
+          >
+            Share…
+          </button>
+        </div>
       </div>
-      {shareOpen ? (
-        <ShareThreadDialog
-          currentEntry={entry}
-          trailEntries={trail}
-          onClose={() => setShareOpen(false)}
-        />
-      ) : null}
       {onEntrySpaceChange ? (
         <div className="entry-detail-meta">
           <time className="entry-detail-time" dateTime={entry.created_at}>
@@ -397,94 +502,72 @@ export function EntryDetail({
           {formatTimestamp(entry.created_at)}
         </time>
       )}
-      {editable && onEntryTextChange && isEditingText ? (
-        <textarea
-          ref={textRef}
-          className="entry-detail-editable"
-          aria-label="Thought text"
-          value={entry.text}
-          rows={1}
-          onFocus={() => {
-            moveCaretToEnd();
-          }}
-          onClick={(e) => {
-            if (e.currentTarget !== document.activeElement) {
-              moveCaretToEnd();
-            }
-          }}
-          onBlur={() => {
-            handleTextBlur(textRef.current?.value ?? entry.text);
-          }}
-          onInput={(e) => {
-            const el = e.currentTarget;
-            el.style.height = "auto";
-            el.style.height = `${Math.max(el.scrollHeight, 24)}px`;
-          }}
-          onBeforeInput={(e) => {
-            if (hasInsertedContinuationBreakRef.current) return;
-            const native = e.nativeEvent as InputEvent;
-            if (native.inputType !== "insertText" || !native.data) return;
-            const el = e.currentTarget;
-            const caretAtEnd =
-              el.selectionStart === el.value.length &&
-              el.selectionEnd === el.value.length;
-            if (!caretAtEnd || el.value.length === 0 || el.value.endsWith("\n")) return;
-            e.preventDefault();
-            hasInsertedContinuationBreakRef.current = true;
-            const end = el.value.length;
-            el.setRangeText(`\n${native.data}`, end, end, "end");
-            onEntryTextChange(entry.id, el.value);
-            noteContinuationStart(end + 1, el.value);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              e.preventDefault();
-              e.currentTarget.blur();
-              return;
-            }
-          }}
-          onPaste={(e) => {
-            const el = e.currentTarget;
-            const pasted = e.clipboardData.getData("text");
-            const caretAtEnd =
-              el.selectionStart === el.value.length &&
-              el.selectionEnd === el.value.length;
-            if (
-              pasted.length > 0 &&
-              caretAtEnd &&
-              el.value.length > 0 &&
-              !el.value.endsWith("\n") &&
-              !hasInsertedContinuationBreakRef.current
-            ) {
-              e.preventDefault();
-              hasInsertedContinuationBreakRef.current = true;
-              onEntryTextChange(entry.id, `${el.value}\n${pasted}`);
-              noteContinuationStart(el.value.length + 1, `${el.value}\n${pasted}`);
-              requestAnimationFrame(moveCaretToEnd);
-            }
-          }}
-          onChange={(e) => onEntryTextChange(entry.id, e.target.value)}
-        />
-      ) : editable && onEntryTextChange ? (
-        <div
-          className="entry-detail-text-readable"
-          role="button"
-          tabIndex={0}
-          aria-label="Thought text, click to edit"
-          onClick={() => beginEditingText()}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              beginEditingText();
-            }
-          }}
-        >
-          <EntryTextWithLinks
-            text={entry.text}
-            variant="detail"
-            continuationFrom={entry.continuation_from}
-            continuationAt={entry.continuation_at}
-          />
+      {editable && onEntryTextChange ? (
+        <div className={writingZoneClass}>
+          {isEditingText && !writeExpanded ? (
+            <textarea
+              ref={textRef}
+              className="entry-detail-editable"
+              aria-label="Thought text"
+              value={entry.text}
+              rows={4}
+              onFocus={() => {
+                moveCaretToEnd();
+              }}
+              onClick={(e) => {
+                if (e.currentTarget !== document.activeElement) {
+                  moveCaretToEnd();
+                }
+              }}
+              onBlur={() => {
+                handleTextBlur(textRef.current?.value ?? entry.text);
+              }}
+              onInput={(e) => {
+                const el = e.currentTarget;
+                el.style.height = "auto";
+                el.style.height = `${Math.max(el.scrollHeight, 88)}px`;
+              }}
+              onBeforeInput={handleTextBeforeInput}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                  return;
+                }
+                if (
+                  e.key === "Enter" &&
+                  e.shiftKey &&
+                  (e.metaKey || e.ctrlKey)
+                ) {
+                  e.preventDefault();
+                  openWriteExpanded();
+                }
+              }}
+              onPaste={handleTextPaste}
+              onChange={(e) => onEntryTextChange(entry.id, e.target.value)}
+            />
+          ) : !writeExpanded ? (
+            <div
+              className="entry-detail-text-readable"
+              role="button"
+              tabIndex={0}
+              aria-label="Thought text, click to edit"
+              onClick={() => beginEditingText()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  beginEditingText();
+                }
+              }}
+            >
+              <EntryTextWithLinks
+                text={entry.text}
+                variant="detail"
+                continuationFrom={entry.continuation_from}
+                continuationAt={entry.continuation_at}
+              />
+            </div>
+          ) : null}
         </div>
       ) : (
         <EntryTextWithLinks
@@ -524,6 +607,21 @@ export function EntryDetail({
         </section>
       ) : null}
       </div>
+      {shareOpen ? (
+        <ShareThreadDialog
+          currentEntry={entry}
+          trailEntries={trail}
+          onClose={() => setShareOpen(false)}
+        />
+      ) : null}
+      <DetailWriteOverlay
+        open={writeExpanded}
+        value={entry.text}
+        onChange={(text) => onEntryTextChange?.(entry.id, text)}
+        onClose={closeWriteExpanded}
+        onBeforeInput={handleTextBeforeInput}
+        onPaste={handleTextPaste}
+      />
     </div>
   );
 }

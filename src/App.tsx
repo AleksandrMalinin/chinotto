@@ -274,6 +274,7 @@ export default function App() {
   const [settlingEntryIds, setSettlingEntryIds] = useState<Set<string>>(new Set());
   const [pinnedIds, setPinnedIds] = useState<string[]>([]);
   const [showFullStream, setShowFullStream] = useState(false);
+  const [detailWriteExpanded, setDetailWriteExpanded] = useState(false);
   const [revisitedEntryIds, setRevisitedEntryIds] = useState<Set<string>>(
     () => new Set()
   );
@@ -570,6 +571,7 @@ export default function App() {
   const appBodyClass = [
     selectedEntry ? "app-body--detail-focus" : "",
     showHomeDepthZone ? "app-body--home" : "",
+    detailWriteExpanded ? "app-body--detail-writing" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -1436,6 +1438,7 @@ export default function App() {
       }
     }
     detailOpenSnapshotRef.current = null;
+    setDetailWriteExpanded(false);
     const closingEntryId = closing?.id ?? null;
     setSelectedEntry(null);
     requestAnimationFrame(() => {
@@ -2087,6 +2090,7 @@ export default function App() {
           onBack={handleCloseEntryDetail}
           onSelectEntry={handleOpenEntry}
           onEntryTextChange={handleEntryDetailTextChange}
+          onWriteExpandedChange={setDetailWriteExpanded}
           onEntryContinuationMarked={handleEntryContinuationMarked}
           onEntrySynced={handleEntrySynced}
           onEntrySpaceChange={handleEntryDetailSpaceChange}
