@@ -30,7 +30,7 @@ describe("buildShareThreadHtml", () => {
         },
       ],
     });
-    expect(html).toContain('class="continuation"');
+    expect(html).toContain('class="readable-continuation"');
     expect(html).toContain("Added");
     expect(html).toContain("Continued");
   });
@@ -44,5 +44,18 @@ describe("buildShareThreadHtml", () => {
       ],
     });
     expect(html.indexOf("First")).toBeLessThan(html.indexOf("Second"));
+  });
+
+  it("uses landing palette and site link", () => {
+    const html = buildShareThreadHtml({
+      expiresAt: "2025-12-01T12:00:00Z",
+      entries: [
+        { id: "e1", text: "One line", created_at: "2025-01-01T12:00:00Z" },
+      ],
+    });
+    expect(html).toContain("#0a0a0e");
+    expect(html).toContain("getchinotto.app");
+    expect(html).toContain("Shared thread");
+    expect(html).not.toContain('class="preview"');
   });
 });
