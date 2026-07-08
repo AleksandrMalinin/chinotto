@@ -16,6 +16,7 @@
     "core:window:allow-unminimize",
     "core:window:allow-set-icon",
     "core:event:default",
+    "clipboard-manager:allow-write-text",
     "dialog:allow-save",
     "dialog:allow-message",
     "dialog:allow-ask",
