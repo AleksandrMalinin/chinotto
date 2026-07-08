@@ -6,6 +6,7 @@ import { shareThreadUrl } from "@/lib/chinottoLinks";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { createShareThread, writeUtf8File } from "./shareThreadApi";
+import { copyTextToClipboard } from "@/lib/copyToClipboard";
 import {
   publishShareThreadSnapshot,
   shareThreadCreateMessage,
@@ -30,6 +31,24 @@ function formatTimestamp(iso: string): string {
     dateStyle: "medium",
     timeStyle: "short",
   });
+}
+
+function relativeBeat(
+  currentIso: string,
+  otherIso: string,
+  isCurrent: boolean
+): string | null {
+  if (isCurrent) return "Current";
+  const days = Math.round(
+    (new Date(otherIso).getTime() - new Date(currentIso).getTime()) /
+      (1000 * 60 * 60 * 24)
+  );
+  if (days === 0) return "Same day";
+  if (days < 0) {
+    const n = Math.abs(days);
+    return `${n} day${n === 1 ? "" : "s"} earlier`;
+  }
+  return `${days} day${days === 1 ? "" : "s"} later`;
 }
 
 export function ShareThreadDialog({
@@ -117,16 +136,13 @@ export function ShareThreadDialog({
         contextNote: thread.context_note,
       });
       const url = shareThreadUrl(thread.token);
-      try {
-        await navigator.clipboard.writeText(url);
-      } catch {
-        /* clipboard optional */
-      }
+      const copied = await copyTextToClipboard(url);
       await dialogMessage(
         shareThreadCreateMessage({
           url,
           savedHtml: path != null,
           hosted,
+          copied,
         }),
         { title: "Share thread" }
       );
@@ -138,9 +154,11 @@ export function ShareThreadDialog({
     }
   };
 
+  const summaryLabel = `${selectedCount} thought${selectedCount === 1 ? "" : "s"} · oldest first`;
+
   return (
     <div
-      className="share-thread-overlay"
+      className="share-thread-overlay chinotto-card-overlay"
       role="dialog"
       aria-labelledby="share-thread-title"
       aria-modal="true"
@@ -149,16 +167,31 @@ export function ShareThreadDialog({
       }}
     >
       <div className="share-thread-card" onClick={(e) => e.stopPropagation()}>
-        <h2 id="share-thread-title" className="share-thread-title">
-          Share thread
-        </h2>
+        <header className="share-thread-head">
+          <div className="share-thread-head-text">
+            <h2 id="share-thread-title" className="share-thread-title">
+              Share thread
+            </h2>
+            <p className="share-thread-summary">{summaryLabel}</p>
+          </div>
+          <button
+            type="button"
+            className="share-thread-close"
+            disabled={creating}
+            aria-label="Close"
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </header>
+
         <p className="share-thread-lead">
-          Create a read-only snapshot for someone you trust. Thoughts stay on
-          your device until you share. The link expires; you can revoke later.
+          A read-only link for someone you trust. Nothing leaves your device
+          until you create the link.
         </p>
 
-        <fieldset className="share-thread-fieldset" disabled={creating}>
-          <legend className="share-thread-legend">Thoughts</legend>
+        <section className="share-thread-section" aria-label="Thoughts to include">
+          <h3 className="share-thread-section-title">Include</h3>
           <ul className="share-thread-entry-list">
             {candidates.map((e) => {
               const checked = selectedIds.has(e.id);
@@ -167,16 +200,34 @@ export function ShareThreadDialog({
                 creating ||
                 (isCurrent && checked) ||
                 (!checked && atLimit);
+              const beat = relativeBeat(
+                currentEntry.created_at,
+                e.created_at,
+                isCurrent
+              );
               return (
                 <li key={e.id}>
-                  <label className="share-thread-entry-label">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      disabled={disabled}
-                      onChange={() => toggleEntry(e.id)}
-                    />
+                  <button
+                    type="button"
+                    role="checkbox"
+                    aria-checked={checked}
+                    disabled={disabled}
+                    className={[
+                      "share-thread-entry-row",
+                      checked ? "share-thread-entry-row--selected" : "",
+                      isCurrent ? "share-thread-entry-row--current" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    onClick={() => toggleEntry(e.id)}
+                  >
+                    <span className="share-thread-entry-check" aria-hidden="true">
+                      {checked ? "✓" : ""}
+                    </span>
                     <span className="share-thread-entry-body">
+                      {beat ? (
+                        <span className="share-thread-entry-meta">{beat}</span>
+                      ) : null}
                       <span className="share-thread-entry-text">
                         {truncate(e.text, 100)}
                       </span>
@@ -184,11 +235,10 @@ export function ShareThreadDialog({
                         className="share-thread-entry-time"
                         dateTime={e.created_at}
                       >
-                        {isCurrent ? "Current · " : ""}
                         {formatTimestamp(e.created_at)}
                       </time>
                     </span>
-                  </label>
+                  </button>
                 </li>
               );
             })}
@@ -196,54 +246,78 @@ export function ShareThreadDialog({
           {atLimit && candidates.length > MAX_ENTRIES ? (
             <p className="share-thread-hint">At most {MAX_ENTRIES} thoughts.</p>
           ) : null}
-        </fieldset>
+        </section>
 
-        <label className="share-thread-label">
-          Context note <span className="share-thread-optional">(optional)</span>
+        <section className="share-thread-section">
+          <label className="share-thread-section-title" htmlFor="share-context-note">
+            Context for reader
+            <span className="share-thread-optional">optional</span>
+          </label>
           <Textarea
+            id="share-context-note"
             className="share-thread-note"
             value={contextNote}
-            placeholder="A line of context for the reader…"
+            placeholder="One line of context…"
             rows={2}
             disabled={creating}
             onChange={(e) => setContextNote(e.target.value)}
           />
-        </label>
+        </section>
 
-        <fieldset className="share-thread-fieldset" disabled={creating}>
-          <legend className="share-thread-legend">Expires in</legend>
-          <div className="share-thread-expiry">
-            {EXPIRY_OPTIONS.map((days) => (
-              <label key={days} className="share-thread-expiry-option">
-                <input
-                  type="radio"
-                  name="share-expiry"
-                  checked={expiresInDays === days}
-                  onChange={() => setExpiresInDays(days)}
-                />
-                {days} days
-              </label>
-            ))}
+        <section className="share-thread-section">
+          <span className="share-thread-section-title" id="share-expiry-label">
+            Link expires
+          </span>
+          <div
+            className="share-thread-expiry"
+            role="tablist"
+            aria-labelledby="share-expiry-label"
+          >
+            {EXPIRY_OPTIONS.map((days) => {
+              const active = expiresInDays === days;
+              return (
+                <button
+                  key={days}
+                  type="button"
+                  role="tab"
+                  disabled={creating}
+                  aria-selected={active}
+                  className={
+                    active
+                      ? "space-scope-tab space-scope-tab--active share-thread-expiry-tab"
+                      : "space-scope-tab share-thread-expiry-tab"
+                  }
+                  onClick={() => setExpiresInDays(days)}
+                >
+                  {days}d
+                </button>
+              );
+            })}
           </div>
-        </fieldset>
+        </section>
 
-        <div className="share-thread-actions">
-          <Button
-            type="button"
-            disabled={creating || selectedCount === 0}
-            onClick={() => void handleCreate()}
-          >
-            {creating ? "Creating…" : "Create and save preview"}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={creating}
-            onClick={onClose}
-          >
-            Cancel
-          </Button>
-        </div>
+        <footer className="share-thread-footer">
+          <p className="share-thread-privacy">
+            Read-only · expires · revoke anytime · link copied on create
+          </p>
+          <div className="share-thread-actions">
+            <Button
+              type="button"
+              disabled={creating || selectedCount === 0}
+              onClick={() => void handleCreate()}
+            >
+              {creating ? "Creating link…" : "Create link"}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={creating}
+              onClick={onClose}
+            >
+              Cancel
+            </Button>
+          </div>
+        </footer>
       </div>
     </div>
   );
