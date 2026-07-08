@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { save as saveDialog, message as dialogMessage } from "@tauri-apps/plugin-dialog";
 import type { Entry } from "../../types/entry";
 import { buildShareThreadHtml } from "@/lib/shareThreadHtml";
@@ -156,9 +157,9 @@ export function ShareThreadDialog({
 
   const summaryLabel = `${selectedCount} thought${selectedCount === 1 ? "" : "s"} · oldest first`;
 
-  return (
+  return createPortal(
     <div
-      className="share-thread-overlay chinotto-card-overlay"
+      className="share-thread-overlay"
       role="dialog"
       aria-labelledby="share-thread-title"
       aria-modal="true"
@@ -185,12 +186,13 @@ export function ShareThreadDialog({
           </button>
         </header>
 
-        <p className="share-thread-lead">
-          A read-only link for someone you trust. Nothing leaves your device
-          until you create the link.
-        </p>
+        <div className="share-thread-body">
+          <p className="share-thread-lead">
+            A read-only link for someone you trust. Nothing leaves your device
+            until you create the link.
+          </p>
 
-        <section className="share-thread-section" aria-label="Thoughts to include">
+          <section className="share-thread-section" aria-label="Thoughts to include">
           <h3 className="share-thread-section-title">Include</h3>
           <ul className="share-thread-entry-list">
             {candidates.map((e) => {
@@ -295,6 +297,7 @@ export function ShareThreadDialog({
             })}
           </div>
         </section>
+        </div>
 
         <footer className="share-thread-footer">
           <p className="share-thread-privacy">
@@ -303,6 +306,7 @@ export function ShareThreadDialog({
           <div className="share-thread-actions">
             <Button
               type="button"
+              className="share-thread-action share-thread-action--primary"
               disabled={creating || selectedCount === 0}
               onClick={() => void handleCreate()}
             >
@@ -311,6 +315,7 @@ export function ShareThreadDialog({
             <Button
               type="button"
               variant="ghost"
+              className="share-thread-action share-thread-action--cancel"
               disabled={creating}
               onClick={onClose}
             >
@@ -319,6 +324,7 @@ export function ShareThreadDialog({
           </div>
         </footer>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
