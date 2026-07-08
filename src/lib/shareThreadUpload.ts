@@ -12,19 +12,25 @@ export type ShareThreadCreateMessageInput = {
   url: string;
   savedHtml: boolean;
   hosted: boolean;
+  copied: boolean;
 };
 
 export function shareThreadCreateMessage(input: ShareThreadCreateMessageInput): string {
-  const { url, savedHtml, hosted } = input;
+  const { url, savedHtml, hosted, copied } = input;
+  const copiedLine = copied
+    ? "Link copied to clipboard."
+    : "Copy the link below.";
   if (hosted) {
     return savedHtml
-      ? `Thread saved and link is live. Link copied to clipboard.\n\n${url}`
-      : `Link is live and copied to clipboard.\n\n${url}`;
+      ? `${copiedLine} A local HTML copy was saved.\n\n${url}`
+      : `${copiedLine}\n\n${url}`;
   }
   if (savedHtml) {
-    return `Thread saved. Link copied to clipboard.\n\n${url}\n\nHosted sharing is unavailable — send the HTML file until the link works.`;
+    return copied
+      ? `Link copied. Send the saved HTML file — hosting was unavailable.\n\n${url}`
+      : `Hosting was unavailable. Send the saved HTML file and copy the link below.\n\n${url}`;
   }
-  return `Thread created. Link copied to clipboard.\n\n${url}\n\nHosted sharing is unavailable — save the HTML preview or try again later.`;
+  return `${copiedLine}\n\n${url}`;
 }
 
 export async function publishShareThreadSnapshot(
