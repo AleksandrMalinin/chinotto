@@ -77,6 +77,12 @@ export type EntryStreamProps = {
    * When true, outer opacity fades in and stagger runs — same soft entrance as before progressive wiring.
    */
   revealEmptyOnboarding?: boolean;
+  /** Skip day grouping; use a single flat section when `sectionTitle` is set. */
+  flatSection?: boolean;
+  /** Per-entry quiet meta (e.g. Open reasons). */
+  entryRowMeta?: Record<string, string>;
+  /** Pin state per entry id; overrides `isPinnedSection` when set. */
+  pinnedEntryIds?: ReadonlySet<string>;
 };
 
 function getSectionMeta(iso: string): { key: string; label: string } {
@@ -261,6 +267,7 @@ const EntryRow = memo(function EntryRow({
   onStartLateEdit,
   onEndEdit,
   isPinned,
+  rowMeta,
   onPinToggle,
   onEntryDelete,
   onEntryHover,
@@ -274,6 +281,7 @@ const EntryRow = memo(function EntryRow({
   onStartLateEdit?: (entry: Entry) => void;
   onEndEdit?: (entryId: string) => void;
   isPinned?: boolean;
+  rowMeta?: string;
   onPinToggle?: (entry: Entry) => void;
   onEntryDelete?: (entry: Entry) => void;
   onEntryHover?: (entry: Entry | null) => void;
@@ -433,9 +441,14 @@ const EntryRow = memo(function EntryRow({
           </button>
         )}
       </div>
-      <time className="entry-row-time" dateTime={entry.created_at}>
-        {formatTime(entry.created_at)}
-      </time>
+      <div className="entry-row-footer">
+        {rowMeta ? (
+          <span className="entry-row-meta">{rowMeta}</span>
+        ) : null}
+        <time className="entry-row-time" dateTime={entry.created_at}>
+          {formatTime(entry.created_at)}
+        </time>
+      </div>
     </>
   );
 
@@ -506,6 +519,8 @@ function StreamSection({
   deletingIds,
   onDeleteAnimationEnd,
   onEntryHover,
+  entryRowMeta,
+  pinnedEntryIds,
 }: {
   section: string;
   entries: Entry[];
@@ -524,6 +539,8 @@ function StreamSection({
   deletingIds?: Set<string>;
   onDeleteAnimationEnd?: (entryId: string) => void;
   onEntryHover?: (entry: Entry | null) => void;
+  entryRowMeta?: Record<string, string>;
+  pinnedEntryIds?: ReadonlySet<string>;
 }) {
   const isDeleting = (id: string) => deletingIds?.has(id) ?? false;
   const ephemeral = ephemeralEntryIds ?? new Set();
@@ -568,7 +585,8 @@ function StreamSection({
                   onEntryUpdate={onEntryUpdate}
                   onStartLateEdit={onStartLateEdit}
                   onEndEdit={onEndEdit}
-                  isPinned={isPinned}
+                  isPinned={pinnedEntryIds?.has(entry.id) ?? isPinned}
+                  rowMeta={entryRowMeta?.[entry.id]}
                   onPinToggle={onPinToggle}
                   onEntryDelete={onEntryDelete}
                   onEntryHover={onEntryHover}
@@ -604,6 +622,9 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
   emptyLensMessage,
   deferEmptyPanelMotion = false,
   revealEmptyOnboarding = true,
+  flatSection = false,
+  entryRowMeta,
+  pinnedEntryIds,
 }) {
   const reduceMotion = useReducedMotion();
 
@@ -611,8 +632,11 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
     if (sectionTitle) {
       return [{ section: sectionTitle, entries }];
     }
+    if (flatSection) {
+      return [{ section: "Thoughts", entries }];
+    }
     return groupEntriesBySection(entries);
-  }, [entries, sectionTitle]);
+  }, [entries, sectionTitle, flatSection]);
 
   /* Empty timeline: search vs progressive onboarding (single implementation). */
   if (entries.length === 0 && !sectionTitle) {
@@ -676,6 +700,8 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
           deletingIds={deletingIds}
           onDeleteAnimationEnd={onDeleteAnimationEnd}
           onEntryHover={onEntryHover}
+          entryRowMeta={entryRowMeta}
+          pinnedEntryIds={pinnedEntryIds}
         />
       ))}
     </div>
