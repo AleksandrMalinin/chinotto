@@ -17,7 +17,7 @@ share_threads table        ──►      GET /t/{token}
 
 - **Local-first:** entries stay authoritative on device; share is an explicit snapshot.
 - **Slice 1 (current):** registry in SQLite + **self-contained HTML** file for preview and handoff (AirDrop, email attachment) until hosted read ships.
-- **Slice 2 (planned):** upload snapshot to share service; copy `https://share.chinotto.app/t/{token}`.
+- **Slice 2 (planned):** upload snapshot to share service; copy `https://getchinotto.app/t/{token}`.
 
 ---
 
@@ -60,7 +60,7 @@ Standalone file, embedded CSS aligned with in-app readable plain text (paragraph
 
 **Desktop (repo):** after create, POST pre-rendered HTML to share API (`publishShareThreadSnapshot`). On failure, user still gets local HTML + copied link.
 
-**Hosted service (separate deploy):** not in this repo yet.
+**Hosted service (separate deploy):** `chinotto-web` — Vercel serverless under `api/` + `share/`; see `chinotto-web/docs/share-hosting.md`.
 
 | Route | Method | Purpose |
 |-------|--------|---------|

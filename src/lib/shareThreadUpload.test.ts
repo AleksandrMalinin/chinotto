@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { shareThreadCreateMessage } from "./shareThreadUpload";
 
 describe("shareThreadCreateMessage", () => {
-  const url = "https://share.chinotto.app/t/abc";
+  const url = "https://getchinotto.app/t/abc";
 
   it("reports live link when hosted and html saved", () => {
     const msg = shareThreadCreateMessage({ url, savedHtml: true, hosted: true });
