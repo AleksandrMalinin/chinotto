@@ -17,7 +17,8 @@ import { AnalyticsOptInModal } from "@/components/AnalyticsOptInModal";
 import { EntryInput, type EntryInputRef } from "./features/entries/EntryInput";
 import { EntryStream } from "./features/entries/EntryStream";
 import { EntryDetail } from "./features/entries/EntryDetail";
-import { ResurfacedOverlay } from "./features/entries/ResurfacedOverlay";
+import { MemoryEcho } from "./features/entries/MemoryEcho";
+import { TimeStrand } from "./features/entries/TimeStrand";
 import { VoiceCaptureOverlay } from "./features/entries/VoiceCaptureOverlay";
 import { SearchInput } from "./features/entries/SearchInput";
 import { SearchResultsList } from "./features/entries/SearchResultsList";
@@ -106,6 +107,7 @@ import { useJumpContextAutoClear } from "@/lib/useJumpContextAutoClear";
 import { useStreamBackToNowVisible } from "@/lib/useStreamBackToNowVisible";
 import { APP_VERSION } from "@/lib/appVersion";
 import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
+import { confirmDeleteThought } from "@/lib/deleteEntryConfirmation";
 import {
   notifyEntryDeletedForSync,
   pushEntryUpsertToFirestore,
@@ -119,7 +121,7 @@ import {
   quietEmptyStreamMessage,
   shouldShowFullEmptyOnboarding,
 } from "@/lib/emptyStreamLensMessage";
-import { confirmDeleteThought } from "@/lib/deleteEntryConfirmation";
+import { partitionHomeStream } from "@/lib/homeStreamPartition";
 import {
   SPACE_SCOPE_STORAGE_KEY,
   captureSpaceId,
@@ -259,7 +261,7 @@ export default function App() {
   const [, setIntroSettled] = useState(false);
   const [iconVariantId, setIconVariantId] = useState(() => getStoredIconVariantId());
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
-  const [resurfaced, setResurfaced] = useState<{
+  const [memoryEcho, setMemoryEcho] = useState<{
     entry: Entry;
     reason: string;
   } | null>(null);
@@ -271,6 +273,15 @@ export default function App() {
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [settlingEntryIds, setSettlingEntryIds] = useState<Set<string>>(new Set());
   const [pinnedIds, setPinnedIds] = useState<string[]>([]);
+  const [showFullStream, setShowFullStream] = useState(false);
+  const [revisitedEntryIds, setRevisitedEntryIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const detailOpenSnapshotRef = useRef<{
+    id: string;
+    text: string;
+    continuation_from?: number;
+  } | null>(null);
   /** After first save we show a softer empty state when the stream is empty again. */
   const [hasEverSaved, setHasEverSavedState] = useState(() => hasEverSavedThought());
   /** Progressive onboarding: hidden after first keystroke/save until stream was non-empty then empty again. */
@@ -286,7 +297,14 @@ export default function App() {
   const [searchSelectedIndex, setSearchSelectedIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const jumpToDateButtonRef = useRef<HTMLButtonElement>(null);
+  const strandCalendarRef = useRef<HTMLButtonElement>(null);
+  const jumpPopoverAnchorRef = useRef<HTMLElement | null>(null);
   const entryInputRef = useRef<EntryInputRef>(null);
+
+  const openJumpCalendar = useCallback((anchor: HTMLElement | null) => {
+    jumpPopoverAnchorRef.current = anchor;
+    setJumpPopoverOpen(true);
+  }, []);
 
   const handleSearchCloseImmediate = useCallback(() => {
     setSearchOverlayClosing(false);
@@ -512,16 +530,39 @@ export default function App() {
     };
   }, [refresh, isSyncModalOpen]);
 
-  const { pinnedEntries, streamEntries } = useMemo(() => {
-    const pinnedEntries = pinnedIds
-      .map((id) => entries.find((e) => e.id === id))
-      .filter((e): e is Entry => e != null);
-    const streamEntries = entries.filter((e) => !pinnedIds.includes(e.id));
-    return { pinnedEntries, streamEntries };
-  }, [entries, pinnedIds]);
+  const homePartition = useMemo(
+    () =>
+      partitionHomeStream(entries, {
+        pinnedIds,
+        revisitedIds: revisitedEntryIds,
+      }),
+    [entries, pinnedIds, revisitedEntryIds]
+  );
 
-  const mainStreamEmpty =
-    pinnedEntries.length === 0 && streamEntries.length === 0;
+  const openEntryMeta = useMemo(() => {
+    const meta: Record<string, string> = {};
+    for (const open of homePartition.openEntries) {
+      meta[open.entry.id] = open.label;
+    }
+    return meta;
+  }, [homePartition.openEntries]);
+
+  const pinnedEntryIdSet = useMemo(() => new Set(pinnedIds), [pinnedIds]);
+
+  const showMemoryEcho = useMemo(() => {
+    if (!memoryEcho) return false;
+    const id = memoryEcho.entry.id;
+    if (homePartition.openEntries.some((o) => o.entry.id === id)) return false;
+    if (homePartition.recentEntries.some((e) => e.id === id)) return false;
+    return true;
+  }, [memoryEcho, homePartition.openEntries, homePartition.recentEntries]);
+
+  const homeArchiveEntries = useMemo(
+    () => [...homePartition.recentEntries, ...homePartition.earlierEntries],
+    [homePartition.recentEntries, homePartition.earlierEntries]
+  );
+
+  const mainStreamEmpty = entries.length === 0;
 
   const emptyLensMessage = useMemo(() => {
     if (!mainStreamEmpty) return undefined;
@@ -572,10 +613,6 @@ export default function App() {
   }, [hasEntriesInDb]);
 
   useEffect(() => {
-    if (!showJumpTrigger) setJumpPopoverOpen(false);
-  }, [showJumpTrigger]);
-
-  useEffect(() => {
     if (!jumpContextYmd || !jumpContextExpanded) return;
     const t = window.setTimeout(() => {
       setJumpContextExpanded(false);
@@ -602,7 +639,11 @@ export default function App() {
     !search.trim() && !selectedEntry && streamBackToNowFromScroll;
 
   useEffect(() => {
-    const len = streamEntries.length;
+    setShowFullStream(false);
+  }, [spaceScope]);
+
+  useEffect(() => {
+    const len = entries.length;
     const prev = prevStreamLenRef.current;
     if (
       prev > 0 &&
@@ -613,7 +654,7 @@ export default function App() {
       emptyOnboardingExitStartedRef.current = false;
     }
     prevStreamLenRef.current = len;
-  }, [streamEntries.length, spaceScope, hasEverSaved]);
+  }, [entries.length, spaceScope, hasEverSaved]);
 
   const onEmptyOnboardingExitComplete = useCallback(() => {
     setEmptyOnboardingDismissed(true);
@@ -624,15 +665,15 @@ export default function App() {
   const tryBeginEmptyOnboardingExit = useCallback(() => {
     if (!shouldShowFullEmptyOnboarding(spaceScope, hasEverSaved)) return;
     if (emptyOnboardingExitStartedRef.current) return;
-    if (streamEntries.length > 0) return;
+    if (entries.length > 0) return;
     emptyOnboardingExitStartedRef.current = true;
     setEmptyOnboardingExiting(true);
     setEmptyOnboardingTypingAccent(true);
-  }, [streamEntries.length, spaceScope, hasEverSaved]);
+  }, [entries.length, spaceScope, hasEverSaved]);
 
   const onCaptureDraftChange = useCallback(
     (value: string) => {
-      if (streamEntries.length === 0 && value.trim().length === 0) {
+      if (entries.length === 0 && value.trim().length === 0) {
         if (shouldShowFullEmptyOnboarding(spaceScope, hasEverSaved)) {
           setEmptyOnboardingDismissed(false);
           setEmptyOnboardingExiting(false);
@@ -643,7 +684,7 @@ export default function App() {
       }
       if (value.length > 0) tryBeginEmptyOnboardingExit();
     },
-    [tryBeginEmptyOnboardingExit, streamEntries.length, spaceScope, hasEverSaved]
+    [tryBeginEmptyOnboardingExit, entries.length, spaceScope, hasEverSaved]
   );
 
   const emptyOnboardingForStream = useMemo(() => {
@@ -975,7 +1016,7 @@ export default function App() {
         if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "R") {
           e.preventDefault();
           getResurfacedEntry(getIdsInCooldown()).then((r) => {
-            if (r) setResurfaced(r);
+            if (r) setMemoryEcho(r);
           });
         }
       }
@@ -995,7 +1036,7 @@ export default function App() {
         if (Math.random() > RESURFACE_SHOW_PROBABILITY) return;
         shownThisSessionRef.current = true;
         markAsShown(r.entry.id);
-        setResurfaced(r);
+        setMemoryEcho(r);
         const ageDays = Math.floor(
           (Date.now() - new Date(r.entry.created_at).getTime()) / (24 * 60 * 60 * 1000)
         );
@@ -1078,12 +1119,16 @@ export default function App() {
         openSearch();
       }
       if (
-        showJumpTrigger &&
         e.key.toLowerCase() === "j" &&
         (e.metaKey || e.ctrlKey) &&
         e.shiftKey
       ) {
+        const anchor = showJumpTrigger
+          ? jumpToDateButtonRef.current
+          : strandCalendarRef.current;
+        if (!anchor) return;
         e.preventDefault();
+        jumpPopoverAnchorRef.current = anchor;
         setJumpPopoverOpen((o) => !o);
       }
       if (e.key === "n" && (e.metaKey || e.ctrlKey)) {
@@ -1140,7 +1185,7 @@ export default function App() {
       if (row) void pushEntryUpsertToFirestore(row);
     });
     track({ event: "entry_created", text_length: text.length });
-    if (streamEntries.length === 0) tryBeginEmptyOnboardingExit();
+    if (entries.length === 0) tryBeginEmptyOnboardingExit();
     setHasEverSavedThought();
     setHasEverSavedState(true);
     if (entries.length === 0) {
@@ -1176,6 +1221,35 @@ export default function App() {
     generateEmbedding(id);
   }
 
+  const scrollToJumpEntry = useCallback((entryId: string, ymd: string) => {
+    const doScroll = () => {
+      const scroller = document.scrollingElement;
+      const maxScroll = Math.max(
+        0,
+        (scroller?.scrollHeight ?? 0) - (scroller?.clientHeight ?? 0)
+      );
+      const targetTop = computeJumpScrollTop(entryId);
+      if (targetTop === null) return false;
+      scrollJumpSectionIntoView(entryId);
+      const streamCanScrollAway =
+        maxScroll > JUMP_CONTEXT_SCROLL_AWAY_MIN_PX;
+      if (streamIsScrolledAwayFromTop(targetTop) && streamCanScrollAway) {
+        setJumpContextYmd(ymd);
+        setJumpContextExpanded(true);
+      }
+      window.dispatchEvent(new Event("scroll"));
+      return true;
+    };
+
+    if (doScroll()) return;
+    setShowFullStream(true);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        doScroll();
+      });
+    });
+  }, []);
+
   const handleJumpDatePick = useCallback(
     async (ymd: string) => {
       if (getDevSimulateNewUser()) return;
@@ -1183,6 +1257,7 @@ export default function App() {
 
       if (ymd === todayLocalYmd()) {
         clearJumpContext();
+        setShowFullStream(false);
         track({
           event: "jump_to_date_completed",
           days_ago: 0,
@@ -1204,25 +1279,11 @@ export default function App() {
       clearJumpContext();
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          const scroller = document.scrollingElement;
-          const maxScroll = Math.max(
-            0,
-            (scroller?.scrollHeight ?? 0) - (scroller?.clientHeight ?? 0)
-          );
-          const targetTop = computeJumpScrollTop(id);
-          if (targetTop === null) return;
-          scrollJumpSectionIntoView(id);
-          const streamCanScrollAway =
-            maxScroll > JUMP_CONTEXT_SCROLL_AWAY_MIN_PX;
-          if (streamIsScrolledAwayFromTop(targetTop) && streamCanScrollAway) {
-            setJumpContextYmd(ymd);
-            setJumpContextExpanded(true);
-          }
-          window.dispatchEvent(new Event("scroll"));
+          scrollToJumpEntry(id, ymd);
         });
       });
     },
-    [clearJumpContext, spaceFilterParam]
+    [clearJumpContext, spaceFilterParam, scrollToJumpEntry]
   );
 
   const handleJumpBackToNow = useCallback(() => {
@@ -1232,6 +1293,7 @@ export default function App() {
         : "stream_back_to_now",
     });
     clearJumpContext();
+    setShowFullStream(false);
     requestAnimationFrame(() => {
       const scroller = document.scrollingElement;
       scroller?.scrollTo({ top: 0, behavior: "smooth" });
@@ -1242,6 +1304,16 @@ export default function App() {
   const handleOpenEntry = useCallback((entry: Entry) => {
     track({ event: "entry_opened" });
     recordEntryOpen(entry.id);
+    detailOpenSnapshotRef.current = {
+      id: entry.id,
+      text: entry.text,
+      continuation_from: entry.continuation_from,
+    };
+    entryInputRef.current?.collapseComposeExpand();
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active.closest(".entry-input-row")) {
+      active.blur();
+    }
     setSelectedEntry(entry);
   }, []);
 
@@ -1278,6 +1350,12 @@ export default function App() {
         continuation_from: marker.continuation_from,
         continuation_at: marker.continuation_at,
       };
+      setRevisitedEntryIds((prev) => {
+        if (!prev.has(entryId)) return prev;
+        const next = new Set(prev);
+        next.delete(entryId);
+        return next;
+      });
       setEntries((prev) =>
         prev.map((e) => (e.id === entryId ? { ...e, ...patch } : e))
       );
@@ -1324,7 +1402,29 @@ export default function App() {
   }, [entries, selectedEntry, loading]);
 
   const handleCloseEntryDetail = useCallback(() => {
-    const closingEntryId = selectedEntry?.id ?? null;
+    const closing = selectedEntry;
+    const snapshot = detailOpenSnapshotRef.current;
+    if (closing && snapshot?.id === closing.id) {
+      const unchangedText = closing.text === snapshot.text;
+      const noNewContinuation =
+        closing.continuation_from === snapshot.continuation_from;
+      if (unchangedText && noNewContinuation) {
+        setRevisitedEntryIds((prev) => {
+          const next = new Set(prev);
+          next.add(closing.id);
+          return next;
+        });
+      } else {
+        setRevisitedEntryIds((prev) => {
+          if (!prev.has(closing.id)) return prev;
+          const next = new Set(prev);
+          next.delete(closing.id);
+          return next;
+        });
+      }
+    }
+    detailOpenSnapshotRef.current = null;
+    const closingEntryId = closing?.id ?? null;
     setSelectedEntry(null);
     requestAnimationFrame(() => {
       if (closingEntryId) {
@@ -1334,23 +1434,28 @@ export default function App() {
       }
       entryInputRef.current?.focus();
     });
-  }, [selectedEntry?.id]);
+  }, [selectedEntry]);
 
   const refreshPinned = useCallback(() => {
     getPinnedEntryIds().then(setPinnedIds);
   }, []);
 
+  const handlePinToggle = useCallback(
+    (entry: Entry) => {
+      if (pinnedIds.includes(entry.id)) {
+        unpinEntry(entry.id).then(refreshPinned);
+      } else {
+        track({ event: "entry_pinned" });
+        pinEntry(entry.id).then(refreshPinned);
+      }
+    },
+    [pinnedIds, refreshPinned]
+  );
+
   const handlePin = useCallback(
     (entry: Entry) => {
       track({ event: "entry_pinned" });
       pinEntry(entry.id).then(refreshPinned);
-    },
-    [refreshPinned]
-  );
-
-  const handleUnpin = useCallback(
-    (entry: Entry) => {
-      unpinEntry(entry.id).then(refreshPinned);
     },
     [refreshPinned]
   );
@@ -1578,7 +1683,7 @@ export default function App() {
     getResurfacedEntry().then((r) => {
       const res = r ?? (import.meta.env.DEV ? devMockResurfaced() : null);
       if (res) {
-        setResurfaced(res);
+        setMemoryEcho(res);
         const ageDays = Math.floor(
           (Date.now() - new Date(res.entry.created_at).getTime()) / (24 * 60 * 60 * 1000)
         );
@@ -1594,7 +1699,7 @@ export default function App() {
     setDevEmptyStreamPreview(next);
     if (next) {
       setSelectedEntry(null);
-      setResurfaced(null);
+      setMemoryEcho(null);
       setEmptyOnboardingDismissed(false);
       setEmptyOnboardingExiting(false);
       setEmptyOnboardingTypingAccent(false);
@@ -1619,7 +1724,7 @@ export default function App() {
     try {
       await deleteAllEntries();
       setSelectedEntry(null);
-      setResurfaced(null);
+      setMemoryEcho(null);
       setEditingEntryId(null);
       setDeletingIds(new Set());
       setLastDeletedEntry(null);
@@ -1680,7 +1785,7 @@ export default function App() {
     <>
       <div className={mainAppClass}>
         <div className="app-bg" aria-hidden="true" />
-        <div className="app">
+        <div className={`app${selectedEntry ? " app--detail-focus" : ""}`}>
           <header
             className={`app-header ${introDismissed ? "app-header-visible" : ""}`}
             aria-hidden={!introDismissed}
@@ -1887,13 +1992,19 @@ export default function App() {
               </div>
             </div>
           )}
-          <div className="entry-input-row">
+          <div
+            className={`app-body${selectedEntry ? " app-body--detail-focus" : ""}`}
+          >
+          <div
+            className={`entry-input-row${selectedEntry ? " entry-input-row--detail-focus" : ""}`}
+          >
             <EntryInput
               ref={entryInputRef}
               onSubmit={handleSubmit}
               onDraftChange={onCaptureDraftChange}
               showExpandTrigger={showComposeExpandTrigger}
               onComposeExpandedChange={setComposeExpanded}
+              compact={Boolean(selectedEntry)}
             />
             <div
               className={`entry-input-row-aside ${showJumpTrigger ? "entry-input-row-aside--with-jump" : ""}`}
@@ -1905,9 +2016,12 @@ export default function App() {
                   variant="ghost"
                   size="sm"
                   className="jump-date-trigger"
-                  onClick={() => setJumpPopoverOpen((o) => !o)}
+                  onClick={() => {
+                    jumpPopoverAnchorRef.current = jumpToDateButtonRef.current;
+                    setJumpPopoverOpen((o) => !o);
+                  }}
                   aria-label="Jump to date (⌘⇧J)"
-                  aria-expanded={jumpPopoverOpen && showJumpTrigger}
+                  aria-expanded={jumpPopoverOpen}
                 >
                   <JumpToDateTriggerIcon />
                 </Button>
@@ -1926,8 +2040,8 @@ export default function App() {
               ) : null}
             </div>
             <JumpToDatePopover
-              open={jumpPopoverOpen && showJumpTrigger}
-              anchorRef={jumpToDateButtonRef}
+              open={jumpPopoverOpen}
+              anchorRef={jumpPopoverAnchorRef}
               contextYmd={jumpContextYmd}
               spaceFilter={spaceFilterParam}
               onClose={() => setJumpPopoverOpen(false)}
@@ -1971,32 +2085,9 @@ export default function App() {
         <>
           {!search.trim() && (
             <>
-              {pinnedEntries.length > 0 && (
+              {mainStreamEmpty ? (
                 <EntryStream
-                  entries={pinnedEntries}
-                  showHighlights={false}
-                  justAddedEntryId={null}
-                  ephemeralEntryIds={ephemeralEntryIds}
-                  editingEntryId={editingEntryId}
-                  settlingEntryIds={settlingEntryIds}
-                  onEntryUpdate={handleEntryUpdate}
-                  onStartLateEdit={handleStartLateEdit}
-                  onEndEdit={handleEndEdit}
-                  onEntryClick={handleOpenEntry}
-                  sectionTitle="Pinned"
-                  isPinnedSection
-                  onPinToggle={handleUnpin}
-                  onEntryDelete={handleEntryDelete}
-                  deletingIds={deletingIds}
-                  onDeleteAnimationEnd={handleDeleteAnimationEnd}
-                  onEntryHover={(entry) => setHoveredEntryId(entry ? entry.id : null)}
-                  deferEmptyPanelMotion={!emptyOnboardingIntroReady}
-                  revealEmptyOnboarding={emptyOnboardingIntroReady}
-                />
-              )}
-              {streamEntries.length > 0 || pinnedEntries.length === 0 ? (
-                <EntryStream
-                  entries={streamEntries}
+                  entries={[]}
                   showHighlights={false}
                   justAddedEntryId={justAddedEntryId}
                   ephemeralEntryIds={ephemeralEntryIds}
@@ -2006,7 +2097,7 @@ export default function App() {
                   onStartLateEdit={handleStartLateEdit}
                   onEndEdit={handleEndEdit}
                   onEntryClick={handleOpenEntry}
-                  onPinToggle={handlePin}
+                  onPinToggle={handlePinToggle}
                   onEntryDelete={handleEntryDelete}
                   deletingIds={deletingIds}
                   onDeleteAnimationEnd={handleDeleteAnimationEnd}
@@ -2016,7 +2107,132 @@ export default function App() {
                   emptyLensMessage={emptyLensMessage}
                   emptyOnboarding={emptyOnboardingForStream}
                 />
-              ) : null}
+              ) : (
+                <>
+                  {homePartition.openEntries.length > 0 && (
+                    <EntryStream
+                      entries={homePartition.openEntries.map((o) => o.entry)}
+                      showHighlights={false}
+                      justAddedEntryId={null}
+                      ephemeralEntryIds={ephemeralEntryIds}
+                      editingEntryId={editingEntryId}
+                      settlingEntryIds={settlingEntryIds}
+                      onEntryUpdate={handleEntryUpdate}
+                      onStartLateEdit={handleStartLateEdit}
+                      onEndEdit={handleEndEdit}
+                      onEntryClick={handleOpenEntry}
+                      sectionTitle="Open"
+                      flatSection
+                      entryRowMeta={openEntryMeta}
+                      pinnedEntryIds={pinnedEntryIdSet}
+                      onPinToggle={handlePinToggle}
+                      onEntryDelete={handleEntryDelete}
+                      deletingIds={deletingIds}
+                      onDeleteAnimationEnd={handleDeleteAnimationEnd}
+                      onEntryHover={(entry) =>
+                        setHoveredEntryId(entry ? entry.id : null)
+                      }
+                      deferEmptyPanelMotion={!emptyOnboardingIntroReady}
+                      revealEmptyOnboarding={emptyOnboardingIntroReady}
+                    />
+                  )}
+                  {showFullStream ? (
+                    homeArchiveEntries.length > 0 && (
+                      <EntryStream
+                        entries={homeArchiveEntries}
+                        showHighlights={false}
+                        justAddedEntryId={justAddedEntryId}
+                        ephemeralEntryIds={ephemeralEntryIds}
+                        editingEntryId={editingEntryId}
+                        settlingEntryIds={settlingEntryIds}
+                        onEntryUpdate={handleEntryUpdate}
+                        onStartLateEdit={handleStartLateEdit}
+                        onEndEdit={handleEndEdit}
+                        onEntryClick={handleOpenEntry}
+                        pinnedEntryIds={pinnedEntryIdSet}
+                        onPinToggle={handlePinToggle}
+                        onEntryDelete={handleEntryDelete}
+                        deletingIds={deletingIds}
+                        onDeleteAnimationEnd={handleDeleteAnimationEnd}
+                        onEntryHover={(entry) =>
+                          setHoveredEntryId(entry ? entry.id : null)
+                        }
+                        deferEmptyPanelMotion={!emptyOnboardingIntroReady}
+                        revealEmptyOnboarding={emptyOnboardingIntroReady}
+                      />
+                    )
+                  ) : (
+                    homePartition.recentEntries.length > 0 && (
+                      <div className="home-recent-zone">
+                        <EntryStream
+                          entries={homePartition.recentEntries}
+                          showHighlights={false}
+                          justAddedEntryId={justAddedEntryId}
+                          ephemeralEntryIds={ephemeralEntryIds}
+                          editingEntryId={editingEntryId}
+                          settlingEntryIds={settlingEntryIds}
+                          onEntryUpdate={handleEntryUpdate}
+                          onStartLateEdit={handleStartLateEdit}
+                          onEndEdit={handleEndEdit}
+                          onEntryClick={handleOpenEntry}
+                          sectionTitle="Recent"
+                          flatSection
+                          pinnedEntryIds={pinnedEntryIdSet}
+                          onPinToggle={handlePinToggle}
+                          onEntryDelete={handleEntryDelete}
+                          deletingIds={deletingIds}
+                          onDeleteAnimationEnd={handleDeleteAnimationEnd}
+                          onEntryHover={(entry) =>
+                            setHoveredEntryId(entry ? entry.id : null)
+                          }
+                          deferEmptyPanelMotion={!emptyOnboardingIntroReady}
+                          revealEmptyOnboarding={emptyOnboardingIntroReady}
+                        />
+                      </div>
+                    )
+                  )}
+                  {!showFullStream && !mainStreamEmpty ? (
+                    <div className="home-depth-zone">
+                      {showMemoryEcho && memoryEcho ? (
+                        <MemoryEcho
+                            entry={memoryEcho.entry}
+                            reason={memoryEcho.reason}
+                            showHorizon={false}
+                            onOpen={(entry) => {
+                              const ageDays = Math.floor(
+                                (Date.now() -
+                                  new Date(entry.created_at).getTime()) /
+                                  (24 * 60 * 60 * 1000)
+                              );
+                              track({
+                                event: "resurface_opened",
+                                age_days: ageDays,
+                              });
+                              handleOpenEntry(entry);
+                              setMemoryEcho(null);
+                            }}
+                            onDismiss={() => {
+                              setMemoryEcho(null);
+                              requestAnimationFrame(() => {
+                                entryInputRef.current?.focus();
+                              });
+                            }}
+                          />
+                      ) : null}
+                      <TimeStrand
+                        entries={entries}
+                        calendarAnchorRef={strandCalendarRef}
+                        onOpenCalendar={() =>
+                          openJumpCalendar(strandCalendarRef.current)
+                        }
+                        onPickWeek={(week) => {
+                          void handleJumpDatePick(week.jumpYmd);
+                        }}
+                      />
+                    </div>
+                  ) : null}
+                </>
+              )}
             </>
           )}
           {search.trim() && (
@@ -2050,6 +2266,7 @@ export default function App() {
         >
           Share feedback
         </button>
+        </div>
       </div>
       {!introDismissed && (
         <>
@@ -2074,26 +2291,6 @@ export default function App() {
       )}
       {isStreamShowcaseOpen && (
         <StreamShowcaseModal onClose={() => setIsStreamShowcaseOpen(false)} />
-      )}
-      {resurfaced && (
-        <ResurfacedOverlay
-          entry={resurfaced.entry}
-          reason={resurfaced.reason}
-          onOpen={(entry) => {
-            const ageDays = Math.floor(
-              (Date.now() - new Date(entry.created_at).getTime()) / (24 * 60 * 60 * 1000)
-            );
-            track({ event: "resurface_opened", age_days: ageDays });
-            handleOpenEntry(entry);
-            setResurfaced(null);
-          }}
-          onDismiss={() => {
-            setResurfaced(null);
-            requestAnimationFrame(() => {
-              entryInputRef.current?.focus();
-            });
-          }}
-        />
       )}
       {EXPERIMENTAL_VOICE_CAPTURE && voiceCaptureOpen && (
         <VoiceCaptureOverlay
