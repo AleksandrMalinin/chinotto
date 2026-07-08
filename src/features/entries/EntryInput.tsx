@@ -18,6 +18,8 @@ type Props = {
   /** Hide expand affordance during first-run empty stream onboarding. */
   showExpandTrigger?: boolean;
   onComposeExpandedChange?: (expanded: boolean) => void;
+  /** Reading focus: quieter single-line capture above an open thought. */
+  compact?: boolean;
 };
 
 export type EntryInputRef = {
@@ -31,6 +33,7 @@ export const EntryInput = forwardRef<EntryInputRef, Props>(function EntryInput(
     onDraftChange,
     showExpandTrigger = true,
     onComposeExpandedChange,
+    compact = false,
   },
   ref
 ) {
@@ -144,16 +147,18 @@ export const EntryInput = forwardRef<EntryInputRef, Props>(function EntryInput(
   return (
     <>
       <div
-        className={
-          expanded
-            ? "entry-input-area entry-input-area--compose-open"
-            : "entry-input-area"
-        }
+        className={[
+          "entry-input-area",
+          expanded ? "entry-input-area--compose-open" : "",
+          compact ? "entry-input-area--compact" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
       >
         <Textarea
           ref={inputRef}
           className="entry-input entry-input--inline !min-h-0 !py-0"
-          placeholder="Capture a thought…"
+          placeholder={compact ? "New thought…" : "Capture a thought…"}
           value={expanded ? "" : draft}
           readOnly={expanded}
           tabIndex={expanded ? -1 : 0}

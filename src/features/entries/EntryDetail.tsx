@@ -14,6 +14,7 @@ import {
 } from "./entryApi";
 import { detectContinuationAppend } from "@/lib/detectContinuationAppend";
 import { ShareThreadDialog } from "./ShareThreadDialog";
+import { ThoughtTrailStrip } from "./ThoughtTrailStrip";
 
 type Props = {
   entry: Entry;
@@ -48,20 +49,6 @@ function truncate(text: string, maxLen: number): string {
 }
 
 const CARET_PULSE_ANIM_MS = 1200;
-
-function relativeToCurrent(
-  currentIso: string,
-  otherIso: string,
-  isCurrent: boolean
-): string {
-  if (isCurrent) return "Current";
-  const a = new Date(currentIso).getTime();
-  const b = new Date(otherIso).getTime();
-  const days = Math.round((b - a) / (1000 * 60 * 60 * 24));
-  if (days === 0) return "Same day";
-  if (days < 0) return `${Math.abs(days)} day${Math.abs(days) === 1 ? "" : "s"} earlier`;
-  return `${days} day${days === 1 ? "" : "s"} later`;
-}
 
 export function EntryDetail({
   entry,
@@ -252,7 +239,9 @@ export function EntryDetail({
       .then((list) => {
         if (!cancelled) {
           setTrail(list);
-          if (list.length > 1) track({ event: "thought_trail_opened" });
+          if (list.filter((e) => e.id !== entry.id).length > 0) {
+            track({ event: "thought_trail_opened" });
+          }
         }
       })
       .finally(() => {
@@ -278,8 +267,30 @@ export function EntryDetail({
     }
   };
 
+  const trailNeighbors = useMemo(
+    () => trail.filter((e) => e.id !== entry.id),
+    [trail, entry.id]
+  );
+  const trailEarlier = useMemo(
+    () =>
+      trailNeighbors.filter(
+        (e) => new Date(e.created_at).getTime() < new Date(entry.created_at).getTime()
+      ),
+    [trailNeighbors, entry.created_at]
+  );
+  const trailLater = useMemo(
+    () =>
+      trailNeighbors.filter(
+        (e) => new Date(e.created_at).getTime() > new Date(entry.created_at).getTime()
+      ),
+    [trailNeighbors, entry.created_at]
+  );
+  const showTrail = !trailLoading && trailNeighbors.length > 0;
+  const showRelated = !relatedLoading && related.length > 0;
+
   return (
-    <div className="entry-detail">
+    <div className="entry-detail entry-detail--focus">
+      <div className="entry-detail-focus-stage">
       <div className="entry-detail-toolbar">
         <Button
           type="button"
@@ -298,7 +309,7 @@ export function EntryDetail({
           className="entry-detail-share h-auto min-h-0 px-2 py-1"
           onClick={() => setShareOpen(true)}
         >
-          Share thread…
+          Share…
         </Button>
       </div>
       {shareOpen ? (
@@ -483,72 +494,36 @@ export function EntryDetail({
           continuationAt={entry.continuation_at}
         />
       )}
-      {trailLoading ? null : trail.length > 1 ? (
-        <section className="entry-detail-trail" aria-label="Thought trail">
-          <h2 className="entry-detail-trail-title">Thought trail</h2>
-          <div className="entry-detail-trail-chain">
-            {trail.map((e, i) => (
-              <div key={e.id} className="entry-detail-trail-item-wrap">
-                <button
-                  type="button"
-                  className="entry-detail-trail-item"
-                  onClick={() => onSelectEntry(e)}
-                  disabled={e.id === entry.id}
-                  aria-label={e.id === entry.id ? "Current thought" : `Open: ${truncate(e.text, 60)}`}
-                >
-                  <span className="entry-detail-trail-meta">
-                    {relativeToCurrent(entry.created_at, e.created_at, e.id === entry.id)}
-                  </span>
-                  <span className="entry-detail-trail-text">
-                    {truncate(e.text, 80)}
-                  </span>
-                  <time
-                    className="entry-detail-trail-time"
-                    dateTime={e.created_at}
-                  >
-                    {formatTimestamp(e.created_at)}
-                  </time>
-                </button>
-                {i < trail.length - 1 && (
-                  <span className="entry-detail-trail-arrow" aria-hidden="true">
-                    ↓
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
+      {showTrail ? (
+        <ThoughtTrailStrip
+          currentCreatedAt={entry.created_at}
+          earlier={trailEarlier}
+          later={trailLater}
+          onSelectEntry={onSelectEntry}
+        />
       ) : null}
-      <section className="entry-detail-related" aria-label="Related thoughts">
-        <h2 className="entry-detail-related-title">Related thoughts</h2>
-        {relatedLoading ? (
-          <p className="entry-detail-related-loading">Loading…</p>
-        ) : related.length === 0 ? (
-          <p className="entry-detail-related-empty">No connections yet</p>
-        ) : (
-          <ul className="entry-detail-related-list">
+      {showRelated ? (
+        <section className="entry-detail-similar" aria-label="Similar thoughts">
+          <h2 className="entry-detail-similar-title">Similar</h2>
+          <ul className="entry-detail-similar-list">
             {related.map((e) => (
               <li key={e.id}>
                 <button
                   type="button"
-                  className="entry-detail-related-item"
+                  className="entry-detail-similar-item"
                   onClick={() => onSelectEntry(e)}
+                  aria-label={truncate(e.text, 60)}
                 >
-                  <span className="entry-detail-related-text">
-                    {truncate(e.text, 120)}
+                  <span className="entry-detail-similar-text">
+                    {truncate(e.text, 100)}
                   </span>
-                  <time
-                    className="entry-detail-related-time"
-                    dateTime={e.created_at}
-                  >
-                    {formatTimestamp(e.created_at)}
-                  </time>
                 </button>
               </li>
             ))}
           </ul>
-        )}
-      </section>
+        </section>
+      ) : null}
+      </div>
     </div>
   );
 }
