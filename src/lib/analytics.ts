@@ -59,6 +59,13 @@ export type AnalyticsEvent =
   | { event: "sync_restore_tapped" }
   | { event: "sync_restore_outcome"; outcome: "entitlement_active" | "no_entitlement" | "error" }
   | { event: "sync_apple_mobile_sign_in_outcome"; outcome: "success" | "user_cancelled" | "error" }
+  | { event: "sync_google_mobile_sign_in_outcome"; outcome: "success" | "user_cancelled" | "error" }
+  | {
+      event: "sync_account_link_outcome";
+      provider: "apple" | "google";
+      outcome: "success" | "error";
+    }
+  | { event: "sync_play_store_link_copy_clicked" }
   | { event: "sync_stop_sync_clicked" };
 
 type QueuedEvent = AnalyticsEvent & { ts: string };

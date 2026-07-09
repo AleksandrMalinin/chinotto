@@ -2,6 +2,10 @@
 export const CHINOTTO_MAC_APP_STORE_URL =
   "https://apps.apple.com/us/app/chinotto/id6761345307";
 
+/** Google Play listing (Android companion). Set when the Play Store listing is live. */
+export const CHINOTTO_ANDROID_PLAY_STORE_URL =
+  "https://play.google.com/store/apps/details?id=com.chinotto.mobile";
+
 /** Hosted thread read URL. Copied on share create; HTML file works without hosting. */
 export const CHINOTTO_SHARE_BASE_URL = "https://getchinotto.app/t";
 

@@ -7,6 +7,8 @@ import {
 } from "@/lib/iconVariants";
 import { setDesktopIcon } from "@/lib/setDesktopIcon";
 import { isOptIn, setOptIn } from "@/lib/analytics";
+import { isFirebaseSyncConfigured } from "@/lib/firebaseConfig";
+import { useSyncSettingsLinking } from "@/lib/useSyncSettingsLinking";
 import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
 import { APP_VERSION } from "@/lib/appVersion";
 type ShortcutRow = {
@@ -59,6 +61,11 @@ export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Pr
   const [showPrivacyDetails, setShowPrivacyDetails] = useState(false);
   const explainerRef = useRef<HTMLParagraphElement>(null);
   const closeCommittedRef = useRef(false);
+  const syncLinking = useSyncSettingsLinking(isFirebaseSyncConfigured());
+  const showSyncAccount =
+    isFirebaseSyncConfigured() &&
+    syncLinking.user != null &&
+    !syncLinking.user.isAnonymous;
 
   const finishClose = useCallback(() => {
     if (closeCommittedRef.current) {
@@ -219,6 +226,39 @@ export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Pr
             </div>
 
             <div className="chinotto-card-col chinotto-card-col--right">
+              {showSyncAccount ? (
+                <section
+                  className="chinotto-card-section"
+                  aria-labelledby="chinotto-card-sync-account-title"
+                >
+                  <h2 id="chinotto-card-sync-account-title" className="chinotto-card-section-title">
+                    CONNECTED SIGN-IN
+                  </h2>
+                  <p className="chinotto-card-section-desc">
+                    Link Apple and Google on your phone so mixed devices share one cloud profile.
+                  </p>
+                  {syncLinking.linkedProviders.length > 0 ? (
+                    <p className="chinotto-card-section-desc chinotto-card-sync-providers">
+                      Linked: {syncLinking.linkedProviders.join(", ")}
+                    </p>
+                  ) : null}
+                  {syncLinking.canLinkApple ? (
+                    <button
+                      type="button"
+                      className="chinotto-card-privacy-link chinotto-card-sync-link-btn"
+                      disabled={syncLinking.busy}
+                      onClick={() => void syncLinking.onLinkApple()}
+                    >
+                      {syncLinking.busy ? "Opening Apple sign-in…" : "Link Apple"}
+                    </button>
+                  ) : null}
+                  {syncLinking.error ? (
+                    <p className="chinotto-card-sync-error" role="alert">
+                      {syncLinking.error}
+                    </p>
+                  ) : null}
+                </section>
+              ) : null}
               <section className="chinotto-card-section" aria-labelledby="chinotto-card-shortcuts-title">
                 <h2 id="chinotto-card-shortcuts-title" className="chinotto-card-section-title">SHORTCUTS</h2>
                 <p className="chinotto-card-section-desc">

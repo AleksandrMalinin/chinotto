@@ -2712,6 +2712,27 @@ body.welcome .app-bg {
   text-decoration-color: rgba(155, 159, 169, 0.45);
 }
 
+.sync-modal-open-phone--secondary {
+  margin-top: 0.35rem;
+  opacity: 0.82;
+}
+
+.chinotto-card-sync-providers {
+  margin-top: 0.25rem;
+}
+
+.chinotto-card-sync-link-btn {
+  margin-top: 0.5rem;
+  display: inline-block;
+}
+
+.chinotto-card-sync-error {
+  margin-top: 0.5rem;
+  font-size: 13px;
+  line-height: 1.4;
+  color: color-mix(in srgb, var(--fg) 72%, #f87171);
+}
+
 .sync-modal-open-phone-static {
   margin: 0;
   padding: 0;

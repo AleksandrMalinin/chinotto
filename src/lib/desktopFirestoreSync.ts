@@ -6,6 +6,7 @@ import {
   OAuthProvider,
   signInWithCredential,
   signOut,
+  type AuthCredential,
   type User,
 } from "firebase/auth";
 import {
@@ -758,44 +759,49 @@ function isAuthFailedPrecondition(e: unknown): boolean {
   return authErrorCode(e) === "auth/failed-precondition";
 }
 
-/**
- * Applies the Apple OAuth credential from the bridge webview in the **main** window.
- *
- * `signInWithCredential` can throw `auth/failed-precondition` if a non-anonymous user is already
- * signed in (Firebase expects sign-out or `linkWithCredential` for anonymous). We sign out first
- * when replacing an existing session so “Continue with Apple” always applies the fresh credential.
- */
-export async function signInWithAppleCredential(credentialJson: BridgedOAuthCredentialJson): Promise<void> {
-  if (!isFirebaseSyncConfigured()) {
-    throw new Error("Sync is not configured");
-  }
+function buildOAuthCredential(credentialJson: BridgedOAuthCredentialJson) {
   const idToken = credentialJson.idToken?.trim();
   if (!idToken) {
-    throw new Error("Apple sign-in did not provide an ID token");
+    throw new Error("Sign-in did not provide an ID token");
   }
-  const auth = getAuth(getOrInitApp());
-  await auth.authStateReady();
   const credential = OAuthProvider.credentialFromJSON({
     ...credentialJson,
     idToken,
     accessToken: credentialJson.accessToken?.trim() ? credentialJson.accessToken : undefined,
   });
   if (!credential) {
-    throw new Error("Apple sign-in credential could not be built");
+    throw new Error("Sign-in credential could not be built");
   }
+  return credential;
+}
 
-  const signInAfterClearingSession = async () => {
-    try {
-      await signInWithCredential(auth, credential);
-    } catch (e) {
-      if (!isAuthFailedPrecondition(e)) {
-        throw e;
-      }
-      await signOut(auth);
-      await auth.authStateReady();
-      await signInWithCredential(auth, credential);
+async function signInAfterClearingSession(
+  auth: ReturnType<typeof getAuth>,
+  credential: AuthCredential
+): Promise<void> {
+  try {
+    await signInWithCredential(auth, credential);
+  } catch (e) {
+    if (!isAuthFailedPrecondition(e)) {
+      throw e;
     }
-  };
+    await signOut(auth);
+    await auth.authStateReady();
+    await signInWithCredential(auth, credential);
+  }
+}
+
+/**
+ * Applies an OAuth credential from the bridge webview (sign-in flow).
+ * Replaces any existing non-anonymous session so “Continue with …” always applies the fresh credential.
+ */
+export async function signInWithOAuthCredential(credentialJson: BridgedOAuthCredentialJson): Promise<void> {
+  if (!isFirebaseSyncConfigured()) {
+    throw new Error("Sync is not configured");
+  }
+  const auth = getAuth(getOrInitApp());
+  await auth.authStateReady();
+  const credential = buildOAuthCredential(credentialJson);
 
   const cur = auth.currentUser;
   if (cur?.isAnonymous) {
@@ -805,7 +811,7 @@ export async function signInWithAppleCredential(credentialJson: BridgedOAuthCred
       if (isAuthFailedPrecondition(e)) {
         await signOut(auth);
         await auth.authStateReady();
-        await signInAfterClearingSession();
+        await signInAfterClearingSession(auth, credential);
       } else {
         throw e;
       }
@@ -813,12 +819,49 @@ export async function signInWithAppleCredential(credentialJson: BridgedOAuthCred
   } else if (cur) {
     await signOut(auth);
     await auth.authStateReady();
-    await signInAfterClearingSession();
+    await signInAfterClearingSession(auth, credential);
   } else {
-    await signInAfterClearingSession();
+    await signInAfterClearingSession(auth, credential);
   }
 
   await flushSyncTombstoneOutbox();
+}
+
+/**
+ * Links a second OAuth provider to the current signed-in user (Settings).
+ */
+export async function linkOAuthCredential(credentialJson: BridgedOAuthCredentialJson): Promise<void> {
+  if (!isFirebaseSyncConfigured()) {
+    throw new Error("Sync is not configured");
+  }
+  const auth = getAuth(getOrInitApp());
+  await auth.authStateReady();
+  const cur = auth.currentUser;
+  if (!cur || cur.isAnonymous) {
+    throw new Error("Sign in before linking another provider.");
+  }
+  const credential = buildOAuthCredential(credentialJson);
+  try {
+    await linkWithCredential(cur, credential);
+  } catch (e: unknown) {
+    const code = authErrorCode(e);
+    if (code === "auth/provider-already-linked") {
+      return;
+    }
+    if (code === "auth/credential-already-in-use") {
+      throw new Error(
+        "This sign-in is already used by another Chinotto cloud profile. Use that account on each device, or link from the device where you first enabled sync."
+      );
+    }
+    throw e;
+  }
+}
+
+/**
+ * @deprecated Use {@link signInWithOAuthCredential}. Apple-specific name kept for call sites.
+ */
+export async function signInWithAppleCredential(credentialJson: BridgedOAuthCredentialJson): Promise<void> {
+  return signInWithOAuthCredential(credentialJson);
 }
 
 export async function signOutFirebaseSync(): Promise<void> {

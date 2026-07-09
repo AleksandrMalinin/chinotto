@@ -14,7 +14,7 @@ import { subscribeDesktopSyncGateSession } from "@/lib/desktopFirestoreSync";
 import { track } from "@/lib/analytics";
 import { useAppleSyncOAuth } from "@/lib/useAppleSyncOAuth";
 import { useChinottoSyncProfileAccess } from "@/lib/useChinottoSyncProfileAccess";
-import { CHINOTTO_MAC_APP_STORE_URL } from "@/lib/chinottoLinks";
+import { CHINOTTO_ANDROID_PLAY_STORE_URL, CHINOTTO_MAC_APP_STORE_URL } from "@/lib/chinottoLinks";
 
 type Props = {
   onClose: () => void;
@@ -42,7 +42,7 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
   }, [sessionId]);
 
   const [gateUnlocked, setGateUnlocked] = useState(false);
-  /** Lets users enable the desktop CTA if the iPhone step is already done but the `ds` gate doc didn’t update (or they can’t scan). */
+  /** Lets users enable the desktop CTA if the phone step is already done but the `ds` gate doc didn’t update (or they can’t scan). */
   const [bypassGate, setBypassGate] = useState(false);
 
   const {
@@ -96,8 +96,8 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
 
   /**
    * Left column copy + CTA (3 states, single block — no stacking):
-   * 1) Not signed in on desktop (`!stable`): instruction + “Already finished on your iPhone?” until bypass used; CTA after copy.
-   * 2) Signed in, sync not active yet: status + iPhone line; no Apple CTA (already signed in — use QR / Disconnect).
+   * 1) Not signed in on desktop (`!stable`): instruction + “Already finished on your phone?” until bypass used; CTA after copy.
+   * 2) Signed in, sync not active yet: status + phone line; no Apple CTA (already signed in — use QR / Disconnect).
    * 3) Not signed in, gate open (`!stable && (gateUnlocked || bypassGate)`): CTA enabled; bypass link still shown until user taps it (gate from phone may make bypass redundant).
    * While `profileLoading`, show (1)/(3) instruction so we don’t flash (2) before we know access.
    */
@@ -130,17 +130,18 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
         bodyLine1: "Sync isn’t enabled yet",
         bodyLine1Class: "sync-modal-bridge-lead sync-modal-bridge-lead--status",
         bodyLine2:
-          "This Mac is signed in. Open Chinotto on your iPhone once (same Apple ID) — status updates automatically.",
+          "This Mac is signed in. Open Chinotto on your phone once with the same linked account — status updates automatically.",
       };
     }
     return {
-      bodyLine1: "Enable sync on your iPhone first.",
+      bodyLine1: "Enable sync on your phone first.",
       bodyLine1Class: "sync-modal-bridge-lead",
       bodyLine2: null,
     };
   }, [stable, profileLoading, profileActive, showSyncReady]);
 
-  const [storeLinkCopied, setStoreLinkCopied] = useState(false);
+  const [appStoreLinkCopied, setAppStoreLinkCopied] = useState(false);
+  const [playStoreLinkCopied, setPlayStoreLinkCopied] = useState(false);
   const [storeCopyFailed, setStoreCopyFailed] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const closeCommittedRef = useRef(false);
@@ -201,8 +202,22 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
     track({ event: "sync_app_store_link_copy_clicked" });
     void navigator.clipboard.writeText(CHINOTTO_MAC_APP_STORE_URL).then(
       () => {
-        setStoreLinkCopied(true);
-        window.setTimeout(() => setStoreLinkCopied(false), 2000);
+        setAppStoreLinkCopied(true);
+        window.setTimeout(() => setAppStoreLinkCopied(false), 2000);
+      },
+      () => {
+        setStoreCopyFailed(true);
+      }
+    );
+  }, []);
+
+  const handleCopyPlayStoreLink = useCallback(() => {
+    setStoreCopyFailed(false);
+    track({ event: "sync_play_store_link_copy_clicked" });
+    void navigator.clipboard.writeText(CHINOTTO_ANDROID_PLAY_STORE_URL).then(
+      () => {
+        setPlayStoreLinkCopied(true);
+        window.setTimeout(() => setPlayStoreLinkCopied(false), 2000);
       },
       () => {
         setStoreCopyFailed(true);
@@ -318,14 +333,14 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
                             setError(null);
                           }}
                         >
-                          Already finished on your iPhone?
+                          Already finished on your phone?
                         </button>
                       ) : (
                         <span
                           className="sync-modal-bypass sync-modal-bypass--layout-hold"
                           aria-hidden="true"
                         >
-                          Already finished on your iPhone?
+                          Already finished on your phone?
                         </span>
                       )}
                     </div>
@@ -409,18 +424,31 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
                       >
                         Couldn’t copy — try again
                       </button>
-                    ) : storeLinkCopied ? (
+                    ) : appStoreLinkCopied ? (
                       <p className="sync-modal-open-phone-static" role="status" aria-live="polite">
                         App Store link copied.
                       </p>
+                    ) : playStoreLinkCopied ? (
+                      <p className="sync-modal-open-phone-static" role="status" aria-live="polite">
+                        Play Store link copied.
+                      </p>
                     ) : (
-                      <button
-                        type="button"
-                        className="sync-modal-open-phone"
-                        onClick={handleCopyAppStoreLink}
-                      >
-                        Copy App Store link
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          className="sync-modal-open-phone"
+                          onClick={handleCopyAppStoreLink}
+                        >
+                          Copy App Store link
+                        </button>
+                        <button
+                          type="button"
+                          className="sync-modal-open-phone sync-modal-open-phone--secondary"
+                          onClick={handleCopyPlayStoreLink}
+                        >
+                          Copy Play Store link
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -440,8 +468,8 @@ function SyncModalInner({ onClose, firebaseConfigured }: PropsInternal) {
 }
 
 /**
- * Mobile sync entry: QR encodes universal link + `ds`; optional App Store link copy for install-only.
- * “Already finished on your iPhone?” is always shown until bypass used (not hidden when Firebase env is missing).
+ * Mobile sync entry: QR encodes universal link + `ds`; optional store link copy for install-only.
+ * “Already finished on your phone?” is always shown until bypass used (not hidden when Firebase env is missing).
  * Firestore-backed gate before Continue with Apple.
  */
 export function SyncModal({ onClose }: Props) {
