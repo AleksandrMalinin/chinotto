@@ -1,5 +1,5 @@
 /*
-  Scope attribute for lens tabs. Room tone: spaceAmbience.ts (per-space slider).
+  Scope attribute for lens tabs. Scope canvas: scopeCanvas.ts.
   Text and chrome tokens: :root in index.css (--ui-dim for header, placeholders).
   Readability checks: src/lib/spaceThemeTokens.ts
 */

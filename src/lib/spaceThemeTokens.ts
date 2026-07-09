@@ -2,7 +2,7 @@ import type { SpaceScope } from "@/lib/spaceScope";
 
 /**
  * Readability + UI tokens — sync with `:root` in `src/index.css`.
- * Same text colors in every space; room tone and accents follow the per-space ambience rail.
+ * Same text colors in every space; canvas and accents follow fixed per-scope tokens in `scopeCanvas.ts`.
  */
 export type SpaceReadabilityTokens = {
   bg: string;
@@ -13,7 +13,7 @@ export type SpaceReadabilityTokens = {
   uiDim: string;
 };
 
-/** Slider center (50): brand charcoal, cosmic wash, violet focus. */
+/** All scope: brand charcoal, cosmic wash, violet focus. */
 export type AmbienceCenterTokens = {
   bg: string;
   bgElevated: string;
@@ -52,12 +52,20 @@ const SHARED_READABILITY: Omit<SpaceReadabilityTokens, "bg"> = {
   uiDim: "#9b9fa9",
 };
 
+/** Canvas bases — keep in sync with SCOPE_ROOM_CANVAS in scopeCanvas.ts */
+const SCOPE_CANVAS_BG: Record<SpaceScope, string> = {
+  all: NEUTRAL_AMBIENCE_CENTER.bg,
+  inbox: "#090a0f",
+  work: "#070a12",
+  personal: "#0c0a13",
+};
+
 export const SPACE_READABILITY_TOKENS: Record<SpaceScope, SpaceReadabilityTokens> =
   {
-    all: { bg: NEUTRAL_AMBIENCE_CENTER.bg, ...SHARED_READABILITY },
-    inbox: { bg: NEUTRAL_AMBIENCE_CENTER.bg, ...SHARED_READABILITY },
-    work: { bg: NEUTRAL_AMBIENCE_CENTER.bg, ...SHARED_READABILITY },
-    personal: { bg: NEUTRAL_AMBIENCE_CENTER.bg, ...SHARED_READABILITY },
+    all: { bg: SCOPE_CANVAS_BG.all, ...SHARED_READABILITY },
+    inbox: { bg: SCOPE_CANVAS_BG.inbox, ...SHARED_READABILITY },
+    work: { bg: SCOPE_CANVAS_BG.work, ...SHARED_READABILITY },
+    personal: { bg: SCOPE_CANVAS_BG.personal, ...SHARED_READABILITY },
   };
 
 /** @deprecated Use NEUTRAL_AMBIENCE_CENTER */
@@ -74,7 +82,19 @@ const ROOM_FROM_NEUTRAL = (t: AmbienceCenterTokens): SpaceRoomTokens => ({
 
 export const SPACE_ROOM_TOKENS: Record<SpaceScope, SpaceRoomTokens> = {
   all: ROOM_FROM_NEUTRAL(NEUTRAL_AMBIENCE_CENTER),
-  inbox: ROOM_FROM_NEUTRAL(NEUTRAL_AMBIENCE_CENTER),
-  work: ROOM_FROM_NEUTRAL(NEUTRAL_AMBIENCE_CENTER),
-  personal: ROOM_FROM_NEUTRAL(NEUTRAL_AMBIENCE_CENTER),
+  inbox: {
+    bg: SCOPE_CANVAS_BG.inbox,
+    bgElevated: "#0d0e14",
+    surfaceTint: "rgba(50, 85, 155, 0.09)",
+  },
+  work: {
+    bg: SCOPE_CANVAS_BG.work,
+    bgElevated: "#0a0e18",
+    surfaceTint: "rgba(45, 95, 175, 0.15)",
+  },
+  personal: {
+    bg: SCOPE_CANVAS_BG.personal,
+    bgElevated: "#100e17",
+    surfaceTint: "rgba(140, 105, 200, 0.14)",
+  },
 };

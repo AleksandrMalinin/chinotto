@@ -13,6 +13,8 @@
   /* `transparent` in gradients lerps through gray in sRGB and banding on near-black. */
   --bg-fade: rgb(from var(--bg) r g b / 0);
   --bg-elevated: #0f0f14;
+  --bg-surface-top: #0e0e13;
+  --shell-depth-rgb: 14 16 24;
   --atmosphere-soft-base: rgba(72, 88, 132, 0.11);
   --atmosphere-soft: var(--atmosphere-soft-base);
   --glow-base: rgba(90, 108, 156, 0.12);
@@ -230,64 +232,27 @@ body.chinotto-card-open {
   position: relative;
   min-height: 100vh;
   background-color: var(--bg);
-  /* Charcoal depth on --bg; hue comes from .app-bg per space */
-  background-image: radial-gradient(
-    in oklab,
-    ellipse 100% 62% at 50% -8%,
-    color-mix(in oklab, rgb(14 16 24) 42%, var(--bg-fade)) 0%,
-    color-mix(in oklab, rgb(14 16 24) 16%, var(--bg-fade)) 34%,
-    color-mix(in oklab, rgb(14 16 24) 4%, var(--bg-fade)) 54%,
-    var(--bg-fade) 72%
-  );
+  transition: background-color 0.45s ease-out;
 }
 
 .app-shell::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background: var(--surface-tint);
-  transition: background 0.8s ease-out;
+  display: none;
 }
 
-/* Cosmic glow layer – softer than before, full strength on dark canvas */
+html,
+#root {
+  transition: background-color 0.45s ease-out;
+}
+
+/* No blur bloom — room color is the matte surface stack above. */
 .app-bg {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  transition: background 0.5s ease-out;
-  background:
-    radial-gradient(
-      in oklab,
-      ellipse 70vmax 50vmax at var(--space-ambient-primary-at),
-      var(--space-ambient-primary) 0%,
-      color-mix(in oklab, var(--space-ambient-primary) 38%, var(--bg-fade)) 28%,
-      color-mix(in oklab, var(--space-ambient-primary) 10%, var(--bg-fade)) 52%,
-      var(--bg-fade) 78%
-    ),
-    radial-gradient(
-      in oklab,
-      ellipse 62vmax 54vmax at var(--space-ambient-secondary-at),
-      var(--space-ambient-secondary) 0%,
-      color-mix(in oklab, var(--space-ambient-secondary) 38%, var(--bg-fade)) 28%,
-      color-mix(in oklab, var(--space-ambient-secondary) 10%, var(--bg-fade)) 52%,
-      var(--bg-fade) 78%
-    );
-  filter: blur(96px);
-  animation: ambient-glow 32s ease-in-out infinite;
+  display: none;
 }
 
-@keyframes ambient-glow {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.012); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .app-bg {
-    animation: none;
-  }
+html[data-space-scope="work"] .entry-input-row:not(.entry-input-row--detail-focus) .entry-input,
+html[data-space-scope="personal"] .entry-input-row:not(.entry-input-row--detail-focus) .entry-input,
+html[data-space-scope="inbox"] .entry-input-row:not(.entry-input-row--detail-focus) .entry-input {
+  border-bottom-color: color-mix(in srgb, var(--accent) 40%, var(--border));
 }
 
 /* Studio signature – quiet mark, centered */
@@ -694,319 +659,6 @@ body.chinotto-card-open {
   background: rgba(255, 255, 255, 0.03);
 }
 
-.space-atmosphere-affordance {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  margin: 0;
-  padding: 0;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--muted);
-  cursor: pointer;
-  transition:
-    color var(--transition),
-    background var(--transition),
-    border-color var(--transition);
-}
-
-.space-atmosphere-affordance:hover {
-  color: var(--ui-dim);
-  border-color: rgba(255, 255, 255, 0.12);
-  background: var(--accent-subtle);
-}
-
-.space-atmosphere-affordance--open {
-  color: var(--ui-dim);
-  border-color: color-mix(in srgb, var(--accent) 32%, transparent);
-  background: var(--accent-subtle);
-}
-
-.space-atmosphere-affordance:focus-visible {
-  outline: 1px solid var(--border-focus);
-  outline-offset: 2px;
-}
-
-.space-atmosphere-affordance__icon {
-  display: block;
-}
-
-.room-tone-panel {
-  position: fixed;
-  z-index: 120;
-  opacity: 0;
-  transition: opacity var(--transition);
-}
-
-.room-tone-panel[data-open] {
-  opacity: 1;
-}
-
-.room-tone-panel-inner {
-  width: 16.75rem;
-  padding: 0.65rem 0.7rem 0.7rem;
-  border-radius: 14px;
-  background: rgba(12, 12, 18, 0.96);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.07) inset,
-    0 16px 48px -14px rgba(0, 0, 0, 0.62);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-
-.room-tone-panel__title {
-  margin: 0 0 0.55rem;
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.46);
-  line-height: 1.25;
-}
-
-.room-tone-swatches {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.4rem;
-  margin-bottom: 0.5rem;
-}
-
-.room-tone-swatch {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.35rem;
-  margin: 0;
-  padding: 0.3rem;
-  font: inherit;
-  text-align: left;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  cursor: pointer;
-  transition:
-    border-color var(--transition),
-    background var(--transition),
-    transform 0.2s ease;
-}
-
-.room-tone-swatch:hover {
-  border-color: rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.room-tone-swatch--active {
-  border-color: color-mix(in srgb, var(--accent) 50%, rgba(255, 255, 255, 0.14));
-  background: color-mix(in srgb, var(--accent) 10%, rgba(255, 255, 255, 0.04));
-  transform: translateY(-1px);
-}
-
-.room-tone-swatch:focus-visible {
-  outline: 1px solid var(--border-focus);
-  outline-offset: 2px;
-}
-
-.room-tone-swatch__preview {
-  display: block;
-  height: 2.35rem;
-  border-radius: 7px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
-.room-tone-swatch__label {
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  color: rgba(255, 255, 255, 0.62);
-  text-align: center;
-  line-height: 1.2;
-}
-
-.room-tone-swatch--active .room-tone-swatch__label {
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.room-tone-fine-tune {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  padding-top: 0.45rem;
-}
-
-.room-tone-fine-tune__toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  margin: 0;
-  padding: 0.2rem 0.1rem;
-  font: inherit;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  color: rgba(255, 255, 255, 0.48);
-  background: none;
-  border: none;
-  cursor: pointer;
-  transition: color var(--transition);
-}
-
-.room-tone-fine-tune__toggle:hover {
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.room-tone-fine-tune__toggle:focus-visible {
-  outline: 1px solid var(--border-focus);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
-.room-tone-fine-tune__chevron {
-  display: inline-block;
-  width: 0.45rem;
-  height: 0.45rem;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  transform: rotate(45deg) translateY(-1px);
-  opacity: 0.7;
-  transition: transform 0.2s ease;
-}
-
-.room-tone-fine-tune__chevron[data-open] {
-  transform: rotate(-135deg) translateY(1px);
-}
-
-.room-tone-fine-tune__track {
-  margin-top: 0.45rem;
-  padding: 3px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.space-ambience-rail-row {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  min-width: 0;
-}
-
-.space-ambience-end {
-  flex-shrink: 0;
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.03em;
-  color: var(--meta-fg);
-  user-select: none;
-}
-
-.space-ambience-rail {
-  --ambience-fill: 50%;
-  position: relative;
-  flex: 1;
-  min-width: 0;
-  height: 22px;
-  display: flex;
-  align-items: center;
-}
-
-.space-ambience-rail::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  z-index: 0;
-  width: 1px;
-  height: 5px;
-  transform: translate(-50%, -50%);
-  border-radius: 1px;
-  background: rgba(255, 255, 255, 0.14);
-  pointer-events: none;
-}
-
-.space-ambience-rail::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  height: 2px;
-  transform: translateY(-50%);
-  border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    rgba(70, 115, 195, 0.22) 0%,
-    rgba(70, 115, 195, 0.22) var(--ambience-fill),
-    rgba(255, 252, 248, 0.1) var(--ambience-fill),
-    rgba(255, 252, 248, 0.1) 100%
-  );
-  pointer-events: none;
-}
-
-.space-ambience-slider {
-  position: relative;
-  z-index: 1;
-  display: block;
-  width: 100%;
-  margin: 0;
-  height: 22px;
-  appearance: none;
-  background: transparent;
-  cursor: pointer;
-}
-
-.space-ambience-slider::-webkit-slider-runnable-track {
-  height: 2px;
-  border-radius: 999px;
-  background: transparent;
-}
-
-.space-ambience-slider::-webkit-slider-thumb {
-  appearance: none;
-  width: 12px;
-  height: 12px;
-  margin-top: -5px;
-  border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, rgba(255, 255, 255, 0.2));
-  background: color-mix(in srgb, var(--ui-dim) 80%, var(--bg-elevated));
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-}
-
-.space-ambience-slider::-moz-range-track {
-  height: 2px;
-  border-radius: 999px;
-  background: transparent;
-}
-
-.space-ambience-slider::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
-  border: none;
-  border-radius: 50%;
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--accent) 40%, rgba(255, 255, 255, 0.2)),
-    0 1px 3px rgba(0, 0, 0, 0.3);
-  background: color-mix(in srgb, var(--ui-dim) 80%, var(--bg-elevated));
-}
-
-.space-ambience-slider:focus-visible {
-  outline: none;
-}
-
-.space-ambience-slider:focus-visible::-webkit-slider-thumb {
-  box-shadow:
-    0 0 0 2px var(--bg-elevated),
-    0 0 0 3px var(--border-focus);
-}
-
-.space-ambience-slider:focus-visible::-moz-range-thumb {
-  box-shadow:
-    0 0 0 2px var(--bg-elevated),
-    0 0 0 3px var(--border-focus);
-}
 
 .app-header-name {
   font-family: inherit;
@@ -1160,7 +812,7 @@ body.welcome .app-bg {
   border-radius: 999px;
   border: 1px solid transparent;
   background: transparent;
-  color: var(--muted);
+  color: var(--fg-dim);
   cursor: pointer;
   transition:
     color var(--transition),
@@ -1169,14 +821,14 @@ body.welcome .app-bg {
 }
 
 .space-scope-tab:hover {
-  color: var(--fg-dim);
-  background: var(--accent-subtle);
+  color: var(--fg);
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
 }
 
 .space-scope-tab--active {
   color: var(--fg);
-  border-color: color-mix(in srgb, var(--accent) 38%, transparent);
-  background: var(--accent-subtle);
+  border-color: color-mix(in srgb, var(--fg) 16%, transparent);
+  background: color-mix(in srgb, var(--fg) 10%, transparent);
 }
 
 .entry-input-row {

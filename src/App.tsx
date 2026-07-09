@@ -131,14 +131,7 @@ import {
   type SpaceScope,
 } from "@/lib/spaceScope";
 import { SPACE_LENS_TABS, SPACE_THEME_ATTR } from "@/lib/spaceTheme";
-import {
-  applyAmbienceToDocument,
-  loadStoredSpaceAmbience,
-  saveSpaceAmbienceForScope,
-  type SpaceAmbienceLevel,
-} from "@/lib/spaceAmbience";
-import { SpaceAtmosphereAffordance } from "./features/entries/SpaceAtmosphereAffordance";
-import { SpaceAtmospherePopover } from "./features/entries/SpaceAtmospherePopover";
+import { applyScopeCanvasToDocument } from "@/lib/scopeCanvas";
 
 /** Voice capture is disabled in the main flow. Set to true to re-enable as an experimental feature. */
 const EXPERIMENTAL_VOICE_CAPTURE = false;
@@ -229,14 +222,6 @@ export default function App() {
         ? localStorage.getItem(SPACE_SCOPE_STORAGE_KEY)
         : null
     )
-  );
-  const [spaceAmbienceByScope, setSpaceAmbienceByScope] = useState(
-    loadStoredSpaceAmbience
-  );
-  const activeSpaceAmbience = spaceAmbienceByScope[spaceScope];
-  const [atmospherePopoverOpen, setAtmospherePopoverOpen] = useState(false);
-  const [atmosphereAnchor, setAtmosphereAnchor] = useState<HTMLElement | null>(
-    null
   );
   const spaceFilterParam = useMemo(
     () => toApiSpaceFilter(spaceScope),
@@ -376,39 +361,8 @@ export default function App() {
 
   useLayoutEffect(() => {
     document.documentElement.setAttribute(SPACE_THEME_ATTR, spaceScope);
-    applyAmbienceToDocument(spaceScope, activeSpaceAmbience);
-  }, [spaceScope, activeSpaceAmbience]);
-
-  useEffect(() => {
-    setAtmospherePopoverOpen(false);
+    applyScopeCanvasToDocument(spaceScope);
   }, [spaceScope]);
-
-  const openAtmospherePopover = useCallback((el: HTMLButtonElement) => {
-    const lensRow = el.closest(".app-header-lens-row");
-    setAtmosphereAnchor((lensRow ?? el) as HTMLElement);
-    setAtmospherePopoverOpen(true);
-  }, []);
-
-  const toggleAtmospherePopover = useCallback(
-    (el: HTMLButtonElement) => {
-      if (atmospherePopoverOpen && atmosphereAnchor === el) {
-        setAtmospherePopoverOpen(false);
-        return;
-      }
-      openAtmospherePopover(el);
-    },
-    [atmosphereAnchor, atmospherePopoverOpen, openAtmospherePopover]
-  );
-
-  const handleSpaceAmbienceChange = useCallback(
-    (level: SpaceAmbienceLevel) => {
-      applyAmbienceToDocument(spaceScope, level);
-      setSpaceAmbienceByScope((prev) =>
-        saveSpaceAmbienceForScope(spaceScope, level, prev)
-      );
-    },
-    [spaceScope]
-  );
 
   const handleSendFeedback = useCallback(() => {
     const subject = "Chinotto feedback";
@@ -1882,12 +1836,6 @@ export default function App() {
                     </button>
                   ))}
                 </div>
-                {introDismissed ? (
-                  <SpaceAtmosphereAffordance
-                    open={atmospherePopoverOpen}
-                    onToggle={toggleAtmospherePopover}
-                  />
-                ) : null}
               </div>
             </div>
             <div className="app-header-end">
@@ -2349,16 +2297,6 @@ export default function App() {
           }}
         />
       )}
-      {introDismissed ? (
-        <SpaceAtmospherePopover
-          open={atmospherePopoverOpen}
-          anchor={atmosphereAnchor}
-          scope={spaceScope}
-          value={activeSpaceAmbience}
-          onChange={handleSpaceAmbienceChange}
-          onClose={() => setAtmospherePopoverOpen(false)}
-        />
-      ) : null}
       <UpdateNudge
         phase={appUpdater.phase}
         onDownload={appUpdater.download}
