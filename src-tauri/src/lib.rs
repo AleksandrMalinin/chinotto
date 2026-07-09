@@ -294,7 +294,7 @@ fn classify_entry_theme_for_entry(db: &Db, entry_id: &str) -> Result<(), String>
     if let Some(classification) = themes::classify_entry_text(&entry.text) {
         db.upsert_entry_theme(
             entry_id,
-            classification.theme_id,
+            &classification.theme_id,
             classification.confidence,
             classification.source,
         )
@@ -335,12 +335,79 @@ struct SetEntryThemeIn {
 
 #[tauri::command]
 fn set_entry_theme(db: tauri::State<Db>, input: SetEntryThemeIn) -> Result<(), String> {
+    if let Some(theme_id) = input.theme_id.as_deref() {
+        if !db.theme_id_valid(theme_id).map_err(|e| e.to_string())? {
+            return Err("invalid theme".into());
+        }
+    }
     db.set_entry_theme(
         &input.entry_id,
         input.theme_id.as_deref(),
         input.locked,
     )
     .map_err(|e| e.to_string())
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UserThemeOut {
+    id: String,
+    label: String,
+    sort_order: i32,
+}
+
+fn user_theme_out(row: crate::db::UserThemeRow) -> UserThemeOut {
+    UserThemeOut {
+        id: row.id,
+        label: row.label,
+        sort_order: row.sort_order,
+    }
+}
+
+#[tauri::command]
+fn list_user_themes(db: tauri::State<Db>) -> Result<Vec<UserThemeOut>, String> {
+    let rows = db.list_user_themes().map_err(|e| e.to_string())?;
+    Ok(rows.into_iter().map(user_theme_out).collect())
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CreateUserThemeIn {
+    label: String,
+}
+
+#[tauri::command]
+fn create_user_theme(
+    db: tauri::State<Db>,
+    input: CreateUserThemeIn,
+) -> Result<UserThemeOut, String> {
+    let row = db
+        .create_user_theme(&input.label)
+        .map_err(|e| e.to_string())?;
+    Ok(user_theme_out(row))
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateUserThemeIn {
+    id: String,
+    label: String,
+}
+
+#[tauri::command]
+fn update_user_theme(
+    db: tauri::State<Db>,
+    input: UpdateUserThemeIn,
+) -> Result<UserThemeOut, String> {
+    let row = db
+        .update_user_theme(&input.id, &input.label)
+        .map_err(|e| e.to_string())?;
+    Ok(user_theme_out(row))
+}
+
+#[tauri::command]
+fn delete_user_theme(db: tauri::State<Db>, id: String) -> Result<(), String> {
+    db.delete_user_theme(&id).map_err(|e| e.to_string())
 }
 
 #[derive(serde::Serialize)]
@@ -1524,6 +1591,10 @@ pub fn run() {
             classify_entry_theme,
             get_entry_theme,
             set_entry_theme,
+            list_user_themes,
+            create_user_theme,
+            update_user_theme,
+            delete_user_theme,
             list_theme_counts,
             list_theme_counts_recent,
             find_similar_entries,
