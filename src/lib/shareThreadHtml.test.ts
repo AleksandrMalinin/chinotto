@@ -55,7 +55,21 @@ describe("buildShareThreadHtml", () => {
     });
     expect(html).toContain("#0a0a0e");
     expect(html).toContain("getchinotto.app");
-    expect(html).toContain("Shared thread");
+    expect(html).toContain("One thought");
+    expect(html).toContain('class="brand-logo"');
+    expect(html).toContain('class="thread-panel"');
     expect(html).not.toContain('class="preview"');
+  });
+
+  it("uses context note as page title", () => {
+    const html = buildShareThreadHtml({
+      contextNote: "For the design review",
+      expiresAt: "2025-12-01T12:00:00Z",
+      entries: [
+        { id: "e1", text: "Notes", created_at: "2025-01-01T12:00:00Z" },
+      ],
+    });
+    expect(html).toContain("<h1 class=\"page-title\">For the design review</h1>");
+    expect(html).not.toContain('class="page-context"');
   });
 });
