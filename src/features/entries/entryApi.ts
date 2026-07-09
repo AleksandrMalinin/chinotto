@@ -140,6 +140,26 @@ export async function getThoughtTrail(entryId: string): Promise<Entry[]> {
   return invoke<Entry[]>("get_thought_trail", { entryId });
 }
 
+export async function listThoughtTrailEntryIds(): Promise<string[]> {
+  return invoke<string[]>("list_thought_trail_entry_ids");
+}
+
+export type CaptureContinuationHint = {
+  entry_id: string;
+  preview: string;
+  days_earlier: number;
+};
+
+export async function getCaptureContinuationHint(
+  text: string,
+  excludeId?: string
+): Promise<CaptureContinuationHint | null> {
+  return invoke<CaptureContinuationHint | null>("get_capture_continuation_hint", {
+    text,
+    excludeId: excludeId ?? null,
+  });
+}
+
 export async function pinEntry(entryId: string): Promise<void> {
   return invoke("pin_entry", { entryId });
 }

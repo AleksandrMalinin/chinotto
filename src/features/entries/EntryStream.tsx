@@ -85,6 +85,8 @@ export type EntryStreamProps = {
   showSectionTitle?: boolean;
   /** Pin state per entry id; overrides `isPinnedSection` when set. */
   pinnedEntryIds?: ReadonlySet<string>;
+  /** Entry ids that participate in a thought trail (quiet stream indicator). */
+  trailLinkedIds?: ReadonlySet<string>;
 };
 
 function getSectionMeta(iso: string): { key: string; label: string } {
@@ -273,6 +275,7 @@ const EntryRow = memo(function EntryRow({
   onPinToggle,
   onEntryDelete,
   onEntryHover,
+  hasTrailLink,
 }: {
   entry: Entry;
   showHighlights: boolean;
@@ -287,6 +290,7 @@ const EntryRow = memo(function EntryRow({
   onPinToggle?: (entry: Entry) => void;
   onEntryDelete?: (entry: Entry) => void;
   onEntryHover?: (entry: Entry | null) => void;
+  hasTrailLink?: boolean;
 }) {
   const [hover, setHover] = useState(false);
   const [editValue, setEditValue] = useState(entry.text);
@@ -388,6 +392,13 @@ const EntryRow = memo(function EntryRow({
   const row = (
     <>
       <div className="entry-row-main">
+        {hasTrailLink ? (
+          <span
+            className="entry-row-trail-mark"
+            aria-label="Has thought trail connections"
+            title="Has connections"
+          />
+        ) : null}
         {isEditable ? (
           <textarea
             ref={editInputRef}
@@ -523,6 +534,7 @@ function StreamSection({
   onEntryHover,
   entryRowMeta,
   pinnedEntryIds,
+  trailLinkedIds,
   showSectionTitle = true,
 }: {
   section: string;
@@ -544,6 +556,7 @@ function StreamSection({
   onEntryHover?: (entry: Entry | null) => void;
   entryRowMeta?: Record<string, string>;
   pinnedEntryIds?: ReadonlySet<string>;
+  trailLinkedIds?: ReadonlySet<string>;
   showSectionTitle?: boolean;
 }) {
   const isDeleting = (id: string) => deletingIds?.has(id) ?? false;
@@ -596,6 +609,7 @@ function StreamSection({
                   onPinToggle={onPinToggle}
                   onEntryDelete={onEntryDelete}
                   onEntryHover={onEntryHover}
+                  hasTrailLink={trailLinkedIds?.has(entry.id)}
                 />
               </div>
             </motion.li>
@@ -631,6 +645,7 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
   flatSection = false,
   entryRowMeta,
   pinnedEntryIds,
+  trailLinkedIds,
   showSectionTitle = true,
 }) {
   const reduceMotion = useReducedMotion();
@@ -709,6 +724,7 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
           onEntryHover={onEntryHover}
           entryRowMeta={entryRowMeta}
           pinnedEntryIds={pinnedEntryIds}
+          trailLinkedIds={trailLinkedIds}
           showSectionTitle={showSectionTitle}
         />
       ))}

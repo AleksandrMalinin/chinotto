@@ -15,6 +15,7 @@ import { SyncModal } from "@/components/SyncModal";
 import { StreamShowcaseModal } from "@/components/StreamShowcaseModal";
 import { AnalyticsOptInModal } from "@/components/AnalyticsOptInModal";
 import { EntryInput, type EntryInputRef } from "./features/entries/EntryInput";
+import { CaptureContinuationHint as CaptureContinuationHintBanner } from "./features/entries/CaptureContinuationHint";
 import { EntryStream } from "./features/entries/EntryStream";
 import { EntryDetail } from "./features/entries/EntryDetail";
 import { MemoryEcho } from "./features/entries/MemoryEcho";
@@ -41,6 +42,9 @@ import {
   deleteAllEntries,
   deleteEntry,
   setEntrySpace,
+  getCaptureContinuationHint,
+  listThoughtTrailEntryIds,
+  type CaptureContinuationHint,
   type ContinuationMarker,
 } from "./features/entries/entryApi";
 import {
@@ -281,6 +285,12 @@ export default function App() {
     wasPinned: boolean;
   } | null>(null);
   const [hoveredEntryId, setHoveredEntryId] = useState<string | null>(null);
+  const [trailLinkedIds, setTrailLinkedIds] = useState<ReadonlySet<string>>(
+    () => new Set()
+  );
+  const [captureContinuationHint, setCaptureContinuationHint] =
+    useState<CaptureContinuationHint | null>(null);
+  const [detailEmphasizeTrail, setDetailEmphasizeTrail] = useState(false);
   const [searchSelectedIndex, setSearchSelectedIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const jumpToDateButtonRef = useRef<HTMLButtonElement>(null);
@@ -388,11 +398,21 @@ export default function App() {
     });
   }, []);
 
+  const refreshTrailLinkedIds = useCallback(async () => {
+    try {
+      const ids = await listThoughtTrailEntryIds();
+      setTrailLinkedIds(new Set(ids));
+    } catch {
+      setTrailLinkedIds(new Set());
+    }
+  }, []);
+
   const refresh = useCallback(
     async (query: string, spaceFilterOverride?: string) => {
       if (getDevSimulateNewUser() || getDevPreviewEmptyStream()) {
         setEntries([]);
         setPinnedIds([]);
+        setTrailLinkedIds(new Set());
         setHasEntriesInDb(false);
         setLoading(false);
         return;
@@ -409,12 +429,13 @@ export default function App() {
           setHasEntriesInDb(hasEntriesAfterFullListLoad(list.length));
           const ids = await getPinnedEntryIds();
           setPinnedIds(ids);
+          void refreshTrailLinkedIds();
         }
       } finally {
         setLoading(false);
       }
     },
-    [spaceFilterParam]
+    [spaceFilterParam, refreshTrailLinkedIds]
   );
 
   useEffect(() => {
@@ -1201,6 +1222,9 @@ export default function App() {
     }, 400);
     refresh(search);
     generateEmbedding(id);
+    void getCaptureContinuationHint(text, id).then((hint) => {
+      setCaptureContinuationHint(hint);
+    });
   }
 
   const scrollToJumpEntry = useCallback((entryId: string, ymd: string) => {
@@ -1283,7 +1307,8 @@ export default function App() {
     });
   }, [clearJumpContext, jumpContextYmd]);
 
-  const handleOpenEntry = useCallback((entry: Entry) => {
+  const handleOpenEntry = useCallback(
+    (entry: Entry, options?: { emphasizeTrail?: boolean }) => {
     track({ event: "entry_opened" });
     recordEntryOpen(entry.id);
     detailOpenSnapshotRef.current = {
@@ -1296,8 +1321,12 @@ export default function App() {
     if (active instanceof HTMLElement && active.closest(".entry-input-row")) {
       active.blur();
     }
+    setDetailEmphasizeTrail(options?.emphasizeTrail ?? false);
+    setCaptureContinuationHint(null);
     setSelectedEntry(entry);
-  }, []);
+  },
+    []
+  );
 
   const handleEntryDetailTextChange = useCallback((entryId: string, text: string) => {
     setEntries((prev) => prev.map((e) => (e.id === entryId ? { ...e, text } : e)));
@@ -1407,6 +1436,7 @@ export default function App() {
     }
     detailOpenSnapshotRef.current = null;
     setDetailWriteExpanded(false);
+    setDetailEmphasizeTrail(false);
     const closingEntryId = closing?.id ?? null;
     setSelectedEntry(null);
     requestAnimationFrame(() => {
@@ -2035,6 +2065,22 @@ export default function App() {
               }}
             />
           </div>
+          {captureContinuationHint && !selectedEntry ? (
+            <CaptureContinuationHintBanner
+              hint={captureContinuationHint}
+              onOpen={() => {
+                const hinted = captureContinuationHint;
+                void (async () => {
+                  const entry =
+                    entries.find((e) => e.id === hinted.entry_id) ??
+                    (await getEntry(hinted.entry_id));
+                  if (entry) handleOpenEntry(entry, { emphasizeTrail: true });
+                  setCaptureContinuationHint(null);
+                })();
+              }}
+              onDismiss={() => setCaptureContinuationHint(null)}
+            />
+          ) : null}
           <div
             className="jump-date-context"
             data-visible={showBackToNow || undefined}
@@ -2066,6 +2112,7 @@ export default function App() {
           onEntryContinuationMarked={handleEntryContinuationMarked}
           onEntrySynced={handleEntrySynced}
           onEntrySpaceChange={handleEntryDetailSpaceChange}
+          emphasizeTrail={detailEmphasizeTrail}
         />
       ) : (
         <>
@@ -2088,6 +2135,7 @@ export default function App() {
                   deletingIds={deletingIds}
                   onDeleteAnimationEnd={handleDeleteAnimationEnd}
                   onEntryHover={(entry) => setHoveredEntryId(entry ? entry.id : null)}
+                  trailLinkedIds={trailLinkedIds}
                   deferEmptyPanelMotion={!emptyOnboardingIntroReady}
                   revealEmptyOnboarding={emptyOnboardingIntroReady}
                   emptyLensMessage={emptyLensMessage}
@@ -2119,6 +2167,7 @@ export default function App() {
                       onEntryHover={(entry) =>
                         setHoveredEntryId(entry ? entry.id : null)
                       }
+                      trailLinkedIds={trailLinkedIds}
                       deferEmptyPanelMotion={!emptyOnboardingIntroReady}
                       revealEmptyOnboarding={emptyOnboardingIntroReady}
                     />
@@ -2144,6 +2193,7 @@ export default function App() {
                         onEntryHover={(entry) =>
                           setHoveredEntryId(entry ? entry.id : null)
                         }
+                        trailLinkedIds={trailLinkedIds}
                         deferEmptyPanelMotion={!emptyOnboardingIntroReady}
                         revealEmptyOnboarding={emptyOnboardingIntroReady}
                       />
@@ -2173,6 +2223,7 @@ export default function App() {
                           onEntryHover={(entry) =>
                             setHoveredEntryId(entry ? entry.id : null)
                           }
+                          trailLinkedIds={trailLinkedIds}
                           deferEmptyPanelMotion={!emptyOnboardingIntroReady}
                           revealEmptyOnboarding={emptyOnboardingIntroReady}
                         />
@@ -2205,7 +2256,7 @@ export default function App() {
                                 event: "resurface_opened",
                                 age_days: ageDays,
                               });
-                              handleOpenEntry(entry);
+                              handleOpenEntry(entry, { emphasizeTrail: true });
                               setMemoryEcho(null);
                             }}
                             onDismiss={() => {
@@ -2247,6 +2298,7 @@ export default function App() {
               deletingIds={deletingIds}
               onDeleteAnimationEnd={handleDeleteAnimationEnd}
               onEntryHover={(entry) => setHoveredEntryId(entry ? entry.id : null)}
+              trailLinkedIds={trailLinkedIds}
               deferEmptyPanelMotion={!emptyOnboardingIntroReady}
               revealEmptyOnboarding={emptyOnboardingIntroReady}
             />
