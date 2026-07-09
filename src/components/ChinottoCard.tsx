@@ -7,6 +7,12 @@ import {
 } from "@/lib/iconVariants";
 import { setDesktopIcon } from "@/lib/setDesktopIcon";
 import { isOptIn, setOptIn } from "@/lib/analytics";
+import {
+  isShowLinkIndicator,
+  isThemesEnabled,
+  setShowLinkIndicator,
+  setThemesEnabled,
+} from "@/lib/themeSettings";
 import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
 import { APP_VERSION } from "@/lib/appVersion";
 type ShortcutRow = {
@@ -41,6 +47,10 @@ type Props = {
   onClose: () => void;
   iconVariantId: string;
   onIconVariantChange: (id: string) => void;
+  themesEnabled: boolean;
+  onThemesEnabledChange: (enabled: boolean) => void;
+  showLinkIndicator: boolean;
+  onShowLinkIndicatorChange: (enabled: boolean) => void;
 };
 
 const selectableVariants = SELECTABLE_ICON_VARIANT_IDS.map((id) => getIconVariant(id));
@@ -48,7 +58,15 @@ const selectableVariants = SELECTABLE_ICON_VARIANT_IDS.map((id) => getIconVarian
 const PRIVACY_EXPLAINER =
   "We send only simple event names and numbers — for example “entry created” with the text length or “search used” with the number of results. We never send the text of your thoughts, your search query, or any personal identifier. All thoughts stay on your device. Analytics are used only to understand how the app is used and can be turned off here at any time.";
 
-export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Props) {
+export function ChinottoCard({
+  onClose,
+  iconVariantId,
+  onIconVariantChange,
+  themesEnabled,
+  onThemesEnabledChange,
+  showLinkIndicator,
+  onShowLinkIndicatorChange,
+}: Props) {
   const handleVariantClick = (id: string) => {
     setStoredIconVariantId(id);
     onIconVariantChange(id);
@@ -72,6 +90,18 @@ export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Pr
     const next = !analyticsEnabled;
     setOptIn(next);
     setAnalyticsEnabled(next);
+  };
+
+  const handleThemesToggle = () => {
+    const next = !themesEnabled;
+    setThemesEnabled(next);
+    onThemesEnabledChange(next);
+  };
+
+  const handleLinkIndicatorToggle = () => {
+    const next = !showLinkIndicator;
+    setShowLinkIndicator(next);
+    onShowLinkIndicatorChange(next);
   };
 
   const close = useCallback(() => {
@@ -215,6 +245,37 @@ export function ChinottoCard({ onClose, iconVariantId, onIconVariantChange }: Pr
                     {PRIVACY_EXPLAINER}
                   </p>
                 )}
+              </section>
+
+              <section className="chinotto-card-section" aria-labelledby="chinotto-card-themes-title">
+                <h2 id="chinotto-card-themes-title" className="chinotto-card-section-title">THEMES</h2>
+                <p className="chinotto-card-section-desc">
+                  Quiet context for recall. Capture stays unchanged; themes appear in search and detail when confident.
+                </p>
+                <div className="chinotto-card-privacy-row">
+                  <span className="chinotto-card-privacy-label">Suggest themes</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={themesEnabled}
+                    aria-label="Suggest themes"
+                    className="chinotto-card-toggle"
+                    data-on={themesEnabled || undefined}
+                    onClick={handleThemesToggle}
+                  />
+                </div>
+                <div className="chinotto-card-privacy-row">
+                  <span className="chinotto-card-privacy-label">Show link indicator in stream</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={showLinkIndicator}
+                    aria-label="Show link indicator in stream"
+                    className="chinotto-card-toggle"
+                    data-on={showLinkIndicator || undefined}
+                    onClick={handleLinkIndicatorToggle}
+                  />
+                </div>
               </section>
             </div>
 

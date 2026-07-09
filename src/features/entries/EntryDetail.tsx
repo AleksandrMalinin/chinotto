@@ -4,12 +4,20 @@ import { Button } from "@/components/ui/button";
 import { EntryTextWithLinks } from "./EntryTextWithLinks";
 import { track } from "@/lib/analytics";
 import {
+  ENTRY_THEMES,
+  shouldShowThemeInMeta,
+  themeLabel,
+} from "@/lib/entryThemes";
+import {
   findSimilarEntries,
   getEntry,
+  getEntryTheme,
   getThoughtTrail,
   listSpaces,
   markEntryContinuation,
+  setEntryTheme,
   type ContinuationMarker,
+  type EntryTheme,
   type SpaceRow,
 } from "./entryApi";
 import { detectContinuationAppend } from "@/lib/detectContinuationAppend";
@@ -37,6 +45,10 @@ type Props = {
     entryId: string,
     spaceId: string | null
   ) => void | Promise<void>;
+  /** Open search filtered to a theme (from detail meta). */
+  onThemeSearch?: (themeId: string) => void;
+  /** When false, theme meta and override are hidden (settings). */
+  themesEnabled?: boolean;
   /** Scroll/focus thought trail when opened from resurface. */
   emphasizeTrail?: boolean;
 };
@@ -67,6 +79,8 @@ export function EntryDetail({
   onEntryContinuationMarked,
   onEntrySynced,
   onEntrySpaceChange,
+  onThemeSearch,
+  themesEnabled = true,
   emphasizeTrail = false,
 }: Props) {
   const [related, setRelated] = useState<Entry[]>([]);
@@ -78,6 +92,9 @@ export function EntryDetail({
   const [spaceSaving, setSpaceSaving] = useState(false);
   /** After picking a space, :hover can stay true while the cursor rests on the control — fold until pointer leaves. */
   const [spaceLensDismissed, setSpaceLensDismissed] = useState(false);
+  const [entryTheme, setEntryTheme] = useState<EntryTheme | null>(null);
+  const [themeSaving, setThemeSaving] = useState(false);
+  const [themeLensDismissed, setThemeLensDismissed] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
 
   const spaceSegments = useMemo(() => {
@@ -98,6 +115,30 @@ export function EntryDetail({
     return seg?.label ?? "Inbox";
   }, [entry.space_id, spaceSegments]);
 
+  const themeSegments = useMemo(
+    () => [
+      ...ENTRY_THEMES.map((t) => ({
+        themeId: t.id,
+        label: t.label,
+        key: t.id,
+      })),
+      { themeId: null as string | null, label: "None", key: "none" },
+    ],
+    []
+  );
+
+  const visibleTheme = useMemo(() => {
+    if (!themesEnabled || !entryTheme) return null;
+    if (!shouldShowThemeInMeta(entryTheme.confidence, entryTheme.locked)) {
+      return null;
+    }
+    return entryTheme;
+  }, [entryTheme, themesEnabled]);
+
+  const currentThemeLabel = visibleTheme
+    ? themeLabel(visibleTheme.themeId)
+    : null;
+
   const textRef = useRef<HTMLTextAreaElement>(null);
   const textAtEditStartRef = useRef("");
   const hasInsertedContinuationBreakRef = useRef(false);
@@ -116,6 +157,8 @@ export function EntryDetail({
     onWriteExpandedChange?.(false);
     hasInsertedContinuationBreakRef.current = false;
     setShareOpen(false);
+    setEntryTheme(null);
+    setThemeLensDismissed(false);
   }, [entry.id, onWriteExpandedChange]);
 
   useEffect(() => {
@@ -329,6 +372,24 @@ export function EntryDetail({
   };
 
   useEffect(() => {
+    if (!themesEnabled) {
+      setEntryTheme(null);
+      return;
+    }
+    let cancelled = false;
+    getEntryTheme(entry.id)
+      .then((row) => {
+        if (!cancelled) setEntryTheme(row);
+      })
+      .catch(() => {
+        if (!cancelled) setEntryTheme(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [entry.id, themesEnabled]);
+
+  useEffect(() => {
     let cancelled = false;
     setTrailLoading(true);
     getThoughtTrail(entry.id)
@@ -360,6 +421,22 @@ export function EntryDetail({
       if (ae instanceof HTMLElement) ae.blur();
     } finally {
       setSpaceSaving(false);
+    }
+  };
+
+  const activateTheme = async (next: string | null) => {
+    const current = visibleTheme?.themeId ?? null;
+    if (next === current) return;
+    setThemeSaving(true);
+    try {
+      await setEntryTheme(entry.id, next, true);
+      const row = await getEntryTheme(entry.id);
+      setEntryTheme(row);
+      setThemeLensDismissed(true);
+      const ae = document.activeElement;
+      if (ae instanceof HTMLElement) ae.blur();
+    } finally {
+      setThemeSaving(false);
     }
   };
 
@@ -457,78 +534,157 @@ export function EntryDetail({
           </button>
         </div>
       </div>
-      {onEntrySpaceChange ? (
+      {(onEntrySpaceChange || currentThemeLabel) ? (
         <div className="entry-detail-meta">
           <time className="entry-detail-time" dateTime={entry.created_at}>
             {formatTimestamp(entry.created_at)}
           </time>
-          <div
-            tabIndex={0}
-            className={[
-              spaceSaving
-                ? "entry-detail-space-hover entry-detail-space-hover--busy"
-                : "entry-detail-space-hover",
-              spaceLensDismissed ? "entry-detail-space-hover--dismissed" : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-            onMouseDown={(e) => {
-              if (e.button === 0) (e.currentTarget as HTMLElement).focus();
-            }}
-            onMouseLeave={(e) => {
-              const root = e.currentTarget as HTMLElement;
-              const to = e.relatedTarget as Node | null;
-              if (to && root.contains(to)) return;
-              requestAnimationFrame(() => {
+          {onEntrySpaceChange ? (
+            <div
+              tabIndex={0}
+              className={[
+                spaceSaving
+                  ? "entry-detail-space-hover entry-detail-space-hover--busy"
+                  : "entry-detail-space-hover",
+                spaceLensDismissed ? "entry-detail-space-hover--dismissed" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              onMouseDown={(e) => {
+                if (e.button === 0) (e.currentTarget as HTMLElement).focus();
+              }}
+              onMouseLeave={(e) => {
+                const root = e.currentTarget as HTMLElement;
+                const to = e.relatedTarget as Node | null;
+                if (to && root.contains(to)) return;
                 requestAnimationFrame(() => {
-                  if (!root.matches(":hover")) setSpaceLensDismissed(false);
+                  requestAnimationFrame(() => {
+                    if (!root.matches(":hover")) setSpaceLensDismissed(false);
+                  });
                 });
-              });
-            }}
-            aria-label={`Thought is in ${currentSpaceLabel}. Hover, click, or press Tab to move to another space.`}
-          >
-            <div className="entry-detail-space-hover-hint">
-              <span
-                className="space-scope-tab space-scope-tab--active entry-detail-lens-tab"
-                aria-hidden="true"
-              >
-                {currentSpaceLabel}
-              </span>
-            </div>
-            <div className="entry-detail-space-hover-panel">
-              <div
-                className={
-                  spaceSaving
-                    ? "header-space-lens-inner entry-detail-lens-inner entry-detail-lens-inner--busy"
-                    : "header-space-lens-inner entry-detail-lens-inner"
-                }
-                role="tablist"
-                aria-label="Move to space"
-              >
-                {spaceSegments.map((seg) => {
-                  const active =
-                    (entry.space_id ?? null) === (seg.spaceId ?? null);
-                  return (
-                    <button
-                      key={seg.key}
-                      type="button"
-                      role="tab"
-                      disabled={spaceSaving}
-                      aria-selected={active}
-                      className={
-                        active
-                          ? "space-scope-tab space-scope-tab--active entry-detail-lens-tab"
-                          : "space-scope-tab entry-detail-lens-tab"
-                      }
-                      onClick={() => void activateSpace(seg.spaceId)}
-                    >
-                      {seg.label}
-                    </button>
-                  );
-                })}
+              }}
+              aria-label={`Thought is in ${currentSpaceLabel}. Hover, click, or press Tab to move to another space.`}
+            >
+              <div className="entry-detail-space-hover-hint">
+                <span
+                  className="space-scope-tab space-scope-tab--active entry-detail-lens-tab"
+                  aria-hidden="true"
+                >
+                  {currentSpaceLabel}
+                </span>
+              </div>
+              <div className="entry-detail-space-hover-panel">
+                <div
+                  className={
+                    spaceSaving
+                      ? "header-space-lens-inner entry-detail-lens-inner entry-detail-lens-inner--busy"
+                      : "header-space-lens-inner entry-detail-lens-inner"
+                  }
+                  role="tablist"
+                  aria-label="Move to space"
+                >
+                  {spaceSegments.map((seg) => {
+                    const active =
+                      (entry.space_id ?? null) === (seg.spaceId ?? null);
+                    return (
+                      <button
+                        key={seg.key}
+                        type="button"
+                        role="tab"
+                        disabled={spaceSaving}
+                        aria-selected={active}
+                        className={
+                          active
+                            ? "space-scope-tab space-scope-tab--active entry-detail-lens-tab"
+                            : "space-scope-tab entry-detail-lens-tab"
+                        }
+                        onClick={() => void activateSpace(seg.spaceId)}
+                      >
+                        {seg.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
+          ) : null}
+          {currentThemeLabel && visibleTheme ? (
+            <div
+              tabIndex={0}
+              className={[
+                themeSaving
+                  ? "entry-detail-space-hover entry-detail-space-hover--busy entry-detail-theme-lens"
+                  : "entry-detail-space-hover entry-detail-theme-lens",
+                themeLensDismissed ? "entry-detail-space-hover--dismissed" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              onMouseDown={(e) => {
+                if (e.button === 0) (e.currentTarget as HTMLElement).focus();
+              }}
+              onMouseLeave={(e) => {
+                const root = e.currentTarget as HTMLElement;
+                const to = e.relatedTarget as Node | null;
+                if (to && root.contains(to)) return;
+                requestAnimationFrame(() => {
+                  requestAnimationFrame(() => {
+                    if (!root.matches(":hover")) setThemeLensDismissed(false);
+                  });
+                });
+              }}
+              aria-label={`Theme: ${currentThemeLabel}. Hover to change, click to search.`}
+            >
+              <div
+                className="entry-detail-space-hover-hint"
+                role={onThemeSearch ? "button" : undefined}
+                onClick={() => {
+                  if (onThemeSearch && visibleTheme) {
+                    onThemeSearch(visibleTheme.themeId);
+                  }
+                }}
+              >
+                <span
+                  className="space-scope-tab space-scope-tab--active entry-detail-lens-tab"
+                  aria-hidden="true"
+                >
+                  {currentThemeLabel}
+                </span>
+              </div>
+              <div className="entry-detail-space-hover-panel">
+                <div
+                  className={
+                    themeSaving
+                      ? "header-space-lens-inner entry-detail-lens-inner entry-detail-lens-inner--busy"
+                      : "header-space-lens-inner entry-detail-lens-inner"
+                  }
+                  role="tablist"
+                  aria-label="Change theme"
+                >
+                  {themeSegments.map((seg) => {
+                    const active =
+                      (visibleTheme.themeId ?? null) === (seg.themeId ?? null);
+                    return (
+                      <button
+                        key={seg.key}
+                        type="button"
+                        role="tab"
+                        disabled={themeSaving}
+                        aria-selected={active}
+                        className={
+                          active
+                            ? "space-scope-tab space-scope-tab--active entry-detail-lens-tab"
+                            : "space-scope-tab entry-detail-lens-tab"
+                        }
+                        onClick={() => void activateTheme(seg.themeId)}
+                      >
+                        {seg.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : (
         <time className="entry-detail-time" dateTime={entry.created_at}>

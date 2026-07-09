@@ -33,6 +33,12 @@ function hostnameFromHref(href: string): string {
   }
 }
 
+export function hasUrlInText(text: string): boolean {
+  if (!text.trim()) return false;
+  URL_RE.lastIndex = 0;
+  return URL_RE.test(text);
+}
+
 export function parseTextWithUrls(text: string): ParsedEntry {
   if (!text.trim()) {
     return { segments: [], singleHostname: null };

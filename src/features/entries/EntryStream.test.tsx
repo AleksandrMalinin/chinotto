@@ -82,6 +82,26 @@ describe("EntryStream non-empty", () => {
     expect(screen.getByText("Hello stream")).toBeInTheDocument();
   });
 
+  it("shows link indicator when entry text contains a URL", () => {
+    const entry: Entry = {
+      id: "e-link",
+      text: "Watch https://letterboxd.com/film/example",
+      created_at: new Date().toISOString(),
+    };
+    render(<EntryStream entries={[entry]} />);
+    expect(screen.getByLabelText("Contains link")).toBeInTheDocument();
+  });
+
+  it("does not show link indicator for plain text entries", () => {
+    const entry: Entry = {
+      id: "e-plain",
+      text: "Just a thought",
+      created_at: new Date().toISOString(),
+    };
+    render(<EntryStream entries={[entry]} />);
+    expect(screen.queryByLabelText("Contains link")).not.toBeInTheDocument();
+  });
+
   it("shows only first line in stream preview when entry has multiple lines", () => {
     const entry: Entry = {
       id: "e-multi",

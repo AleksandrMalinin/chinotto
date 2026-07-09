@@ -3,6 +3,7 @@ mod embeddings;
 mod keywords;
 mod oauth_dev_bridge;
 mod recall;
+mod themes;
 
 #[cfg(test)]
 mod thought_trail;
@@ -268,6 +269,113 @@ fn generate_embedding(db: tauri::State<Db>, entry_id: String) -> Result<(), Stri
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "entry not found".to_string())?;
     store_embedding_for_entry(&db, &entry_id, &entry.text)
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EntryThemeOut {
+    theme_id: String,
+    confidence: f64,
+    source: String,
+    locked: bool,
+}
+
+fn classify_entry_theme_for_entry(db: &Db, entry_id: &str) -> Result<(), String> {
+    let entry = db
+        .get_entry_by_id(entry_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "entry not found".to_string())?;
+    if db
+        .entry_theme_locked(entry_id)
+        .map_err(|e| e.to_string())?
+    {
+        return Ok(());
+    }
+    if let Some(classification) = themes::classify_entry_text(&entry.text) {
+        db.upsert_entry_theme(
+            entry_id,
+            classification.theme_id,
+            classification.confidence,
+            classification.source,
+        )
+        .map_err(|e| e.to_string())?;
+    } else {
+        db.clear_entry_theme_if_unlocked(entry_id)
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn classify_entry_theme(db: tauri::State<Db>, entry_id: String) -> Result<(), String> {
+    classify_entry_theme_for_entry(&db, &entry_id)
+}
+
+#[tauri::command]
+fn get_entry_theme(
+    db: tauri::State<Db>,
+    entry_id: String,
+) -> Result<Option<EntryThemeOut>, String> {
+    let row = db.get_entry_theme(&entry_id).map_err(|e| e.to_string())?;
+    Ok(row.map(|r| EntryThemeOut {
+        theme_id: r.theme_id,
+        confidence: r.confidence,
+        source: r.source,
+        locked: r.locked,
+    }))
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SetEntryThemeIn {
+    entry_id: String,
+    theme_id: Option<String>,
+    locked: bool,
+}
+
+#[tauri::command]
+fn set_entry_theme(db: tauri::State<Db>, input: SetEntryThemeIn) -> Result<(), String> {
+    db.set_entry_theme(
+        &input.entry_id,
+        input.theme_id.as_deref(),
+        input.locked,
+    )
+    .map_err(|e| e.to_string())
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ThemeCountOut {
+    theme_id: String,
+    count: i64,
+}
+
+#[tauri::command]
+fn list_theme_counts(db: tauri::State<Db>) -> Result<Vec<ThemeCountOut>, String> {
+    let rows = db
+        .list_theme_counts(crate::db::THEME_RECALL_MIN_CONFIDENCE)
+        .map_err(|e| e.to_string())?;
+    Ok(rows
+        .into_iter()
+        .map(|(theme_id, count)| ThemeCountOut { theme_id, count })
+        .collect())
+}
+
+#[tauri::command]
+fn list_theme_counts_recent(
+    db: tauri::State<Db>,
+    days: Option<u32>,
+) -> Result<Vec<ThemeCountOut>, String> {
+    let days = days.unwrap_or(7).max(1);
+    let cutoff = chrono::Utc::now() - chrono::Duration::days(days as i64);
+    let since = cutoff.to_rfc3339();
+    let rows = db
+        .list_theme_counts_since(crate::db::THEME_RECALL_MIN_CONFIDENCE, &since)
+        .map_err(|e| e.to_string())?;
+    Ok(rows
+        .into_iter()
+        .map(|(theme_id, count)| ThemeCountOut { theme_id, count })
+        .collect())
 }
 
 /// Minimum cosine similarity for an entry to appear in "Related thoughts".
@@ -658,10 +766,11 @@ fn search_entries(
     db: tauri::State<Db>,
     query: String,
     space_filter: Option<String>,
+    theme_filter: Option<String>,
 ) -> Result<Vec<SearchEntryPayload>, String> {
     let filter = resolve_space_filter(&db, space_filter)?;
     let rows = db
-        .search_entries_filtered(&query, &filter)
+        .search_entries_filtered(&query, &filter, theme_filter.as_deref())
         .map_err(|e| e.to_string())?;
     let limit = keywords::default_topic_limit();
     Ok(rows
@@ -1412,6 +1521,11 @@ pub fn run() {
             search_entries,
             run_native_speech_recognition,
             generate_embedding,
+            classify_entry_theme,
+            get_entry_theme,
+            set_entry_theme,
+            list_theme_counts,
+            list_theme_counts_recent,
             find_similar_entries,
             get_resurfaced_entry,
             get_thought_trail,

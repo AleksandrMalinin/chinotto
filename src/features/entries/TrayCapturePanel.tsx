@@ -3,7 +3,7 @@ import { emit } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { ChinottoLogo } from "@/components/ChinottoLogo";
-import { createEntry, generateEmbedding, getEntry } from "@/features/entries/entryApi";
+import { generateEmbedding, classifyEntryTheme, getEntry } from "@/features/entries/entryApi";
 import {
   SPACE_SCOPE_STORAGE_KEY,
   captureSpaceId,
@@ -168,6 +168,7 @@ export function TrayCapturePanel() {
       track({ event: "entry_created", text_length: text.length });
       setHasEverSavedThought();
       generateEmbedding(id);
+      classifyEntryTheme(id);
     } catch {
       /* Non-fatal after save. */
     }

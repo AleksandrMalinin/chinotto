@@ -76,3 +76,13 @@ CREATE TABLE IF NOT EXISTS share_threads (
   expires_at TEXT NOT NULL,
   revoked_at TEXT
 );
+
+-- Ambient themes (recall metadata; not stream containers). See docs/internal/themes-proposal.md.
+CREATE TABLE IF NOT EXISTS entry_themes (
+  entry_id TEXT PRIMARY KEY REFERENCES entries(id) ON DELETE CASCADE,
+  theme_id TEXT NOT NULL,
+  confidence REAL NOT NULL,
+  source TEXT NOT NULL,
+  locked INTEGER NOT NULL DEFAULT 0,
+  classified_at TEXT NOT NULL
+);

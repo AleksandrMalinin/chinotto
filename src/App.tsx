@@ -19,10 +19,12 @@ import { CaptureContinuationHint as CaptureContinuationHintBanner } from "./feat
 import { EntryStream } from "./features/entries/EntryStream";
 import { EntryDetail } from "./features/entries/EntryDetail";
 import { MemoryEcho } from "./features/entries/MemoryEcho";
+import { ThemeClusterNudge } from "./features/entries/ThemeClusterNudge";
 import { TimeStrand } from "./features/entries/TimeStrand";
 import { VoiceCaptureOverlay } from "./features/entries/VoiceCaptureOverlay";
 import { SearchInput } from "./features/entries/SearchInput";
 import { SearchResultsList } from "./features/entries/SearchResultsList";
+import { SearchThemeChips } from "./features/entries/SearchThemeChips";
 import { getSearchFeedback } from "./features/entries/searchOverlayFeedback";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +36,7 @@ import {
   searchEntries,
   jumpAnchorForLocalDate,
   generateEmbedding,
+  classifyEntryTheme,
   getResurfacedEntry,
   getPinnedEntryIds,
   pinEntry,
@@ -44,9 +47,12 @@ import {
   setEntrySpace,
   getCaptureContinuationHint,
   listThoughtTrailEntryIds,
+  listThemeCounts,
+  listThemeCountsRecent,
   type CaptureContinuationHint,
   type ContinuationMarker,
   type Resurfaced,
+  type ThemeCount,
 } from "./features/entries/entryApi";
 import {
   JumpToDatePopover,
@@ -70,6 +76,16 @@ import {
   markAsShown,
   mayAttemptResurface,
 } from "@/lib/resurfaceSession";
+import {
+  isShowLinkIndicator,
+  isThemesEnabled,
+} from "@/lib/themeSettings";
+import {
+  markThemeNudgeDismissed,
+  mayAttemptThemeNudge,
+  pickThemeNudgeCandidate,
+  THEME_NUDGE_CLUSTER_DAYS,
+} from "@/lib/themeNudge";
 import {
   getAnalyticsPromptShown,
   jumpDateDaysAgoMetric,
@@ -238,6 +254,13 @@ export default function App() {
   /** True after a full list load (no search query); used so the ⌘K control stays hidden while FTS results are empty. */
   const [hasEntriesInDb, setHasEntriesInDb] = useState(false);
   const [search, setSearch] = useState("");
+  const [searchThemeFilter, setSearchThemeFilter] = useState<string | null>(null);
+  const [themeCounts, setThemeCounts] = useState<ThemeCount[]>([]);
+  const [themesEnabled, setThemesEnabled] = useState(() => isThemesEnabled());
+  const [showLinkIndicator, setShowLinkIndicator] = useState(() =>
+    isShowLinkIndicator()
+  );
+  const [themeNudge, setThemeNudge] = useState<ThemeCount | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [composeExpanded, setComposeExpanded] = useState(false);
@@ -312,6 +335,7 @@ export default function App() {
     setSearchOverlayClosing(false);
     setIsSearchOpen(false);
     setSearch("");
+    setSearchThemeFilter(null);
     requestAnimationFrame(() => {
       entryInputRef.current?.focus();
     });
@@ -323,6 +347,7 @@ export default function App() {
     setIsSearchOpen(false);
     setSearchOverlayClosing(false);
     setSearch("");
+    setSearchThemeFilter(null);
     requestAnimationFrame(() => {
       entryInputRef.current?.focus();
     });
@@ -333,11 +358,34 @@ export default function App() {
     setSearchOverlayClosing(true);
   }, [isSearchOpen, searchOverlayClosing]);
 
+  const loadThemeCounts = useCallback(() => {
+    if (!themesEnabled) {
+      setThemeCounts([]);
+      return;
+    }
+    void listThemeCounts()
+      .then(setThemeCounts)
+      .catch(() => setThemeCounts([]));
+  }, [themesEnabled]);
+
   const openSearch = useCallback(() => {
     entryInputRef.current?.collapseComposeExpand();
     setJumpPopoverOpen(false);
     setIsSearchOpen(true);
-  }, []);
+    loadThemeCounts();
+  }, [loadThemeCounts]);
+
+  const openSearchWithTheme = useCallback(
+    (themeId: string) => {
+      entryInputRef.current?.collapseComposeExpand();
+      setJumpPopoverOpen(false);
+      setSearchThemeFilter(themeId);
+      setSearch("");
+      setIsSearchOpen(true);
+      loadThemeCounts();
+    },
+    [loadThemeCounts]
+  );
 
   const searchRef = useRef(search);
   searchRef.current = search;
@@ -346,6 +394,8 @@ export default function App() {
   const headerLogoRef = useRef<HTMLButtonElement>(null);
   const shownThisSessionRef = useRef(false);
   const triedResurfaceOnOpenRef = useRef(false);
+  const triedThemeNudgeOnOpenRef = useRef(false);
+  const shownThemeNudgeSessionRef = useRef(false);
   const trailLinkedInitialDeferRef = useRef(false);
   const trailLinkedDeferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const justAddedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -410,8 +460,19 @@ export default function App() {
     }
   }, []);
 
+  useEffect(() => {
+    if (themesEnabled) return;
+    setSearchThemeFilter(null);
+    setThemeNudge(null);
+    setThemeCounts([]);
+  }, [themesEnabled]);
+
   const refresh = useCallback(
-    async (query: string, spaceFilterOverride?: string) => {
+    async (
+      query: string,
+      spaceFilterOverride?: string,
+      themeFilterOverride?: string | null
+    ) => {
       if (getDevSimulateNewUser() || getDevPreviewEmptyStream()) {
         setEntries([]);
         setPinnedIds([]);
@@ -422,13 +483,21 @@ export default function App() {
       }
       const filter =
         spaceFilterOverride !== undefined ? spaceFilterOverride : spaceFilterParam;
+      const theme =
+        themeFilterOverride !== undefined ? themeFilterOverride : searchThemeFilter;
+      const themeParam = theme ?? undefined;
       setLoading(true);
       try {
-        const list = query.trim()
-          ? await searchEntries(query, filter)
-          : await listEntries(filter);
+        const list =
+          query.trim() || (themesEnabled && themeParam)
+            ? await searchEntries(
+                query,
+                filter,
+                themesEnabled ? themeParam : undefined
+              )
+            : await listEntries(filter);
         setEntries(list);
-        if (!query.trim()) {
+        if (!query.trim() && !themeParam) {
           setHasEntriesInDb(hasEntriesAfterFullListLoad(list.length));
           const ids = await getPinnedEntryIds();
           setPinnedIds(ids);
@@ -449,18 +518,18 @@ export default function App() {
         setLoading(false);
       }
     },
-    [spaceFilterParam, refreshTrailLinkedIds]
+    [spaceFilterParam, searchThemeFilter, themesEnabled, refreshTrailLinkedIds]
   );
 
   useEffect(() => {
     const q = search.trim();
-    if (!q) {
+    if (!q && (!searchThemeFilter || !themesEnabled)) {
       refresh("");
       return;
     }
     const t = setTimeout(() => refresh(search), 120);
     return () => clearTimeout(t);
-  }, [search, refresh]);
+  }, [search, searchThemeFilter, themesEnabled, refresh]);
 
   useEffect(() => {
     if (!isFirebaseSyncConfigured()) {
@@ -567,6 +636,14 @@ export default function App() {
 
   const showHomeMemoryEcho =
     showMemoryEcho && !selectedEntry && !search.trim() && !mainStreamEmpty;
+
+  const showHomeThemeNudge =
+    themesEnabled &&
+    themeNudge !== null &&
+    !memoryEcho &&
+    !selectedEntry &&
+    !search.trim() &&
+    !mainStreamEmpty;
 
   const appBodyClass = [
     selectedEntry ? "app-body--detail-focus" : "",
@@ -1060,6 +1137,7 @@ export default function App() {
   }, [showHomeMemoryEcho, memoryEcho?.entry.id]);
 
   const resurfaceInFlightRef = useRef(false);
+  const themeNudgeInFlightRef = useRef(false);
   const tryResurface = useCallback(() => {
     if (shownThisSessionRef.current || resurfaceInFlightRef.current) return;
     resurfaceInFlightRef.current = true;
@@ -1080,6 +1158,28 @@ export default function App() {
         resurfaceInFlightRef.current = false;
       });
   }, []);
+
+  const tryThemeNudge = useCallback(() => {
+    if (
+      !themesEnabled ||
+      shownThemeNudgeSessionRef.current ||
+      themeNudgeInFlightRef.current ||
+      memoryEcho
+    ) {
+      return;
+    }
+    themeNudgeInFlightRef.current = true;
+    listThemeCountsRecent(THEME_NUDGE_CLUSTER_DAYS)
+      .then((counts) => {
+        const candidate = pickThemeNudgeCandidate(counts);
+        if (!candidate) return;
+        shownThemeNudgeSessionRef.current = true;
+        setThemeNudge(candidate);
+      })
+      .finally(() => {
+        themeNudgeInFlightRef.current = false;
+      });
+  }, [themesEnabled, memoryEcho]);
 
   useEffect(() => {
     if (
@@ -1110,6 +1210,42 @@ export default function App() {
     composeExpanded,
     editingEntryId,
     tryResurface,
+  ]);
+
+  useEffect(() => {
+    if (
+      !mayAttemptThemeNudge({
+        themesEnabled,
+        triedResurface: triedResurfaceOnOpenRef.current,
+        memoryEcho: memoryEcho !== null,
+        introDismissed,
+        selectedEntry,
+        loading,
+        searchTrimmed: search.trim() === "",
+        isSearchOpen,
+        composeExpanded,
+        editingEntryId,
+        triedThemeNudge: triedThemeNudgeOnOpenRef.current,
+      })
+    ) {
+      return;
+    }
+    const id = window.setTimeout(() => {
+      triedThemeNudgeOnOpenRef.current = true;
+      tryThemeNudge();
+    }, 2200);
+    return () => clearTimeout(id);
+  }, [
+    themesEnabled,
+    memoryEcho,
+    introDismissed,
+    selectedEntry,
+    loading,
+    search,
+    isSearchOpen,
+    composeExpanded,
+    editingEntryId,
+    tryThemeNudge,
   ]);
 
   useEffect(() => {
@@ -1254,6 +1390,7 @@ export default function App() {
     }, 400);
     refresh(search);
     generateEmbedding(id);
+    classifyEntryTheme(id);
     void getCaptureContinuationHint(text, id).then((hint) => {
       setCaptureContinuationHint(hint);
     });
@@ -1443,6 +1580,15 @@ export default function App() {
     if (entries.some((e) => e.id === selectedEntry.id)) return;
     setSelectedEntry(null);
   }, [entries, selectedEntry, loading]);
+
+  const handleThemeSearchFromDetail = useCallback(
+    (themeId: string) => {
+      setSelectedEntry(null);
+      setDetailEmphasizeTrail(false);
+      openSearchWithTheme(themeId);
+    },
+    [openSearchWithTheme]
+  );
 
   const handleCloseEntryDetail = useCallback(() => {
     const closing = selectedEntry;
@@ -2018,7 +2164,10 @@ export default function App() {
                   onChange={setSearch}
                   onClose={handleSearchClose}
                   onEnter={() => {
-                    if (search.trim() && entries.length > 0) {
+                    if (
+                      (search.trim() || (themesEnabled && searchThemeFilter)) &&
+                      entries.length > 0
+                    ) {
                       track({ event: "search_used", result_count: entries.length });
                       const entry = entries[searchSelectedIndex] ?? entries[0];
                       handleOpenEntry(entry);
@@ -2042,7 +2191,14 @@ export default function App() {
                       : undefined
                   }
                 />
-                {search.trim() && (
+                {themesEnabled ? (
+                  <SearchThemeChips
+                    counts={themeCounts}
+                    selectedThemeId={searchThemeFilter}
+                    onSelectTheme={setSearchThemeFilter}
+                  />
+                ) : null}
+                {(search.trim() || (themesEnabled && searchThemeFilter)) && (
                   <>
                     <p className="search-feedback" aria-live="polite">
                       {getSearchFeedback(entries)}
@@ -2170,6 +2326,8 @@ export default function App() {
           onEntryContinuationMarked={handleEntryContinuationMarked}
           onEntrySynced={handleEntrySynced}
           onEntrySpaceChange={handleEntryDetailSpaceChange}
+          onThemeSearch={handleThemeSearchFromDetail}
+          themesEnabled={themesEnabled}
           emphasizeTrail={detailEmphasizeTrail}
         />
       ) : (
@@ -2194,6 +2352,7 @@ export default function App() {
                   onDeleteAnimationEnd={handleDeleteAnimationEnd}
                   onEntryHover={(entry) => setHoveredEntryId(entry ? entry.id : null)}
                   trailLinkedIds={trailLinkedIds}
+                  showLinkIndicator={showLinkIndicator}
                   deferEmptyPanelMotion={!emptyOnboardingIntroReady}
                   revealEmptyOnboarding={emptyOnboardingIntroReady}
                   emptyLensMessage={emptyLensMessage}
@@ -2226,6 +2385,7 @@ export default function App() {
                         setHoveredEntryId(entry ? entry.id : null)
                       }
                       trailLinkedIds={trailLinkedIds}
+                      showLinkIndicator={showLinkIndicator}
                       deferEmptyPanelMotion={!emptyOnboardingIntroReady}
                       revealEmptyOnboarding={emptyOnboardingIntroReady}
                     />
@@ -2252,6 +2412,7 @@ export default function App() {
                           setHoveredEntryId(entry ? entry.id : null)
                         }
                         trailLinkedIds={trailLinkedIds}
+                        showLinkIndicator={showLinkIndicator}
                         deferEmptyPanelMotion={!emptyOnboardingIntroReady}
                         revealEmptyOnboarding={emptyOnboardingIntroReady}
                       />
@@ -2282,6 +2443,7 @@ export default function App() {
                             setHoveredEntryId(entry ? entry.id : null)
                           }
                           trailLinkedIds={trailLinkedIds}
+                          showLinkIndicator={showLinkIndicator}
                           deferEmptyPanelMotion={!emptyOnboardingIntroReady}
                           revealEmptyOnboarding={emptyOnboardingIntroReady}
                         />
@@ -2292,7 +2454,9 @@ export default function App() {
                     <div
                       className={[
                         "home-depth-zone",
-                        showHomeMemoryEcho ? "home-depth-zone--has-echo" : "",
+                        showHomeMemoryEcho || showHomeThemeNudge
+                          ? "home-depth-zone--has-echo"
+                          : "",
                       ]
                         .filter(Boolean)
                         .join(" ")}
@@ -2325,6 +2489,24 @@ export default function App() {
                             }}
                           />
                         </div>
+                      ) : showHomeThemeNudge && themeNudge ? (
+                        <div className="home-theme-nudge-slot">
+                          <ThemeClusterNudge
+                            themeId={themeNudge.themeId}
+                            count={themeNudge.count}
+                            onBrowse={() => {
+                              setThemeNudge(null);
+                              handleThemeSearchFromDetail(themeNudge.themeId);
+                            }}
+                            onDismiss={() => {
+                              markThemeNudgeDismissed(themeNudge.themeId);
+                              setThemeNudge(null);
+                              requestAnimationFrame(() => {
+                                entryInputRef.current?.focus();
+                              });
+                            }}
+                          />
+                        </div>
                       ) : null}
                       <TimeStrand
                         entries={entries}
@@ -2344,7 +2526,7 @@ export default function App() {
               )}
             </>
           )}
-          {search.trim() && (
+          {(search.trim() || (themesEnabled && searchThemeFilter)) && (
             <EntryStream
               entries={entries}
               showHighlights={true}
@@ -2358,6 +2540,7 @@ export default function App() {
               onDeleteAnimationEnd={handleDeleteAnimationEnd}
               onEntryHover={(entry) => setHoveredEntryId(entry ? entry.id : null)}
               trailLinkedIds={trailLinkedIds}
+              showLinkIndicator={showLinkIndicator}
               deferEmptyPanelMotion={!emptyOnboardingIntroReady}
               revealEmptyOnboarding={emptyOnboardingIntroReady}
             />
@@ -2397,6 +2580,10 @@ export default function App() {
           onClose={() => setIsChinottoCardOpen(false)}
           iconVariantId={iconVariantId}
           onIconVariantChange={setIconVariantId}
+          themesEnabled={themesEnabled}
+          onThemesEnabledChange={setThemesEnabled}
+          showLinkIndicator={showLinkIndicator}
+          onShowLinkIndicatorChange={setShowLinkIndicator}
         />
       )}
       {isStreamShowcaseOpen && (
