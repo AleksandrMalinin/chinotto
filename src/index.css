@@ -5425,6 +5425,7 @@ body.welcome .app-bg {
   letter-spacing: 0.01em;
   text-transform: none;
   color: var(--meta-fg);
+  padding-left: 0.5rem;
 }
 
 .thought-trail-strip-preview {
@@ -5452,7 +5453,7 @@ body.welcome .app-bg {
 .thought-trail-strip-axis-dot {
   width: 7px;
   height: 7px;
-  margin-top: 0.45rem;
+  margin-top: calc((1.45 * 12px - 7px) / 2);
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.28);
   box-shadow: 0 0 0 2px rgba(12, 14, 20, 0.9);
