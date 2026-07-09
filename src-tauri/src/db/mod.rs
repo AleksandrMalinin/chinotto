@@ -98,6 +98,16 @@ pub struct EntryThemeRow {
     pub locked: bool,
 }
 
+#[derive(Clone, Debug)]
+pub struct UserThemeRow {
+    pub id: String,
+    pub label: String,
+    pub sort_order: i32,
+}
+
+/// Max user-defined recall themes (system "links" is separate).
+pub const MAX_USER_THEMES: usize = 7;
+
 const ENTRY_SELECT: &str =
     "id, text, created_at, updated_at, COALESCE(edit_count, 0), COALESCE(open_count, 0), space_id, continuation_from, continuation_at";
 
@@ -213,6 +223,33 @@ fn ensure_share_threads_table(conn: &Connection) -> Result<(), rusqlite::Error> 
     Ok(())
 }
 
+fn ensure_user_themes_table(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS user_themes (
+            id TEXT PRIMARY KEY,
+            label TEXT NOT NULL,
+            keywords TEXT NOT NULL,
+            sort_order INTEGER NOT NULL,
+            created_at TEXT NOT NULL
+        );
+        "#,
+    )?;
+    let count: i32 = conn.query_row("SELECT COUNT(*) FROM user_themes", [], |r| r.get(0))?;
+    if count > 0 {
+        return Ok(());
+    }
+    let created_at = chrono::Utc::now().to_rfc3339();
+    let seeds: [(&str, &str, i32); 2] = [("book", "Book", 1), ("therapy", "Therapy", 2)];
+    for (id, label, sort_order) in seeds {
+        conn.execute(
+            "INSERT INTO user_themes (id, label, keywords, sort_order, created_at) VALUES (?1, ?2, '[]', ?3, ?4)",
+            rusqlite::params![id, label, sort_order, created_at],
+        )?;
+    }
+    Ok(())
+}
+
 fn ensure_updated_at_column(conn: &Connection) -> Result<(), rusqlite::Error> {
     let has_column = conn.query_row(
         "SELECT 1 FROM pragma_table_info('entries') WHERE name = 'updated_at'",
@@ -240,6 +277,7 @@ impl Db {
         ensure_updated_at_column(&conn)?;
         ensure_continuation_columns(&conn)?;
         ensure_share_threads_table(&conn)?;
+        ensure_user_themes_table(&conn)?;
         ensure_spaces(&conn)?;
         Ok(Self(Mutex::new(conn)))
     }
@@ -621,6 +659,121 @@ impl Db {
             [entry_id],
         )?;
         Ok(())
+    }
+
+    pub fn list_user_themes(&self) -> Result<Vec<UserThemeRow>, rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, label, sort_order FROM user_themes ORDER BY sort_order, label",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(UserThemeRow {
+                id: row.get(0)?,
+                label: row.get(1)?,
+                sort_order: row.get(2)?,
+            })
+        })?;
+        rows.collect()
+    }
+
+    pub fn user_theme_count(&self) -> Result<usize, rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let count: i32 = conn.query_row("SELECT COUNT(*) FROM user_themes", [], |r| r.get(0))?;
+        Ok(count as usize)
+    }
+
+    pub fn theme_id_valid(&self, theme_id: &str) -> Result<bool, rusqlite::Error> {
+        if theme_id == crate::themes::SYSTEM_THEME_LINKS {
+            return Ok(true);
+        }
+        let conn = self.0.lock().unwrap();
+        let n: i32 = conn.query_row(
+            "SELECT COUNT(*) FROM user_themes WHERE id = ?1",
+            [theme_id],
+            |r| r.get(0),
+        )?;
+        Ok(n > 0)
+    }
+
+    pub fn create_user_theme(&self, label: &str) -> Result<UserThemeRow, String> {
+        let label = label.trim();
+        if label.is_empty() {
+            return Err("theme label is required".into());
+        }
+        if self.user_theme_count().map_err(|e| e.to_string())? >= MAX_USER_THEMES {
+            return Err(format!("maximum of {MAX_USER_THEMES} themes"));
+        }
+        let id = uuid::Uuid::new_v4().to_string();
+        let created_at = chrono::Utc::now().to_rfc3339();
+        let conn = self.0.lock().unwrap();
+        let sort_order: i32 = conn
+            .query_row(
+                "SELECT COALESCE(MAX(sort_order), 0) + 1 FROM user_themes",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT INTO user_themes (id, label, keywords, sort_order, created_at) VALUES (?1, ?2, '[]', ?3, ?4)",
+            rusqlite::params![id, label, sort_order, created_at],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(UserThemeRow {
+            id,
+            label: label.to_string(),
+            sort_order,
+        })
+    }
+
+    pub fn update_user_theme(&self, id: &str, label: &str) -> Result<UserThemeRow, String> {
+        let label = label.trim();
+        if label.is_empty() {
+            return Err("theme label is required".into());
+        }
+        let existing = self
+            .get_user_theme(id)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "theme not found".to_string())?;
+        let conn = self.0.lock().unwrap();
+        conn.execute(
+            "UPDATE user_themes SET label = ?2 WHERE id = ?1",
+            rusqlite::params![id, label],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(UserThemeRow {
+            id: id.to_string(),
+            label: label.to_string(),
+            sort_order: existing.sort_order,
+        })
+    }
+
+    pub fn delete_user_theme(&self, id: &str) -> Result<(), String> {
+        let conn = self.0.lock().unwrap();
+        let changed = conn
+            .execute("DELETE FROM user_themes WHERE id = ?1", [id])
+            .map_err(|e| e.to_string())?;
+        if changed == 0 {
+            return Err("theme not found".into());
+        }
+        conn.execute("DELETE FROM entry_themes WHERE theme_id = ?1", [id])
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    fn get_user_theme(&self, id: &str) -> Result<Option<UserThemeRow>, rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, label, sort_order FROM user_themes WHERE id = ?1",
+        )?;
+        let mut rows = stmt.query([id])?;
+        if let Some(row) = rows.next()? {
+            return Ok(Some(UserThemeRow {
+                id: row.get(0)?,
+                label: row.get(1)?,
+                sort_order: row.get(2)?,
+            }));
+        }
+        Ok(None)
     }
 
     pub fn set_entry_theme(
