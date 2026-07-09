@@ -11,13 +11,17 @@ describe("emptyStreamLensMessage", () => {
     expect(shouldShowFullEmptyOnboarding("work", false)).toBe(false);
   });
 
-  it("quietEmptyStreamMessage for scoped lenses and All after save", () => {
-    expect(quietEmptyStreamMessage("work", true)).toBe("Nothing in Work yet.");
-    expect(quietEmptyStreamMessage("personal", false)).toBe(
-      "Nothing in Personal yet."
+  it("quietEmptyStreamMessage for scoped lenses only", () => {
+    expect(quietEmptyStreamMessage("work", true)).toBe(
+      "Nothing in Work yet. Switch to All to see everything."
     );
-    expect(quietEmptyStreamMessage("inbox", true)).toBe("Inbox is empty.");
-    expect(quietEmptyStreamMessage("all", true)).toBe("Your stream is empty.");
+    expect(quietEmptyStreamMessage("personal", false)).toBe(
+      "Nothing in Personal yet. Switch to All to see everything."
+    );
+    expect(quietEmptyStreamMessage("inbox", true)).toBe(
+      "Inbox is empty. Switch to All to see everything."
+    );
+    expect(quietEmptyStreamMessage("all", true)).toBe(null);
     expect(quietEmptyStreamMessage("all", false)).toBe(null);
   });
 });

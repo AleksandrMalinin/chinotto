@@ -20,6 +20,8 @@ type Props = {
   onComposeExpandedChange?: (expanded: boolean) => void;
   /** Reading focus: quieter single-line capture above an open thought. */
   compact?: boolean;
+  placeholder?: string;
+  captureAriaLabel?: string;
 };
 
 export type EntryInputRef = {
@@ -34,6 +36,8 @@ export const EntryInput = forwardRef<EntryInputRef, Props>(function EntryInput(
     showExpandTrigger = true,
     onComposeExpandedChange,
     compact = false,
+    placeholder,
+    captureAriaLabel,
   },
   ref
 ) {
@@ -158,7 +162,9 @@ export const EntryInput = forwardRef<EntryInputRef, Props>(function EntryInput(
         <Textarea
           ref={inputRef}
           className="entry-input entry-input--inline !min-h-0 !py-0"
-          placeholder={compact ? "New thought…" : "Capture a thought…"}
+          placeholder={
+            placeholder ?? (compact ? "New thought…" : "Capture a thought…")
+          }
           value={expanded ? "" : draft}
           readOnly={expanded}
           tabIndex={expanded ? -1 : 0}
@@ -173,7 +179,7 @@ export const EntryInput = forwardRef<EntryInputRef, Props>(function EntryInput(
             pastePendingExpandRef.current = true;
           }}
           rows={1}
-          aria-label="New thought"
+          aria-label={captureAriaLabel ?? "New thought"}
         />
       </div>
       <ComposeExpandOverlay

@@ -12,6 +12,8 @@ import {
   AMBIENCE_MAX,
   AMBIENCE_MIN,
   applyAmbienceToDocument,
+  roomToneSwatchBackground,
+  ROOM_TONE_PRESETS,
   type SpaceAmbienceLevel,
 } from "@/lib/spaceAmbience";
 import type { SpaceScope } from "@/lib/spaceScope";
@@ -32,20 +34,33 @@ const SCOPE_LABEL: Record<SpaceScope, string> = {
   personal: "Personal",
 };
 
-const POPOVER_ESTIMATE_WIDTH = 168;
-const POPOVER_ANCHOR_PAD = 6;
+const PANEL_WIDTH = 268;
+const PANEL_ANCHOR_PAD = 8;
 
-function computePopoverPosition(
+function computePanelPosition(
   anchor: HTMLElement,
-  popoverWidth: number
+  panelWidth: number
 ): { top: number; left: number } {
   const rect = anchor.getBoundingClientRect();
-  let left = rect.right - popoverWidth;
+  let left = rect.left + (rect.width - panelWidth) / 2;
   left = Math.max(
-    POPOVER_ANCHOR_PAD,
-    Math.min(left, window.innerWidth - popoverWidth - POPOVER_ANCHOR_PAD)
+    PANEL_ANCHOR_PAD,
+    Math.min(left, window.innerWidth - panelWidth - PANEL_ANCHOR_PAD)
   );
-  return { top: rect.bottom + POPOVER_ANCHOR_PAD, left };
+  return { top: rect.bottom + PANEL_ANCHOR_PAD, left };
+}
+
+function nearestPresetId(level: SpaceAmbienceLevel): string {
+  let best: (typeof ROOM_TONE_PRESETS)[number] = ROOM_TONE_PRESETS[0];
+  let bestDist = Math.abs(level - best.level);
+  for (const preset of ROOM_TONE_PRESETS) {
+    const dist = Math.abs(level - preset.level);
+    if (dist < bestDist) {
+      best = preset;
+      bestDist = dist;
+    }
+  }
+  return bestDist <= 8 ? best.id : "";
 }
 
 export function SpaceAtmospherePopover({
@@ -60,14 +75,26 @@ export function SpaceAtmospherePopover({
   const labelId = useId();
   const [pos, setPos] = useState({ top: 0, left: 0 });
   const [entered, setEntered] = useState(false);
+  const [fineTuneOpen, setFineTuneOpen] = useState(false);
+  const activePreset = nearestPresetId(value);
+
+  const applyLevel = useCallback(
+    (level: SpaceAmbienceLevel) => {
+      applyAmbienceToDocument(scope, level);
+      onChange(level);
+    },
+    [onChange, scope]
+  );
 
   const resetToDefault = useCallback(() => {
-    applyAmbienceToDocument(scope, AMBIENCE_CENTER);
-    onChange(AMBIENCE_CENTER);
-  }, [onChange, scope]);
+    applyLevel(AMBIENCE_CENTER);
+  }, [applyLevel]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setFineTuneOpen(false);
+      return;
+    }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -89,13 +116,13 @@ export function SpaceAtmospherePopover({
 
   const updatePosition = useCallback(() => {
     if (!open || !anchor) return;
-    const pw = popoverRef.current?.offsetWidth ?? POPOVER_ESTIMATE_WIDTH;
-    setPos(computePopoverPosition(anchor, pw));
+    const pw = popoverRef.current?.offsetWidth ?? PANEL_WIDTH;
+    setPos(computePanelPosition(anchor, pw));
   }, [open, anchor]);
 
   useLayoutEffect(() => {
     updatePosition();
-  }, [updatePosition, scope]);
+  }, [updatePosition, scope, fineTuneOpen]);
 
   useEffect(() => {
     if (!open || !anchor) return;
@@ -128,45 +155,93 @@ export function SpaceAtmospherePopover({
   return (
     <div
       ref={popoverRef}
-      className="space-atmosphere-popover"
+      className="room-tone-panel"
       style={{ top: pos.top, left: pos.left }}
       data-open={entered || undefined}
       role="dialog"
       aria-labelledby={labelId}
       aria-modal="false"
     >
-      <div className="space-atmosphere-popover-inner">
-        <p id={labelId} className="space-atmosphere-popover__title">
-          Ambience · {SCOPE_LABEL[scope]}
+      <div className="room-tone-panel-inner">
+        <p id={labelId} className="room-tone-panel__title">
+          {SCOPE_LABEL[scope]} tone
         </p>
-        <div className="space-ambience-track">
-          <div className="space-ambience-rail-row">
-            <span className="space-ambience-end space-ambience-end--cool">cool</span>
-            <div
-              className="space-ambience-rail"
-              style={railStyle}
-              onMouseDown={(e) => e.stopPropagation()}
+        <div
+          className="room-tone-swatches"
+          role="group"
+          aria-label="Room tone"
+        >
+          {ROOM_TONE_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              className={[
+                "room-tone-swatch",
+                activePreset === preset.id ? "room-tone-swatch--active" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              aria-pressed={activePreset === preset.id}
+              aria-label={`${preset.label} tone`}
+              onClick={() => applyLevel(preset.level)}
             >
-              <input
-                type="range"
-                className="space-ambience-slider"
-                min={AMBIENCE_MIN}
-                max={AMBIENCE_MAX}
-                step={1}
-                value={value}
-                aria-label={`Ambience for ${SCOPE_LABEL[scope]}, cool to warm`}
-                aria-valuetext="Adjusted"
-                title="Double-click to reset to default ambience"
-                onInput={(e) => {
-                  const level = Number((e.target as HTMLInputElement).value);
-                  applyAmbienceToDocument(scope, level);
-                  onChange(level);
+              <span
+                className="room-tone-swatch__preview"
+                style={{
+                  background: roomToneSwatchBackground(scope, preset.level),
                 }}
-                onDoubleClick={resetToDefault}
+                aria-hidden="true"
               />
+              <span className="room-tone-swatch__label">{preset.label}</span>
+            </button>
+          ))}
+        </div>
+        <div className="room-tone-fine-tune">
+          <button
+            type="button"
+            className="room-tone-fine-tune__toggle"
+            aria-expanded={fineTuneOpen}
+            onClick={() => setFineTuneOpen((open) => !open)}
+          >
+            Fine tune
+            <span
+              className="room-tone-fine-tune__chevron"
+              data-open={fineTuneOpen || undefined}
+              aria-hidden="true"
+            />
+          </button>
+          {fineTuneOpen ? (
+            <div className="room-tone-fine-tune__track">
+              <div className="space-ambience-rail-row">
+                <span className="space-ambience-end space-ambience-end--cool">
+                  cool
+                </span>
+                <div
+                  className="space-ambience-rail"
+                  style={railStyle}
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  <input
+                    type="range"
+                    className="space-ambience-slider"
+                    min={AMBIENCE_MIN}
+                    max={AMBIENCE_MAX}
+                    step={1}
+                    value={value}
+                    aria-label={`Fine tune ${SCOPE_LABEL[scope]} tone`}
+                    title="Double-click to reset to neutral"
+                    onChange={(e) => {
+                      applyLevel(Number(e.target.value));
+                    }}
+                    onDoubleClick={resetToDefault}
+                  />
+                </div>
+                <span className="space-ambience-end space-ambience-end--warm">
+                  warm
+                </span>
+              </div>
             </div>
-            <span className="space-ambience-end space-ambience-end--warm">warm</span>
-          </div>
+          ) : null}
         </div>
       </div>
     </div>

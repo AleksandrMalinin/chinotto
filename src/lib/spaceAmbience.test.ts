@@ -3,6 +3,7 @@ import {
   AMBIENCE_CENTER,
   AMBIENCE_NEUTRAL_PLATEAU_MAX,
   AMBIENCE_NEUTRAL_PLATEAU_MIN,
+  ROOM_TONE_PRESETS,
   clampAmbienceLevel,
   deriveRoomToneAnchors,
   interpolateAmbienceTokens,
@@ -16,6 +17,10 @@ import { NEUTRAL_AMBIENCE_CENTER } from "./spaceThemeTokens";
 describe("spaceAmbience", () => {
   beforeEach(() => {
     localStorage.clear();
+  });
+
+  it("ROOM_TONE_PRESETS cover cool neutral warm", () => {
+    expect(ROOM_TONE_PRESETS.map((p) => p.level)).toEqual([10, 50, 90]);
   });
 
   it("clampAmbienceLevel keeps 0–100", () => {

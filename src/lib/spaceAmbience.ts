@@ -11,6 +11,15 @@ export const AMBIENCE_MIN = 0;
 export const AMBIENCE_MAX = 100;
 export const AMBIENCE_CENTER = 50;
 
+export const AMBIENCE_PRESET_COOL = 10;
+export const AMBIENCE_PRESET_WARM = 90;
+
+export const ROOM_TONE_PRESETS = [
+  { id: "cool", label: "Cool", level: AMBIENCE_PRESET_COOL },
+  { id: "neutral", label: "Neutral", level: AMBIENCE_CENTER },
+  { id: "warm", label: "Warm", level: AMBIENCE_PRESET_WARM },
+] as const;
+
 export const SPACE_AMBIENCE_STORAGE_KEY = "chinotto.spaceAmbience";
 
 /** Slider range that keeps exact brand neutral (no RGB drift). */
@@ -52,6 +61,14 @@ export const DEFAULT_SPACE_AMBIENCE_BY_SCOPE: Record<
   work: AMBIENCE_CENTER,
   personal: AMBIENCE_CENTER,
 };
+
+export function roomToneSwatchBackground(
+  scope: SpaceScope,
+  level: SpaceAmbienceLevel
+): string {
+  const tokens = interpolateAmbienceTokens(scope, level);
+  return `linear-gradient(165deg, ${tokens.bgElevated} 0%, ${tokens.bg} 48%, color-mix(in srgb, ${tokens.surfaceTint} 55%, ${tokens.bg}) 100%)`;
+}
 
 export type AmbienceAnchorTokens = AmbienceCenterTokens;
 

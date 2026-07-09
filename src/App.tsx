@@ -117,9 +117,9 @@ import {
 import { isFirebaseSyncConfigured } from "@/lib/firebaseConfig";
 import { syncSavedEntryTextToRemote } from "@/lib/syncSavedEntryTextToRemote";
 import { useDesktopSyncHeaderCta } from "@/lib/useDesktopSyncHeaderCta";
+import { capturePlaceholderForScope } from "@/lib/capturePlaceholder";
 import {
   quietEmptyStreamMessage,
-  shouldShowFullEmptyOnboarding,
 } from "@/lib/emptyStreamLensMessage";
 import { partitionHomeStream } from "@/lib/homeStreamPartition";
 import {
@@ -384,7 +384,8 @@ export default function App() {
   }, [spaceScope]);
 
   const openAtmospherePopover = useCallback((el: HTMLButtonElement) => {
-    setAtmosphereAnchor(el);
+    const lensRow = el.closest(".app-header-lens-row");
+    setAtmosphereAnchor((lensRow ?? el) as HTMLElement);
     setAtmospherePopoverOpen(true);
   }, []);
 
@@ -563,6 +564,10 @@ export default function App() {
     [homePartition.recentEntries, homePartition.earlierEntries]
   );
 
+  const showOpenSectionTitle = homePartition.openEntries.length > 1;
+  const showRecentSectionTitle = homePartition.recentEntries.length > 2;
+  const hasEarlierArchive = homePartition.earlierEntries.length > 0;
+
   const mainStreamEmpty = entries.length === 0;
 
   const showHomeDepthZone =
@@ -659,16 +664,12 @@ export default function App() {
   useEffect(() => {
     const len = entries.length;
     const prev = prevStreamLenRef.current;
-    if (
-      prev > 0 &&
-      len === 0 &&
-      shouldShowFullEmptyOnboarding(spaceScope, hasEverSaved)
-    ) {
+    if (prev > 0 && len === 0 && spaceScope === "all") {
       setEmptyOnboardingDismissed(false);
       emptyOnboardingExitStartedRef.current = false;
     }
     prevStreamLenRef.current = len;
-  }, [entries.length, spaceScope, hasEverSaved]);
+  }, [entries.length, spaceScope]);
 
   const onEmptyOnboardingExitComplete = useCallback(() => {
     setEmptyOnboardingDismissed(true);
@@ -677,18 +678,18 @@ export default function App() {
   }, []);
 
   const tryBeginEmptyOnboardingExit = useCallback(() => {
-    if (!shouldShowFullEmptyOnboarding(spaceScope, hasEverSaved)) return;
+    if (spaceScope !== "all") return;
     if (emptyOnboardingExitStartedRef.current) return;
     if (entries.length > 0) return;
     emptyOnboardingExitStartedRef.current = true;
     setEmptyOnboardingExiting(true);
     setEmptyOnboardingTypingAccent(true);
-  }, [entries.length, spaceScope, hasEverSaved]);
+  }, [entries.length, spaceScope]);
 
   const onCaptureDraftChange = useCallback(
     (value: string) => {
       if (entries.length === 0 && value.trim().length === 0) {
-        if (shouldShowFullEmptyOnboarding(spaceScope, hasEverSaved)) {
+        if (spaceScope === "all") {
           setEmptyOnboardingDismissed(false);
           setEmptyOnboardingExiting(false);
           setEmptyOnboardingTypingAccent(false);
@@ -698,14 +699,16 @@ export default function App() {
       }
       if (value.length > 0) tryBeginEmptyOnboardingExit();
     },
-    [tryBeginEmptyOnboardingExit, entries.length, spaceScope, hasEverSaved]
+    [tryBeginEmptyOnboardingExit, entries.length, spaceScope]
   );
 
   const emptyOnboardingForStream = useMemo(() => {
-    if (!mainStreamEmpty || emptyLensMessage) return undefined;
+    if (!mainStreamEmpty || emptyLensMessage || spaceScope !== "all") {
+      return undefined;
+    }
     if (emptyOnboardingDismissed) return null;
     return {
-      variant: "full" as const,
+      variant: hasEverSaved ? ("soft" as const) : ("full" as const),
       exiting: emptyOnboardingExiting,
       typingAccent: emptyOnboardingTypingAccent,
       onExitComplete: onEmptyOnboardingExitComplete,
@@ -713,11 +716,18 @@ export default function App() {
   }, [
     mainStreamEmpty,
     emptyLensMessage,
+    spaceScope,
+    hasEverSaved,
     emptyOnboardingDismissed,
     emptyOnboardingExiting,
     emptyOnboardingTypingAccent,
     onEmptyOnboardingExitComplete,
   ]);
+
+  const capturePlaceholder = useMemo(
+    () => capturePlaceholderForScope(spaceScope, Boolean(selectedEntry)),
+    [spaceScope, selectedEntry]
+  );
 
   useEffect(() => {
     if (search.trim()) {
@@ -1838,7 +1848,12 @@ export default function App() {
               )}
             </div>
             <div
-              className={`app-header-lens ${introDismissed ? "" : "app-header-lens--inert"}`}
+              className={[
+                "app-header-lens",
+                introDismissed ? "" : "app-header-lens--inert",
+              ]
+                .filter(Boolean)
+                .join(" ")}
               role={introDismissed ? "tablist" : undefined}
               aria-label={introDismissed ? "Stream lens" : undefined}
               aria-hidden={!introDismissed}
@@ -2018,6 +2033,8 @@ export default function App() {
               showExpandTrigger={showComposeExpandTrigger}
               onComposeExpandedChange={setComposeExpanded}
               compact={Boolean(selectedEntry)}
+              placeholder={capturePlaceholder}
+              captureAriaLabel={capturePlaceholder.replace(/…$/, "")}
             />
             <div
               className={`entry-input-row-aside ${showJumpTrigger ? "entry-input-row-aside--with-jump" : ""}`}
@@ -2137,6 +2154,7 @@ export default function App() {
                       onEntryClick={handleOpenEntry}
                       sectionTitle="Open"
                       flatSection
+                      showSectionTitle={showOpenSectionTitle}
                       entryRowMeta={openEntryMeta}
                       pinnedEntryIds={pinnedEntryIdSet}
                       onPinToggle={handlePinToggle}
@@ -2191,6 +2209,7 @@ export default function App() {
                           onEntryClick={handleOpenEntry}
                           sectionTitle="Recent"
                           flatSection
+                          showSectionTitle={showRecentSectionTitle}
                           pinnedEntryIds={pinnedEntryIdSet}
                           onPinToggle={handlePinToggle}
                           onEntryDelete={handleEntryDelete}
@@ -2206,7 +2225,16 @@ export default function App() {
                     )
                   )}
                   {!showFullStream && !mainStreamEmpty ? (
-                    <div className="home-depth-zone">
+                    <div
+                      className={[
+                        "home-depth-zone",
+                        showMemoryEcho && memoryEcho
+                          ? "home-depth-zone--has-echo"
+                          : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                    >
                       {showMemoryEcho && memoryEcho ? (
                         <MemoryEcho
                             entry={memoryEcho.entry}
@@ -2235,6 +2263,7 @@ export default function App() {
                       ) : null}
                       <TimeStrand
                         entries={entries}
+                        hasEarlierArchive={hasEarlierArchive}
                         calendarAnchorRef={strandCalendarRef}
                         onOpenCalendar={() =>
                           openJumpCalendar(strandCalendarRef.current)

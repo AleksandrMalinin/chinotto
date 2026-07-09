@@ -81,6 +81,8 @@ export type EntryStreamProps = {
   flatSection?: boolean;
   /** Per-entry quiet meta (e.g. Open reasons). */
   entryRowMeta?: Record<string, string>;
+  /** When false, flat section title is omitted (home stream quiet zones). */
+  showSectionTitle?: boolean;
   /** Pin state per entry id; overrides `isPinnedSection` when set. */
   pinnedEntryIds?: ReadonlySet<string>;
 };
@@ -521,6 +523,7 @@ function StreamSection({
   onEntryHover,
   entryRowMeta,
   pinnedEntryIds,
+  showSectionTitle = true,
 }: {
   section: string;
   entries: Entry[];
@@ -541,6 +544,7 @@ function StreamSection({
   onEntryHover?: (entry: Entry | null) => void;
   entryRowMeta?: Record<string, string>;
   pinnedEntryIds?: ReadonlySet<string>;
+  showSectionTitle?: boolean;
 }) {
   const isDeleting = (id: string) => deletingIds?.has(id) ?? false;
   const ephemeral = ephemeralEntryIds ?? new Set();
@@ -548,7 +552,9 @@ function StreamSection({
 
   return (
     <section className="stream-section" aria-label={section}>
-      <h2 className="stream-section-title">{section}</h2>
+      {showSectionTitle ? (
+        <h2 className="stream-section-title">{section}</h2>
+      ) : null}
       <ol className="stream-section-list">
         {entries.map((entry) => {
           const justAdded = entry.id === justAddedEntryId;
@@ -625,6 +631,7 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
   flatSection = false,
   entryRowMeta,
   pinnedEntryIds,
+  showSectionTitle = true,
 }) {
   const reduceMotion = useReducedMotion();
 
@@ -702,6 +709,7 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
           onEntryHover={onEntryHover}
           entryRowMeta={entryRowMeta}
           pinnedEntryIds={pinnedEntryIds}
+          showSectionTitle={showSectionTitle}
         />
       ))}
     </div>

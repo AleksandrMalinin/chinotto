@@ -13,10 +13,10 @@ export function SpaceAtmosphereAffordance({ open, onToggle, tabIndex = 0 }: Prop
           ? "space-atmosphere-affordance space-atmosphere-affordance--open"
           : "space-atmosphere-affordance"
       }
-      aria-label="Ambience"
+      aria-label="Room tone"
       aria-expanded={open}
       aria-haspopup="dialog"
-      title="Ambience"
+      title="Room tone"
       tabIndex={tabIndex}
       onClick={(e) => onToggle(e.currentTarget)}
     >
