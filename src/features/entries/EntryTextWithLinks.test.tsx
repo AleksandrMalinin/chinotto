@@ -17,6 +17,7 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 
 vi.mock("./entryApi", () => ({
   findSimilarEntries: vi.fn(() => Promise.resolve([])),
+  getEntryTheme: vi.fn(() => Promise.resolve(null)),
   getThoughtTrail: vi.fn(() => Promise.resolve([])),
   listSpaces: vi.fn(() =>
     Promise.resolve([

@@ -76,3 +76,22 @@ CREATE TABLE IF NOT EXISTS share_threads (
   expires_at TEXT NOT NULL,
   revoked_at TEXT
 );
+
+-- User-defined recall themes (max 7). keywords column unused (reserved). "links" is system URL detection.
+CREATE TABLE IF NOT EXISTS user_themes (
+  id TEXT PRIMARY KEY,
+  label TEXT NOT NULL,
+  keywords TEXT NOT NULL,
+  sort_order INTEGER NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+-- Ambient themes (recall metadata; not stream containers). See docs/internal/themes-proposal.md.
+CREATE TABLE IF NOT EXISTS entry_themes (
+  entry_id TEXT PRIMARY KEY REFERENCES entries(id) ON DELETE CASCADE,
+  theme_id TEXT NOT NULL,
+  confidence REAL NOT NULL,
+  source TEXT NOT NULL,
+  locked INTEGER NOT NULL DEFAULT 0,
+  classified_at TEXT NOT NULL
+);

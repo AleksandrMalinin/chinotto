@@ -350,6 +350,9 @@ export function ShareThreadDialog({
             disabled={creating}
             onChange={(e) => setContextNote(e.target.value)}
           />
+          <p className="share-thread-hint">
+            Themes stay on your device — use this note if the reader needs framing.
+          </p>
         </section>
 
         <section className="share-thread-section">

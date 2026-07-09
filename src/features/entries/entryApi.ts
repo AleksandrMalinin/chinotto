@@ -63,6 +63,38 @@ export function generateEmbedding(entryId: string): void {
   });
 }
 
+export type EntryTheme = {
+  themeId: string;
+  confidence: number;
+  source: string;
+  locked: boolean;
+};
+
+import { isThemesEnabled } from "@/lib/themeSettings";
+
+export function classifyEntryTheme(entryId: string): void {
+  if (!isThemesEnabled()) return;
+  invoke("classify_entry_theme", { entryId }).catch((err) => {
+    console.warn("[chinotto] classify_entry_theme failed", entryId, err);
+  });
+}
+
+export async function getEntryTheme(
+  entryId: string
+): Promise<EntryTheme | null> {
+  return invoke<EntryTheme | null>("get_entry_theme", { entryId });
+}
+
+export async function setEntryTheme(
+  entryId: string,
+  themeId: string | null,
+  locked: boolean
+): Promise<void> {
+  return invoke("set_entry_theme", {
+    input: { entryId, themeId, locked },
+  });
+}
+
 export async function findSimilarEntries(
   entryId: string,
   /** 0 = all entries above the similarity threshold */
@@ -97,12 +129,58 @@ export async function getEntry(entryId: string): Promise<Entry | null> {
 
 export async function searchEntries(
   query: string,
-  spaceFilter?: string
+  spaceFilter?: string,
+  themeFilter?: string
 ): Promise<Entry[]> {
   return invoke<Entry[]>("search_entries", {
     query,
     spaceFilter: spaceFilter ?? null,
+    themeFilter: themeFilter ?? null,
   });
+}
+
+export type ThemeCount = {
+  themeId: string;
+  count: number;
+};
+
+export async function listThemeCounts(): Promise<ThemeCount[]> {
+  return invoke<ThemeCount[]>("list_theme_counts");
+}
+
+export async function listThemeCountsRecent(
+  days = 7
+): Promise<ThemeCount[]> {
+  return invoke<ThemeCount[]>("list_theme_counts_recent", { days });
+}
+
+export type UserTheme = {
+  id: string;
+  label: string;
+  sort_order: number;
+};
+
+export async function listUserThemes(): Promise<UserTheme[]> {
+  return invoke<UserTheme[]>("list_user_themes");
+}
+
+export async function createUserTheme(label: string): Promise<UserTheme> {
+  return invoke<UserTheme>("create_user_theme", {
+    input: { label },
+  });
+}
+
+export async function updateUserTheme(
+  id: string,
+  label: string
+): Promise<UserTheme> {
+  return invoke<UserTheme>("update_user_theme", {
+    input: { id, label },
+  });
+}
+
+export async function deleteUserTheme(id: string): Promise<void> {
+  return invoke("delete_user_theme", { id });
 }
 
 export type SpaceRow = {

@@ -1,6 +1,7 @@
 import { useMemo, memo, useState, useEffect, useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Pin, X } from "lucide-react";
+import { Link2, Pin, X } from "lucide-react";
+import { hasUrlInText } from "@/lib/urlInText";
 import { StreamFlowPanel } from "@/components/StreamFlowPanel";
 import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
 import type { Entry } from "../../types/entry";
@@ -331,6 +332,7 @@ const EntryRow = memo(function EntryRow({
     entry.highlighted.length > 0;
   const content = useHighlight ? toHighlightHtml(entry.highlighted!) : entry.text;
   const streamPreviewText = streamPreviewFirstLine(entry.text);
+  const hasLink = hasUrlInText(entry.text);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (isEditable) return;
@@ -457,6 +459,15 @@ const EntryRow = memo(function EntryRow({
       <div className="entry-row-footer">
         {rowMeta ? (
           <span className="entry-row-meta">{rowMeta}</span>
+        ) : null}
+        {hasLink ? (
+          <span
+            className="entry-row-link-mark"
+            aria-label="Contains link"
+            title="Contains link"
+          >
+            <Link2 size={12} strokeWidth={2} aria-hidden />
+          </span>
         ) : null}
         <time className="entry-row-time" dateTime={entry.created_at}>
           {formatTime(entry.created_at)}

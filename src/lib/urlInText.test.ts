@@ -3,7 +3,7 @@
  */
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { parseTextWithUrls } from "./urlInText";
+import { hasUrlInText, parseTextWithUrls } from "./urlInText";
 
 describe("urlInText", () => {
   it("detects https:// URLs", () => {
@@ -88,5 +88,15 @@ describe("urlInText", () => {
   it("empty or whitespace-only text returns no segments and no hostname", () => {
     assert.deepStrictEqual(parseTextWithUrls(""), { segments: [], singleHostname: null });
     assert.deepStrictEqual(parseTextWithUrls("   "), { segments: [], singleHostname: null });
+  });
+
+  it("hasUrlInText is true when a URL is present", () => {
+    assert.strictEqual(hasUrlInText("Read https://linear.app/blog"), true);
+    assert.strictEqual(hasUrlInText("www.openai.com"), true);
+  });
+
+  it("hasUrlInText is false for plain text", () => {
+    assert.strictEqual(hasUrlInText("No links here"), false);
+    assert.strictEqual(hasUrlInText(""), false);
   });
 });
