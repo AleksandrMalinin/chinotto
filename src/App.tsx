@@ -235,6 +235,7 @@ export default function App() {
   const [composeExpanded, setComposeExpanded] = useState(false);
   const [searchOverlayClosing, setSearchOverlayClosing] = useState(false);
   const [jumpPopoverOpen, setJumpPopoverOpen] = useState(false);
+  const [jumpPopoverSheet, setJumpPopoverSheet] = useState(false);
   const [jumpContextYmd, setJumpContextYmd] = useState<string | null>(null);
   const [jumpContextExpanded, setJumpContextExpanded] = useState(false);
   const [isChinottoCardOpen, setIsChinottoCardOpen] = useState(false);
@@ -287,10 +288,14 @@ export default function App() {
   const jumpPopoverAnchorRef = useRef<HTMLElement | null>(null);
   const entryInputRef = useRef<EntryInputRef>(null);
 
-  const openJumpCalendar = useCallback((anchor: HTMLElement | null) => {
-    jumpPopoverAnchorRef.current = anchor;
-    setJumpPopoverOpen(true);
-  }, []);
+  const openJumpCalendar = useCallback(
+    (anchor: HTMLElement | null, options?: { sheet?: boolean }) => {
+      jumpPopoverAnchorRef.current = anchor;
+      setJumpPopoverSheet(options?.sheet ?? false);
+      setJumpPopoverOpen(true);
+    },
+    []
+  );
 
   const handleSearchCloseImmediate = useCallback(() => {
     setSearchOverlayClosing(false);
@@ -1107,6 +1112,7 @@ export default function App() {
         if (!anchor) return;
         e.preventDefault();
         jumpPopoverAnchorRef.current = anchor;
+        setJumpPopoverSheet(!showJumpTrigger);
         setJumpPopoverOpen((o) => !o);
       }
       if (e.key === "n" && (e.metaKey || e.ctrlKey)) {
@@ -1996,6 +2002,7 @@ export default function App() {
                   className="jump-date-trigger"
                   onClick={() => {
                     jumpPopoverAnchorRef.current = jumpToDateButtonRef.current;
+                    setJumpPopoverSheet(false);
                     setJumpPopoverOpen((o) => !o);
                   }}
                   aria-label="Jump to date (⌘⇧J)"
@@ -2019,6 +2026,7 @@ export default function App() {
             </div>
             <JumpToDatePopover
               open={jumpPopoverOpen}
+              variant={jumpPopoverSheet ? "sheet" : "popover"}
               anchorRef={jumpPopoverAnchorRef}
               contextYmd={jumpContextYmd}
               spaceFilter={spaceFilterParam}

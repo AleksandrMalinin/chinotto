@@ -930,6 +930,51 @@ body.welcome .app-bg {
   -webkit-backdrop-filter: blur(14px);
 }
 
+.jump-date-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(1.5rem, env(safe-area-inset-top, 0px)) 1.5rem
+    max(1.5rem, env(safe-area-inset-bottom, 0px));
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.jump-date-sheet .jump-date-popover-inner {
+  width: min(94vw, 28rem);
+  padding: 1.2rem 1.25rem 1.3rem;
+  border-radius: 14px;
+}
+
+.jump-date-sheet .jump-date-popover-head {
+  margin-bottom: 0.65rem;
+}
+
+.jump-date-sheet .jump-date-title {
+  font-size: 15px;
+}
+
+.jump-date-sheet .jump-date-wd {
+  font-size: 11px;
+}
+
+.jump-date-sheet .jump-date-cell {
+  min-height: 3.1rem;
+  font-size: 15px;
+}
+
+.jump-date-sheet .jump-date-cell-stack {
+  width: 2rem;
+  gap: 0.28rem;
+}
+
+.jump-date-sheet .jump-date-dot {
+  width: 4px;
+  height: 4px;
+}
+
 .jump-date-popover-head {
   display: flex;
   align-items: center;
@@ -987,27 +1032,38 @@ body.welcome .app-bg {
 
 .jump-date-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 3px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
 }
 
 .jump-date-cell {
-  position: relative;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  min-height: 2.35rem;
-  padding: 0.28rem 0 0.2rem;
+  justify-content: center;
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.15rem 0;
   margin: 0;
   border: none;
   border-radius: 7px;
   background: transparent;
+  font: inherit;
   font-size: 13px;
   font-weight: 450;
   color: rgba(255, 255, 255, 0.42);
   cursor: default;
+  appearance: none;
+  -webkit-appearance: none;
   transition: background var(--transition), color var(--transition);
+}
+
+.jump-date-cell-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.22rem;
+  width: 1.75rem;
 }
 
 .jump-date-cell--empty {
@@ -1023,43 +1079,43 @@ body.welcome .app-bg {
   background: rgba(255, 255, 255, 0.06);
 }
 
-/* Today with thoughts: visible in grid but not clickable (already top of stream). */
-.jump-date-cell--today-at-top {
-  color: rgba(255, 255, 255, 0.62);
-  cursor: default;
+.jump-date-cell--locked {
   pointer-events: none;
+  cursor: default;
 }
 
-.jump-date-cell--today-at-top .jump-date-dot {
-  opacity: 0.72;
+.jump-date-cell--today .jump-date-day-num {
+  font-weight: 600;
+  color: var(--fg);
 }
 
-.jump-date-cell--today-at-top.jump-date-cell--context {
-  background: rgba(120, 130, 200, 0.14);
-  box-shadow: 0 0 0 1px rgba(140, 150, 220, 0.22) inset;
+.jump-date-cell--context .jump-date-day-num {
+  font-weight: 500;
+  color: var(--fg);
 }
 
-.jump-date-cell--today:not(.jump-date-cell--has-entry) {
-  color: rgba(255, 255, 255, 0.52);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
-  border-radius: 7px;
-}
-
-.jump-date-cell--context.jump-date-cell--has-entry {
-  background: rgba(120, 130, 200, 0.14);
-  box-shadow: 0 0 0 1px rgba(140, 150, 220, 0.22) inset;
+.jump-date-cell--context .jump-date-dot {
+  background: rgba(180, 190, 255, 0.78);
 }
 
 .jump-date-day-num {
-  line-height: 1.1;
+  width: 100%;
+  text-align: center;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
 }
 
 .jump-date-dot {
+  flex-shrink: 0;
   width: 3px;
   height: 3px;
-  margin-top: 0.2rem;
+  margin: 0;
   border-radius: 50%;
   background: rgba(160, 170, 255, 0.42);
+}
+
+.jump-date-dot--hidden {
+  visibility: hidden;
 }
 
 /* Fixed overlay: never affects stream layout when shown or hidden. */
