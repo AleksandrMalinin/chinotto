@@ -5584,6 +5584,12 @@ body.welcome .app-bg {
   pointer-events: none;
 }
 
+.entry-detail-similar--below-trail .entry-detail-similar-title {
+  font-size: 12px;
+  color: var(--meta-fg);
+  opacity: 0.88;
+}
+
 .entry-detail-similar {
   margin-top: 1.35rem;
 }

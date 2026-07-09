@@ -171,18 +171,7 @@ export function EntryDetail({
     el.style.height = `${Math.max(el.scrollHeight, 88)}px`;
   }, [entry.text, editable, isEditingText, writeExpanded]);
 
-  const trailNeighborsEarly = useMemo(
-    () => trail.filter((e) => e.id !== entry.id),
-    [trail, entry.id]
-  );
-
   useEffect(() => {
-    if (trailLoading) return;
-    if (trailNeighborsEarly.length > 0) {
-      setRelated([]);
-      setRelatedLoading(false);
-      return;
-    }
     let cancelled = false;
     setRelatedLoading(true);
     findSimilarEntries(entry.id)
@@ -195,7 +184,7 @@ export function EntryDetail({
     return () => {
       cancelled = true;
     };
-  }, [entry.id, trailLoading, trailNeighborsEarly.length]);
+  }, [entry.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -390,15 +379,27 @@ export function EntryDetail({
       ),
     [trailNeighbors, entry.created_at]
   );
+  const trailNeighborIds = useMemo(
+    () => new Set(trailNeighbors.map((e) => e.id)),
+    [trailNeighbors]
+  );
+  const relatedBeyondTrail = useMemo(
+    () => related.filter((e) => !trailNeighborIds.has(e.id)),
+    [related, trailNeighborIds]
+  );
   const showTrail = !trailLoading && trailNeighbors.length > 0;
-  const showRelated = !trailLoading && !showTrail && !relatedLoading && related.length > 0;
+  const showRelated = !relatedLoading && relatedBeyondTrail.length > 0;
   const shareTrailCount =
     trailNeighbors.length > 0 ? trailNeighbors.length + 1 : 1;
   const similarVisible = similarExpanded
-    ? related
-    : related.slice(0, SIMILAR_COLLAPSED_COUNT);
-  const similarHiddenCount = Math.max(0, related.length - similarVisible.length);
-  const similarExceedsCollapsed = related.length > SIMILAR_COLLAPSED_COUNT;
+    ? relatedBeyondTrail
+    : relatedBeyondTrail.slice(0, SIMILAR_COLLAPSED_COUNT);
+  const similarHiddenCount = Math.max(
+    0,
+    relatedBeyondTrail.length - similarVisible.length
+  );
+  const similarExceedsCollapsed =
+    relatedBeyondTrail.length > SIMILAR_COLLAPSED_COUNT;
   const writingZoneClass = [
     "entry-detail-writing-zone",
     isEditingText && !writeExpanded ? "entry-detail-writing-zone--active" : "",
@@ -653,8 +654,16 @@ export function EntryDetail({
         </p>
       ) : null}
       {showRelated ? (
-        <section className="entry-detail-similar" aria-label="Similar thoughts">
-          <h2 className="entry-detail-similar-title">Similar</h2>
+        <section
+          className={[
+            "entry-detail-similar",
+            showTrail ? "entry-detail-similar--below-trail" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          aria-label="Related thoughts"
+        >
+          <h2 className="entry-detail-similar-title">Related thoughts</h2>
           <ul className="entry-detail-similar-list">
             {similarVisible.map((e) => (
               <li key={e.id}>
