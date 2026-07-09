@@ -1845,6 +1845,237 @@ body.search-open {
   line-height: 1.4;
 }
 
+.chinotto-card-section--themes {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chinotto-card-section--themes .chinotto-card-section-desc {
+  margin-bottom: 0.375rem;
+}
+
+.chinotto-card-section--shortcuts {
+  margin-top: 0.75rem;
+}
+
+.chinotto-card-col--right .chinotto-card-shortcuts-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem 1rem;
+}
+
+/* Default: one row of six tiles; two-column Settings uses `.chinotto-card-col--left` for 3×2 */
+.chinotto-card-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0.5rem;
+}
+
+.chinotto-card-icon-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.125rem;
+}
+
+.chinotto-card-icon-caption {
+  font-size: 10px;
+  color: var(--landing-muted);
+  text-align: center;
+}
+
+.chinotto-card-icon-tile {
+  width: 100%;
+  aspect-ratio: 1;
+  max-width: 68px;
+  max-height: 68px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  border-radius: 0.5rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: box-shadow 0.2s ease-out, outline 0.2s ease-out;
+}
+
+.chinotto-card-icon-tile:hover {
+  box-shadow:
+    0 0 0 1px rgba(10, 10, 14, 0.85),
+    0 0 0 2px rgba(255, 255, 255, 0.42),
+    0 0 12px rgba(255, 255, 255, 0.2);
+}
+
+.chinotto-card-icon-tile:focus {
+  outline: none;
+}
+
+.chinotto-card-icon-tile:focus-visible {
+  outline: 1px solid var(--landing-border);
+  outline-offset: 2px;
+}
+
+.chinotto-card-icon-tile-selected {
+  box-shadow:
+    0 0 0 1px rgba(160, 170, 255, 0.4),
+    0 0 12px rgba(160, 170, 255, 0.08);
+  outline: none;
+}
+
+.chinotto-card-shortcuts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.chinotto-card-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-size: 12px;
+  color: var(--landing-muted);
+  white-space: nowrap;
+}
+
+.chinotto-card-kbd {
+  flex-shrink: 0;
+  min-width: 3.25rem;
+  padding: 0.1875rem 0.375rem;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--landing-foreground);
+  background: rgba(10, 10, 14, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.chinotto-card-shortcut-action {
+  flex-shrink: 0;
+  color: var(--landing-foreground-strong);
+}
+
+.chinotto-card-privacy-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.375rem;
+}
+
+.chinotto-card-privacy-label {
+  font-size: 12px;
+  color: var(--landing-foreground);
+}
+
+.chinotto-card-theme-editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin-top: 0.5rem;
+}
+
+.chinotto-card-theme-hint {
+  margin: 0 0 0.5rem;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--landing-foreground-muted, rgba(255, 255, 255, 0.55));
+}
+
+.chinotto-card-theme-status,
+.chinotto-card-theme-error {
+  margin: 0.5rem 0 0;
+  font-size: 11px;
+  color: var(--landing-foreground-muted, rgba(255, 255, 255, 0.55));
+}
+
+.chinotto-card-theme-error {
+  color: #e8a0a0;
+}
+
+.chinotto-card-theme-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 7.5rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 0.25rem;
+  scrollbar-gutter: stable;
+}
+
+.chinotto-card-theme-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.chinotto-card-theme-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.chinotto-card-theme-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.chinotto-card-theme-fields {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.chinotto-card-theme-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--landing-foreground-strong);
+  font: inherit;
+  font-size: 12px;
+}
+
+.chinotto-card-theme-input--label {
+  flex: 1;
+}
+
+.chinotto-card-theme-delete,
+.chinotto-card-theme-add {
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--landing-foreground-muted, rgba(255, 255, 255, 0.55));
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.chinotto-card-theme-delete:hover,
+.chinotto-card-theme-add:hover:not(:disabled) {
+  color: var(--landing-foreground-strong);
+}
+
+.chinotto-card-theme-add {
+  flex-shrink: 0;
+  margin-top: 0.5rem;
+}
+
+.chinotto-card-theme-add:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
 .chinotto-card-toggle {
   position: relative;
   flex-shrink: 0;

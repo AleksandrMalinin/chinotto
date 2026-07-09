@@ -7,14 +7,11 @@ import {
 } from "@/lib/iconVariants";
 import { setDesktopIcon } from "@/lib/setDesktopIcon";
 import { isOptIn, setOptIn } from "@/lib/analytics";
-import {
-  isShowLinkIndicator,
-  isThemesEnabled,
-  setShowLinkIndicator,
-  setThemesEnabled,
-} from "@/lib/themeSettings";
+import { isThemesEnabled, setThemesEnabled } from "@/lib/themeSettings";
 import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
 import { APP_VERSION } from "@/lib/appVersion";
+import { UserThemesEditor } from "@/features/entries/UserThemesEditor";
+
 type ShortcutRow = {
   keys: string;
   action: string;
@@ -49,8 +46,7 @@ type Props = {
   onIconVariantChange: (id: string) => void;
   themesEnabled: boolean;
   onThemesEnabledChange: (enabled: boolean) => void;
-  showLinkIndicator: boolean;
-  onShowLinkIndicatorChange: (enabled: boolean) => void;
+  onUserThemesChange?: () => void;
 };
 
 const selectableVariants = SELECTABLE_ICON_VARIANT_IDS.map((id) => getIconVariant(id));
@@ -64,8 +60,7 @@ export function ChinottoCard({
   onIconVariantChange,
   themesEnabled,
   onThemesEnabledChange,
-  showLinkIndicator,
-  onShowLinkIndicatorChange,
+  onUserThemesChange,
 }: Props) {
   const handleVariantClick = (id: string) => {
     setStoredIconVariantId(id);
@@ -96,12 +91,6 @@ export function ChinottoCard({
     const next = !themesEnabled;
     setThemesEnabled(next);
     onThemesEnabledChange(next);
-  };
-
-  const handleLinkIndicatorToggle = () => {
-    const next = !showLinkIndicator;
-    setShowLinkIndicator(next);
-    onShowLinkIndicatorChange(next);
   };
 
   const close = useCallback(() => {
@@ -183,7 +172,7 @@ export function ChinottoCard({
               <section className="chinotto-card-section" aria-labelledby="chinotto-card-icon-title">
                 <h2 id="chinotto-card-icon-title" className="chinotto-card-section-title">ICON</h2>
                 <p className="chinotto-card-section-desc">
-                  Choose the app icon shown in the dock or taskbar.
+                  Dock or taskbar icon.
                 </p>
                 <div className="chinotto-card-icon-grid" role="group" aria-label="Icon style">
                   {selectableVariants.map((v) => {
@@ -217,9 +206,7 @@ export function ChinottoCard({
               <section className="chinotto-card-section" aria-labelledby="chinotto-card-privacy-title">
                 <h2 id="chinotto-card-privacy-title" className="chinotto-card-section-title">PRIVACY</h2>
                 <p className="chinotto-card-section-desc">
-                  Help improve Chinotto with anonymous usage analytics.
-                  <br />
-                  Thoughts are never collected.
+                  Anonymous usage analytics. Thoughts are never collected.
                 </p>
                 <div className="chinotto-card-privacy-row">
                   <span className="chinotto-card-privacy-label">Share anonymous usage data</span>
@@ -246,44 +233,35 @@ export function ChinottoCard({
                   </p>
                 )}
               </section>
+            </div>
 
-              <section className="chinotto-card-section" aria-labelledby="chinotto-card-themes-title">
+            <div className="chinotto-card-col chinotto-card-col--right">
+              <section className="chinotto-card-section chinotto-card-section--themes" aria-labelledby="chinotto-card-themes-title">
                 <h2 id="chinotto-card-themes-title" className="chinotto-card-section-title">THEMES</h2>
                 <p className="chinotto-card-section-desc">
-                  Quiet context for recall. Capture stays unchanged; themes appear in search and detail when confident.
+                  Recall labels. Assign in entry detail; links are automatic.
                 </p>
                 <div className="chinotto-card-privacy-row">
-                  <span className="chinotto-card-privacy-label">Suggest themes</span>
+                  <span className="chinotto-card-privacy-label">Enable themes</span>
                   <button
                     type="button"
                     role="switch"
                     aria-checked={themesEnabled}
-                    aria-label="Suggest themes"
+                    aria-label="Enable themes"
                     className="chinotto-card-toggle"
                     data-on={themesEnabled || undefined}
                     onClick={handleThemesToggle}
                   />
                 </div>
-                <div className="chinotto-card-privacy-row">
-                  <span className="chinotto-card-privacy-label">Show link indicator in stream</span>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={showLinkIndicator}
-                    aria-label="Show link indicator in stream"
-                    className="chinotto-card-toggle"
-                    data-on={showLinkIndicator || undefined}
-                    onClick={handleLinkIndicatorToggle}
-                  />
-                </div>
+                {themesEnabled ? (
+                  <UserThemesEditor onThemesChange={onUserThemesChange} />
+                ) : null}
               </section>
-            </div>
 
-            <div className="chinotto-card-col chinotto-card-col--right">
-              <section className="chinotto-card-section" aria-labelledby="chinotto-card-shortcuts-title">
+              <section className="chinotto-card-section chinotto-card-section--shortcuts" aria-labelledby="chinotto-card-shortcuts-title">
                 <h2 id="chinotto-card-shortcuts-title" className="chinotto-card-section-title">SHORTCUTS</h2>
                 <p className="chinotto-card-section-desc">
-                  These shortcuts apply when the main window is focused. Quick capture uses a global shortcut.
+                  Main window. Quick capture is global (⌘⇧K).
                 </p>
                 <ul className="chinotto-card-shortcuts-list">
                   {SHORTCUTS.map(({ keys, action, keyHint }) => (
