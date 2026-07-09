@@ -257,10 +257,10 @@ export function ShareThreadDialog({
           </label>
           <Textarea
             id="share-context-note"
-            className="share-thread-note"
+            className="share-thread-note min-h-0"
             value={contextNote}
             placeholder="One line of context…"
-            rows={2}
+            rows={1}
             disabled={creating}
             onChange={(e) => setContextNote(e.target.value)}
           />

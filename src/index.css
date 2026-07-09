@@ -2264,12 +2264,12 @@ body.welcome .app-bg {
 
 .share-thread-note {
   margin-top: 0.4rem;
-  min-height: 4.5rem;
-  padding-top: 0.45rem;
-  padding-bottom: 0.55rem;
+  min-height: 0;
+  padding-top: 0.35rem;
+  padding-bottom: 0.4rem;
   font-size: 14px;
-  line-height: 1.5;
-  resize: vertical;
+  line-height: 1.45;
+  resize: none;
 }
 
 .share-thread-expiry {

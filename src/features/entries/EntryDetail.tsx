@@ -420,7 +420,7 @@ export function EntryDetail({
             className="entry-detail-toolbar-action"
             onClick={() => setShareOpen(true)}
           >
-            Share…
+            Share
           </button>
         </div>
       </div>
