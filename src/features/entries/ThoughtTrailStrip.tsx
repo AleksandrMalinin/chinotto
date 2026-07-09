@@ -1,14 +1,17 @@
+import { useEffect, useState } from "react";
 import type { Entry } from "../../types/entry";
 import { streamPreviewFirstLine } from "@/lib/streamPreviewFirstLine";
 
 type Props = {
+  entryId: string;
   currentCreatedAt: string;
   earlier: Entry[];
   later: Entry[];
   onSelectEntry: (entry: Entry) => void;
 };
 
-const MAX_VISIBLE_PER_SIDE = 3;
+/** Collapsed trail rows per temporal side (earlier / later). */
+const COLLAPSED_PER_SIDE = 3;
 
 function truncate(text: string, max: number): string {
   if (text.length <= max) return text;
@@ -28,13 +31,27 @@ function relativeWhen(currentIso: string, otherIso: string): string {
 }
 
 export function ThoughtTrailStrip({
+  entryId,
   currentCreatedAt,
   earlier,
   later,
   onSelectEntry,
 }: Props) {
-  const earlierVisible = earlier.slice(0, MAX_VISIBLE_PER_SIDE);
-  const laterVisible = later.slice(0, MAX_VISIBLE_PER_SIDE);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    setExpanded(false);
+  }, [entryId]);
+
+  const earlierVisible = expanded
+    ? earlier
+    : earlier.slice(0, COLLAPSED_PER_SIDE);
+  const laterVisible = expanded ? later : later.slice(0, COLLAPSED_PER_SIDE);
+  const hiddenCount =
+    Math.max(0, earlier.length - earlierVisible.length) +
+    Math.max(0, later.length - laterVisible.length);
+  const exceedsCollapsed =
+    earlier.length > COLLAPSED_PER_SIDE || later.length > COLLAPSED_PER_SIDE;
 
   const renderRow = (entry: Entry) => {
     const preview = truncate(streamPreviewFirstLine(entry.text), 140);
@@ -60,6 +77,16 @@ export function ThoughtTrailStrip({
         {earlierVisible.map(renderRow)}
         {laterVisible.map(renderRow)}
       </div>
+      {exceedsCollapsed ? (
+        <button
+          type="button"
+          className="entry-detail-rail-more"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? "Show less" : `+${hiddenCount} more`}
+        </button>
+      ) : null}
     </section>
   );
 }

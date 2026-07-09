@@ -51,6 +51,9 @@ function truncate(text: string, maxLen: number): string {
   return text.slice(0, maxLen).trimEnd() + "…";
 }
 
+/** Collapsed similar rows before "+N more". */
+const SIMILAR_COLLAPSED_COUNT = 3;
+
 const CARET_PULSE_ANIM_MS = 1200;
 
 export function EntryDetail({
@@ -97,10 +100,12 @@ export function EntryDetail({
   const editable = Boolean(onEntryTextChange);
   const [isEditingText, setIsEditingText] = useState(false);
   const [writeExpanded, setWriteExpanded] = useState(false);
+  const [similarExpanded, setSimilarExpanded] = useState(false);
 
   useEffect(() => {
     setIsEditingText(false);
     setWriteExpanded(false);
+    setSimilarExpanded(false);
     onWriteExpandedChange?.(false);
     hasInsertedContinuationBreakRef.current = false;
     setShareOpen(false);
@@ -164,7 +169,7 @@ export function EntryDetail({
   useEffect(() => {
     let cancelled = false;
     setRelatedLoading(true);
-    findSimilarEntries(entry.id, 5)
+    findSimilarEntries(entry.id)
       .then((list) => {
         if (!cancelled) setRelated(list);
       })
@@ -219,7 +224,6 @@ export function EntryDetail({
     if (!isEditingText) {
       textAtEditStartRef.current = entry.text;
       hasInsertedContinuationBreakRef.current = false;
-      setIsEditingText(true);
     }
     setWriteExpanded(true);
     onWriteExpandedChange?.(true);
@@ -369,6 +373,11 @@ export function EntryDetail({
   );
   const showTrail = !trailLoading && trailNeighbors.length > 0;
   const showRelated = !relatedLoading && related.length > 0;
+  const similarVisible = similarExpanded
+    ? related
+    : related.slice(0, SIMILAR_COLLAPSED_COUNT);
+  const similarHiddenCount = Math.max(0, related.length - similarVisible.length);
+  const similarExceedsCollapsed = related.length > SIMILAR_COLLAPSED_COUNT;
   const writingZoneClass = [
     "entry-detail-writing-zone",
     isEditingText && !writeExpanded ? "entry-detail-writing-zone--active" : "",
@@ -504,22 +513,33 @@ export function EntryDetail({
       )}
       {editable && onEntryTextChange ? (
         <div className={writingZoneClass}>
-          {isEditingText && !writeExpanded ? (
+          {isEditingText ? (
             <textarea
               ref={textRef}
-              className="entry-detail-editable"
+              className={[
+                "entry-detail-editable",
+                writeExpanded ? "entry-detail-zone-frozen" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
               aria-label="Thought text"
+              aria-hidden={writeExpanded}
+              tabIndex={writeExpanded ? -1 : 0}
+              readOnly={writeExpanded}
               value={entry.text}
               rows={4}
               onFocus={() => {
+                if (writeExpanded) return;
                 moveCaretToEnd();
               }}
               onClick={(e) => {
+                if (writeExpanded) return;
                 if (e.currentTarget !== document.activeElement) {
                   moveCaretToEnd();
                 }
               }}
               onBlur={() => {
+                if (writeExpanded) return;
                 handleTextBlur(textRef.current?.value ?? entry.text);
               }}
               onInput={(e) => {
@@ -529,6 +549,7 @@ export function EntryDetail({
               }}
               onBeforeInput={handleTextBeforeInput}
               onKeyDown={(e) => {
+                if (writeExpanded) return;
                 if (e.key === "Escape") {
                   e.preventDefault();
                   e.currentTarget.blur();
@@ -546,19 +567,29 @@ export function EntryDetail({
               onPaste={handleTextPaste}
               onChange={(e) => onEntryTextChange(entry.id, e.target.value)}
             />
-          ) : !writeExpanded ? (
+          ) : (
             <div
-              className="entry-detail-text-readable"
-              role="button"
-              tabIndex={0}
-              aria-label="Thought text, click to edit"
-              onClick={() => beginEditingText()}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  beginEditingText();
-                }
-              }}
+              className={[
+                "entry-detail-text-readable",
+                writeExpanded ? "entry-detail-zone-frozen" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              role={writeExpanded ? undefined : "button"}
+              tabIndex={writeExpanded ? -1 : 0}
+              aria-hidden={writeExpanded}
+              aria-label={writeExpanded ? undefined : "Thought text, click to edit"}
+              onClick={writeExpanded ? undefined : () => beginEditingText()}
+              onKeyDown={
+                writeExpanded
+                  ? undefined
+                  : (e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        beginEditingText();
+                      }
+                    }
+              }
             >
               <EntryTextWithLinks
                 text={entry.text}
@@ -567,7 +598,7 @@ export function EntryDetail({
                 continuationAt={entry.continuation_at}
               />
             </div>
-          ) : null}
+          )}
         </div>
       ) : (
         <EntryTextWithLinks
@@ -579,6 +610,7 @@ export function EntryDetail({
       )}
       {showTrail ? (
         <ThoughtTrailStrip
+          entryId={entry.id}
           currentCreatedAt={entry.created_at}
           earlier={trailEarlier}
           later={trailLater}
@@ -589,7 +621,7 @@ export function EntryDetail({
         <section className="entry-detail-similar" aria-label="Similar thoughts">
           <h2 className="entry-detail-similar-title">Similar</h2>
           <ul className="entry-detail-similar-list">
-            {related.map((e) => (
+            {similarVisible.map((e) => (
               <li key={e.id}>
                 <button
                   type="button"
@@ -604,6 +636,16 @@ export function EntryDetail({
               </li>
             ))}
           </ul>
+          {similarExceedsCollapsed ? (
+            <button
+              type="button"
+              className="entry-detail-rail-more"
+              aria-expanded={similarExpanded}
+              onClick={() => setSimilarExpanded((v) => !v)}
+            >
+              {similarExpanded ? "Show less" : `+${similarHiddenCount} more`}
+            </button>
+          ) : null}
         </section>
       ) : null}
       </div>

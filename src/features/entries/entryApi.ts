@@ -65,7 +65,8 @@ export function generateEmbedding(entryId: string): void {
 
 export async function findSimilarEntries(
   entryId: string,
-  limit = 5
+  /** 0 = all entries above the similarity threshold */
+  limit = 0
 ): Promise<Entry[]> {
   return invoke<Entry[]>("find_similar_entries", { entryId, limit });
 }

@@ -20,7 +20,7 @@ use base64::Engine;
 use chrono::TimeZone;
 use db::{Db, SpaceFilter};
 use keywords::{
-    extract_keywords, keyword_overlap, thought_trail_candidates, thought_trail_max_related,
+    extract_keywords, keyword_overlap, thought_trail_candidates,
     thought_trail_min_overlap, thought_trail_similarity,
 };
 use std::fs;
@@ -345,7 +345,11 @@ fn find_similar_entries(
     let others = db
         .get_all_embeddings_excluding(&entry_id)
         .map_err(|e| e.to_string())?;
-    let limit = limit.min(50) as usize;
+    let limit = if limit == 0 {
+        usize::MAX
+    } else {
+        limit as usize
+    };
     let with_sim: Vec<(String, f32)> = others
         .into_iter()
         .map(|(id, emb)| {
@@ -512,8 +516,6 @@ fn get_thought_trail(db: tauri::State<Db>, entry_id: String) -> Result<Vec<Entry
         .map(|r| keywords::token_set(&r.text))
         .collect();
     let min_overlap = thought_trail_min_overlap();
-    let max_related = thought_trail_max_related();
-    let half = max_related / 2;
 
     let mut scored: Vec<(db::EntryRow, f64)> = candidates
         .into_iter()
@@ -539,8 +541,8 @@ fn get_thought_trail(db: tauri::State<Db>, entry_id: String) -> Result<Vec<Entry
                 .unwrap_or(false)
         });
 
-    let take_before: Vec<db::EntryRow> = before.into_iter().take(half).map(|(r, _)| r).collect();
-    let take_after: Vec<db::EntryRow> = after.into_iter().take(half).map(|(r, _)| r).collect();
+    let take_before: Vec<db::EntryRow> = before.into_iter().map(|(r, _)| r).collect();
+    let take_after: Vec<db::EntryRow> = after.into_iter().map(|(r, _)| r).collect();
 
     let mut before_sorted = take_before;
     before_sorted.sort_by(|a, b| b.created_at.cmp(&a.created_at));

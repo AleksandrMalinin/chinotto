@@ -773,6 +773,12 @@ body.welcome .app-bg {
 .entry-input-row--detail-focus {
   margin-bottom: 0.65rem;
   gap: 0.35rem;
+  max-height: 6rem;
+  transition:
+    margin-bottom 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    gap 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    max-height 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.28s ease;
 }
 
 .entry-input-row--detail-focus:focus-within {
@@ -5074,6 +5080,10 @@ body.welcome .app-bg {
   color: var(--fg);
 }
 
+.entry-detail--focus .entry-detail-writing-zone {
+  margin-bottom: 1.35rem;
+}
+
 .entry-readable {
   display: flex;
   flex-direction: column;
@@ -5170,6 +5180,11 @@ body.welcome .app-bg {
   outline: 1px solid var(--border-focus);
   outline-offset: 4px;
   border-radius: 4px;
+}
+
+.entry-detail-zone-frozen {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .entry-detail--writing .entry-detail-meta,
@@ -5290,9 +5305,15 @@ body.welcome .app-bg {
   margin: 0 0 0.65rem;
   font-size: 13px;
   font-weight: 500;
-  letter-spacing: 0.01em;
-  text-transform: none;
-  color: rgba(255, 255, 255, 0.72);
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.entry-detail--focus .thought-trail-strip,
+.entry-detail--focus .entry-detail-similar {
+  margin-top: 1.75rem;
+  padding-top: 1.05rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .thought-trail-strip-list {
@@ -5308,7 +5329,7 @@ body.welcome .app-bg {
   gap: 0.65rem;
   width: 100%;
   margin: 0;
-  padding: 0.5rem 0.15rem;
+  padding: 0.5rem 0.75rem;
   border: none;
   border-radius: 6px;
   background: none;
@@ -5349,6 +5370,16 @@ body.welcome .app-bg {
   overflow: hidden;
 }
 
+.entry-detail--focus .thought-trail-strip-preview {
+  font-size: 14px;
+  color: var(--fg-dim);
+}
+
+.entry-detail--focus .thought-trail-strip-row:hover .thought-trail-strip-preview,
+.entry-detail--focus .thought-trail-strip-row:focus-visible .thought-trail-strip-preview {
+  color: var(--fg);
+}
+
 .entry-detail-similar {
   margin-top: 1.35rem;
 }
@@ -5367,7 +5398,7 @@ body.welcome .app-bg {
   display: block;
   width: 100%;
   margin: 0;
-  padding: 0.5rem 0.15rem;
+  padding: 0.5rem 0.75rem;
   border: none;
   background: none;
   font: inherit;
@@ -5401,6 +5432,43 @@ body.welcome .app-bg {
   color: var(--fg);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.entry-detail-rail-more {
+  display: block;
+  margin: 0.35rem 0 0;
+  padding: 0.35rem 0.75rem;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+  color: var(--meta-fg);
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color var(--transition), background var(--transition);
+}
+
+.entry-detail-rail-more:hover {
+  color: var(--fg-dim);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.entry-detail-rail-more:focus-visible {
+  outline: 1px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.entry-detail--focus .entry-detail-similar-text {
+  font-size: 14px;
+  color: var(--fg-dim);
+}
+
+.entry-detail--focus .entry-detail-similar-item:hover .entry-detail-similar-text,
+.entry-detail--focus .entry-detail-similar-item:focus-visible .entry-detail-similar-text {
+  color: var(--fg);
 }
 
 @media (prefers-reduced-motion: reduce) {
