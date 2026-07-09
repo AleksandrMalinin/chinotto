@@ -7,6 +7,7 @@ import { shareThreadUrl } from "@/lib/chinottoLinks";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { createShareThread, writeUtf8File } from "./shareThreadApi";
+import { findSimilarEntries } from "./entryApi";
 import { copyTextToClipboard } from "@/lib/copyToClipboard";
 import {
   publishShareThreadSnapshot,
@@ -70,6 +71,11 @@ export function ShareThreadDialog({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
     () => new Set(candidates.map((e) => e.id))
   );
+  const [relatedCandidates, setRelatedCandidates] = useState<Entry[]>([]);
+  const [relatedLoading, setRelatedLoading] = useState(true);
+  const [selectedRelatedIds, setSelectedRelatedIds] = useState<Set<string>>(
+    () => new Set()
+  );
   const [contextNote, setContextNote] = useState("");
   const [expiresInDays, setExpiresInDays] = useState<number>(14);
   const [creating, setCreating] = useState(false);
@@ -105,6 +111,34 @@ export function ShareThreadDialog({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setRelatedLoading(true);
+    findSimilarEntries(currentEntry.id)
+      .then((list) => {
+        if (cancelled) return;
+        const threadIds = new Set(candidates.map((e) => e.id));
+        const next = list.filter((e) => !threadIds.has(e.id));
+        setRelatedCandidates(next);
+        setSelectedRelatedIds(new Set());
+      })
+      .finally(() => {
+        if (!cancelled) setRelatedLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentEntry.id, candidates]);
+
+  const toggleRelated = (id: string) => {
+    setSelectedRelatedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const handleCreate = async () => {
     if (selectedCount === 0 || creating) return;
     setCreating(true);
@@ -118,10 +152,14 @@ export function ShareThreadDialog({
         expiresInDays,
       });
       const entries = candidates.filter((e) => selectedIds.has(e.id));
+      const relatedEntries = relatedCandidates.filter((e) =>
+        selectedRelatedIds.has(e.id)
+      );
       const html = buildShareThreadHtml({
         contextNote: thread.context_note,
         expiresAt: thread.expires_at,
         entries,
+        relatedEntries,
       });
       const path = await saveDialog({
         defaultPath: `chinotto-thread-${thread.token.slice(0, 8)}.html`,
@@ -249,6 +287,54 @@ export function ShareThreadDialog({
             <p className="share-thread-hint">At most {MAX_ENTRIES} thoughts.</p>
           ) : null}
         </section>
+
+        {relatedLoading || relatedCandidates.length > 0 ? (
+          <section className="share-thread-section" aria-label="Related thoughts">
+            <h3 className="share-thread-section-title">Related thoughts</h3>
+            {relatedLoading ? (
+              <p className="share-thread-hint">Loading related thoughts…</p>
+            ) : (
+              <ul className="share-thread-entry-list">
+                {relatedCandidates.map((e) => {
+                  const checked = selectedRelatedIds.has(e.id);
+                  return (
+                    <li key={e.id}>
+                      <button
+                        type="button"
+                        role="checkbox"
+                        aria-checked={checked}
+                        disabled={creating}
+                        className={[
+                          "share-thread-entry-row",
+                          checked ? "share-thread-entry-row--selected" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
+                        onClick={() => toggleRelated(e.id)}
+                      >
+                        <span className="share-thread-entry-check" aria-hidden="true">
+                          {checked ? "✓" : ""}
+                        </span>
+                        <span className="share-thread-entry-body">
+                          <span className="share-thread-entry-meta">Related</span>
+                          <span className="share-thread-entry-text">
+                            {truncate(e.text, 100)}
+                          </span>
+                          <time
+                            className="share-thread-entry-time"
+                            dateTime={e.created_at}
+                          >
+                            {formatTimestamp(e.created_at)}
+                          </time>
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        ) : null}
 
         <section className="share-thread-section">
           <label className="share-thread-section-title" htmlFor="share-context-note">
