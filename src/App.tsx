@@ -77,7 +77,6 @@ import {
   mayAttemptResurface,
 } from "@/lib/resurfaceSession";
 import {
-  isShowLinkIndicator,
   isThemesEnabled,
 } from "@/lib/themeSettings";
 import {
@@ -257,9 +256,6 @@ export default function App() {
   const [searchThemeFilter, setSearchThemeFilter] = useState<string | null>(null);
   const [themeCounts, setThemeCounts] = useState<ThemeCount[]>([]);
   const [themesEnabled, setThemesEnabled] = useState(() => isThemesEnabled());
-  const [showLinkIndicator, setShowLinkIndicator] = useState(() =>
-    isShowLinkIndicator()
-  );
   const [themeNudge, setThemeNudge] = useState<ThemeCount | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -2352,7 +2348,6 @@ export default function App() {
                   onDeleteAnimationEnd={handleDeleteAnimationEnd}
                   onEntryHover={(entry) => setHoveredEntryId(entry ? entry.id : null)}
                   trailLinkedIds={trailLinkedIds}
-                  showLinkIndicator={showLinkIndicator}
                   deferEmptyPanelMotion={!emptyOnboardingIntroReady}
                   revealEmptyOnboarding={emptyOnboardingIntroReady}
                   emptyLensMessage={emptyLensMessage}
@@ -2385,7 +2380,6 @@ export default function App() {
                         setHoveredEntryId(entry ? entry.id : null)
                       }
                       trailLinkedIds={trailLinkedIds}
-                      showLinkIndicator={showLinkIndicator}
                       deferEmptyPanelMotion={!emptyOnboardingIntroReady}
                       revealEmptyOnboarding={emptyOnboardingIntroReady}
                     />
@@ -2412,7 +2406,6 @@ export default function App() {
                           setHoveredEntryId(entry ? entry.id : null)
                         }
                         trailLinkedIds={trailLinkedIds}
-                        showLinkIndicator={showLinkIndicator}
                         deferEmptyPanelMotion={!emptyOnboardingIntroReady}
                         revealEmptyOnboarding={emptyOnboardingIntroReady}
                       />
@@ -2443,7 +2436,6 @@ export default function App() {
                             setHoveredEntryId(entry ? entry.id : null)
                           }
                           trailLinkedIds={trailLinkedIds}
-                          showLinkIndicator={showLinkIndicator}
                           deferEmptyPanelMotion={!emptyOnboardingIntroReady}
                           revealEmptyOnboarding={emptyOnboardingIntroReady}
                         />
@@ -2540,7 +2532,6 @@ export default function App() {
               onDeleteAnimationEnd={handleDeleteAnimationEnd}
               onEntryHover={(entry) => setHoveredEntryId(entry ? entry.id : null)}
               trailLinkedIds={trailLinkedIds}
-              showLinkIndicator={showLinkIndicator}
               deferEmptyPanelMotion={!emptyOnboardingIntroReady}
               revealEmptyOnboarding={emptyOnboardingIntroReady}
             />
@@ -2582,8 +2573,6 @@ export default function App() {
           onIconVariantChange={setIconVariantId}
           themesEnabled={themesEnabled}
           onThemesEnabledChange={setThemesEnabled}
-          showLinkIndicator={showLinkIndicator}
-          onShowLinkIndicatorChange={setShowLinkIndicator}
         />
       )}
       {isStreamShowcaseOpen && (

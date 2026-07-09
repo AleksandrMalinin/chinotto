@@ -1,5 +1,4 @@
 export const THEMES_ENABLED_KEY = "chinotto.themesEnabled";
-export const SHOW_LINK_INDICATOR_KEY = "chinotto.showLinkIndicator";
 
 function readFlag(key: string, defaultOn: boolean): boolean {
   try {
@@ -26,12 +25,4 @@ export function isThemesEnabled(): boolean {
 
 export function setThemesEnabled(enabled: boolean): void {
   writeFlag(THEMES_ENABLED_KEY, enabled);
-}
-
-export function isShowLinkIndicator(): boolean {
-  return readFlag(SHOW_LINK_INDICATOR_KEY, true);
-}
-
-export function setShowLinkIndicator(enabled: boolean): void {
-  writeFlag(SHOW_LINK_INDICATOR_KEY, enabled);
 }

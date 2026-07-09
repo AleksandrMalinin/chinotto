@@ -88,8 +88,6 @@ export type EntryStreamProps = {
   pinnedEntryIds?: ReadonlySet<string>;
   /** Entry ids that participate in a thought trail (quiet stream indicator). */
   trailLinkedIds?: ReadonlySet<string>;
-  /** When false, URL rows omit the link glyph (settings). */
-  showLinkIndicator?: boolean;
 };
 
 function getSectionMeta(iso: string): { key: string; label: string } {
@@ -279,7 +277,6 @@ const EntryRow = memo(function EntryRow({
   onEntryDelete,
   onEntryHover,
   hasTrailLink,
-  showLinkIndicator = true,
 }: {
   entry: Entry;
   showHighlights: boolean;
@@ -295,7 +292,6 @@ const EntryRow = memo(function EntryRow({
   onEntryDelete?: (entry: Entry) => void;
   onEntryHover?: (entry: Entry | null) => void;
   hasTrailLink?: boolean;
-  showLinkIndicator?: boolean;
 }) {
   const [hover, setHover] = useState(false);
   const [editValue, setEditValue] = useState(entry.text);
@@ -336,7 +332,7 @@ const EntryRow = memo(function EntryRow({
     entry.highlighted.length > 0;
   const content = useHighlight ? toHighlightHtml(entry.highlighted!) : entry.text;
   const streamPreviewText = streamPreviewFirstLine(entry.text);
-  const hasLink = showLinkIndicator && hasUrlInText(entry.text);
+  const hasLink = hasUrlInText(entry.text);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (isEditable) return;
@@ -551,7 +547,6 @@ function StreamSection({
   pinnedEntryIds,
   trailLinkedIds,
   showSectionTitle = true,
-  showLinkIndicator = true,
 }: {
   section: string;
   entries: Entry[];
@@ -574,7 +569,6 @@ function StreamSection({
   pinnedEntryIds?: ReadonlySet<string>;
   trailLinkedIds?: ReadonlySet<string>;
   showSectionTitle?: boolean;
-  showLinkIndicator?: boolean;
 }) {
   const isDeleting = (id: string) => deletingIds?.has(id) ?? false;
   const ephemeral = ephemeralEntryIds ?? new Set();
@@ -627,7 +621,6 @@ function StreamSection({
                   onEntryDelete={onEntryDelete}
                   onEntryHover={onEntryHover}
                   hasTrailLink={trailLinkedIds?.has(entry.id)}
-                  showLinkIndicator={showLinkIndicator}
                 />
               </div>
             </motion.li>
@@ -665,7 +658,6 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
   pinnedEntryIds,
   trailLinkedIds,
   showSectionTitle = true,
-  showLinkIndicator = true,
 }) {
   const reduceMotion = useReducedMotion();
 
@@ -745,7 +737,6 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
           pinnedEntryIds={pinnedEntryIds}
           trailLinkedIds={trailLinkedIds}
           showSectionTitle={showSectionTitle}
-          showLinkIndicator={showLinkIndicator}
         />
       ))}
     </div>
