@@ -1,7 +1,8 @@
 import {
-  ENTRY_THEMES,
   THEME_CHIP_MIN_COUNT,
   themeLabel,
+  type UserTheme,
+  searchChipThemes,
 } from "@/lib/entryThemes";
 
 export type ThemeCount = {
@@ -10,21 +11,25 @@ export type ThemeCount = {
 };
 
 type Props = {
+  userThemes: UserTheme[];
   counts: ThemeCount[];
   selectedThemeId: string | null;
   onSelectTheme: (themeId: string | null) => void;
 };
 
 export function SearchThemeChips({
+  userThemes,
   counts,
   selectedThemeId,
   onSelectTheme,
 }: Props) {
-  const visible = ENTRY_THEMES.map((theme) => {
-    const row = counts.find((c) => c.themeId === theme.id);
-    const count = row?.count ?? 0;
-    return { ...theme, count };
-  }).filter((t) => t.count >= THEME_CHIP_MIN_COUNT);
+  const visible = searchChipThemes(userThemes)
+    .map((theme) => {
+      const row = counts.find((c) => c.themeId === theme.id);
+      const count = row?.count ?? 0;
+      return { ...theme, count };
+    })
+    .filter((t) => t.count >= THEME_CHIP_MIN_COUNT);
 
   if (visible.length === 0) return null;
 
@@ -44,7 +49,7 @@ export function SearchThemeChips({
             aria-pressed={active}
             onClick={() => onSelectTheme(active ? null : theme.id)}
           >
-            {themeLabel(theme.id)}
+            {themeLabel(theme.id, userThemes)}
             <span className="search-theme-chip-count" aria-hidden>
               {theme.count}
             </span>

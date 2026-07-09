@@ -3,10 +3,16 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { SearchThemeChips } from "./SearchThemeChips";
 
+const sampleThemes = [
+  { id: "book", label: "Book", sort_order: 1 },
+  { id: "therapy", label: "Therapy", sort_order: 2 },
+];
+
 describe("SearchThemeChips", () => {
   it("renders chips only when count meets threshold", () => {
     render(
       <SearchThemeChips
+        userThemes={sampleThemes}
         counts={[
           { themeId: "book", count: 5 },
           { themeId: "therapy", count: 2 },
@@ -23,6 +29,7 @@ describe("SearchThemeChips", () => {
     const onSelectTheme = vi.fn();
     render(
       <SearchThemeChips
+        userThemes={sampleThemes}
         counts={[{ themeId: "links", count: 8 }]}
         selectedThemeId={null}
         onSelectTheme={onSelectTheme}
