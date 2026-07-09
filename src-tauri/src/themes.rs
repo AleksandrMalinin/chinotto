@@ -1,42 +1,11 @@
-use crate::keywords::token_set;
+pub const SYSTEM_THEME_LINKS: &str = "links";
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ThemeClassification {
-    pub theme_id: &'static str,
+    pub theme_id: String,
     pub confidence: f64,
     pub source: &'static str,
 }
-
-static BOOK_KEYWORDS: &[&str] = &[
-    "chapter",
-    "character",
-    "plot",
-    "scene",
-    "protagonist",
-    "novel",
-    "manuscript",
-    "writer",
-    "dialogue",
-    "narrator",
-    "draft",
-];
-
-static THERAPY_KEYWORDS: &[&str] = &[
-    "anxiety",
-    "therapist",
-    "therapy",
-    "session",
-    "feeling",
-    "feelings",
-    "trauma",
-    "grief",
-    "depression",
-    "emotional",
-    "scared",
-    "afraid",
-    "cope",
-    "coping",
-];
 
 fn has_url(text: &str) -> bool {
     if text.contains("http://") || text.contains("https://") {
@@ -48,46 +17,16 @@ fn has_url(text: &str) -> bool {
     })
 }
 
-fn keyword_hits(text: &str, keywords: &[&str]) -> usize {
-    let tokens = token_set(text);
-    keywords.iter().filter(|kw| tokens.contains(**kw)).count()
-}
-
-fn classify_by_keywords(text: &str) -> Option<ThemeClassification> {
-    let book_hits = keyword_hits(text, BOOK_KEYWORDS);
-    let therapy_hits = keyword_hits(text, THERAPY_KEYWORDS);
-
-    if book_hits > 0 && therapy_hits > 0 {
-        return None;
-    }
-    if book_hits > 0 {
-        let confidence = if book_hits >= 2 { 0.9 } else { 0.8 };
-        return Some(ThemeClassification {
-            theme_id: "book",
-            confidence,
-            source: "keyword",
-        });
-    }
-    if therapy_hits > 0 {
-        let confidence = if therapy_hits >= 2 { 0.9 } else { 0.8 };
-        return Some(ThemeClassification {
-            theme_id: "therapy",
-            confidence,
-            source: "keyword",
-        });
-    }
-    None
-}
-
+/// Automatic theme assignment: URL entries → links only. User themes are manual in detail.
 pub fn classify_entry_text(text: &str) -> Option<ThemeClassification> {
     if has_url(text) {
         return Some(ThemeClassification {
-            theme_id: "links",
+            theme_id: SYSTEM_THEME_LINKS.to_string(),
             confidence: 1.0,
             source: "url",
         });
     }
-    classify_by_keywords(text)
+    None
 }
 
 #[cfg(test)]
@@ -103,25 +42,12 @@ mod tests {
     }
 
     #[test]
-    fn book_keywords_classify() {
-        let r = classify_entry_text("The protagonist in chapter three feels lost").unwrap();
-        assert_eq!(r.theme_id, "book");
-        assert!(r.confidence >= 0.8);
-    }
-
-    #[test]
-    fn therapy_keywords_classify() {
-        let r = classify_entry_text("Anxiety before the therapy session today").unwrap();
-        assert_eq!(r.theme_id, "therapy");
-    }
-
-    #[test]
-    fn conflicting_keywords_return_none() {
-        assert!(classify_entry_text("The protagonist's anxiety in chapter two").is_none());
-    }
-
-    #[test]
     fn plain_text_returns_none() {
         assert!(classify_entry_text("Coffee and a walk").is_none());
+    }
+
+    #[test]
+    fn book_like_text_returns_none_without_auto_keywords() {
+        assert!(classify_entry_text("The protagonist in chapter three feels lost").is_none());
     }
 }
