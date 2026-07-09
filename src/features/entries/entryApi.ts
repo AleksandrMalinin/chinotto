@@ -154,6 +154,35 @@ export async function listThemeCountsRecent(
   return invoke<ThemeCount[]>("list_theme_counts_recent", { days });
 }
 
+export type UserTheme = {
+  id: string;
+  label: string;
+  sort_order: number;
+};
+
+export async function listUserThemes(): Promise<UserTheme[]> {
+  return invoke<UserTheme[]>("list_user_themes");
+}
+
+export async function createUserTheme(label: string): Promise<UserTheme> {
+  return invoke<UserTheme>("create_user_theme", {
+    input: { label },
+  });
+}
+
+export async function updateUserTheme(
+  id: string,
+  label: string
+): Promise<UserTheme> {
+  return invoke<UserTheme>("update_user_theme", {
+    input: { id, label },
+  });
+}
+
+export async function deleteUserTheme(id: string): Promise<void> {
+  return invoke("delete_user_theme", { id });
+}
+
 export type SpaceRow = {
   id: string;
   label: string;
