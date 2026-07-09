@@ -24,9 +24,10 @@ Local-first. Desktop only. Optional device sync with the mobile app when you ena
 - One continuous stream instead of documents and folders
 - Full-text search
 - Spaces (All, Inbox, Work, Personal)
-- Thought trails
-- Related thoughts
-- Quiet resurfacing of past thoughts
+- Jump to any day in your history
+- Thought trails and related thoughts in context
+- Quiet recall when a past thought still matters
+- Optional sync with Chinotto mobile
 
 ## Data ownership
 

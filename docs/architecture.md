@@ -26,8 +26,9 @@ SQLite on your machine is the source of truth for capture and search. Entry text
 src/           React UI (features, lib, components)
 src-tauri/     Rust app entry, Tauri commands, db/
 docs/          Public documentation
-docs/internal/ Maintainer and implementation docs
 ```
+
+Maintainer-only specs and release checklists stay local (not in the public tree).
 
 ## Frontend ↔ backend
 
@@ -36,7 +37,3 @@ The UI calls Rust via Tauri `invoke()`. Core flows: create and list entries, ful
 ## Updates
 
 Production builds check [GitHub Releases](https://github.com/AleksandrMalinin/chinotto/releases/latest) for signed in-app updates.
-
-## More detail
-
-Implementation notes, sync operations, product spec, and contributor conventions live in [`docs/internal/`](internal/README.md) (not linked from the main README).

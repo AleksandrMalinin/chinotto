@@ -31,8 +31,8 @@ npm run tauri build
 
 Packaged macOS releases are published via GitHub Releases (tag `v*`).
 
+When bumping app version for a release, update `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `src-tauri/Info.plist` together (`CFBundleShortVersionString` and `CFBundleVersion`).
+
 ## Contributing
 
 - Product scope and agent contract: [`AGENTS.md`](../AGENTS.md)
-- Commit format: [`docs/internal/commit-convention.md`](internal/commit-convention.md)
-- Detailed architecture and product spec: [`docs/internal/`](internal/README.md)

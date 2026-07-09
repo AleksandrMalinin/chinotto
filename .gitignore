@@ -41,5 +41,8 @@ docs/release-macos.md
 docs/release-process.md
 docs/macos-testflight.md
 
+# Maintainer specs — not published (local only)
+docs/internal/
+
 # PR drafting notes (local-only)
 .github/pull_request_body*.md
