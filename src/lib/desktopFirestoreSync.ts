@@ -38,14 +38,31 @@ import {
   clearSyncTombstoneOutboxAll,
   deleteLocalEntriesForSync,
   enqueueSyncTombstone,
+  getEntryTheme,
   ingestFirestoreEntries,
   listEntries,
   listSyncTombstoneOutbox,
   removeSyncTombstoneOutbox,
+  type EntryTheme,
 } from "@/features/entries/entryApi";
 import type { Entry } from "@/types/entry";
 import { getFirebaseWebOptions, isFirebaseSyncConfigured } from "./firebaseConfig";
 import { isFirestoreDocumentTombstoned } from "./firestoreTombstone";
+import {
+  parseEntryThemeField,
+  partitionUserThemeDocs,
+  toFirestoreEntryThemeWire,
+  USER_THEME_QUERY_LIMIT,
+} from "./firestoreSyncTheme";
+import {
+  applyRemoteEntryTheme,
+  applyRemoteUserThemeTombstones,
+  clearSyncUserThemeOutboxAll,
+  ingestRemoteUserThemes,
+} from "./themeSyncApi";
+import { backfillLocalThemesToRemote } from "./themeSyncBackfill";
+import { flushSyncUserThemeOutbox } from "./userThemeFlush";
+import { isThemesEnabled } from "./themeSettings";
 
 /** Shape of `OAuthCredential.toJSON()` from the OAuth bridge webview (Apple redirect). */
 export type BridgedOAuthCredentialJson = {
@@ -150,7 +167,12 @@ function getOrInitFirestore(): Firestore {
   return dbSingleton;
 }
 
-export type SyncIngestRow = { id: string; text: string; createdAt: string };
+export type SyncIngestRow = {
+  id: string;
+  text: string;
+  createdAt: string;
+  theme?: EntryTheme | null;
+};
 
 /** Exported for tests. Converts Firestore `createdAt` wire shapes to RFC3339 for Rust `ingest_firestore_entries`. */
 export function normalizeFirestoreCreatedAtForIngest(value: unknown): string | null {
@@ -199,9 +221,93 @@ function partitionFirestoreSnapshotDocs(
     if (!createdAt) {
       continue;
     }
-    activeRows.push({ id: d.id, text, createdAt });
+    const row: SyncIngestRow = { id: d.id, text, createdAt };
+    const theme = parseEntryThemeField(data);
+    if (theme !== undefined) {
+      row.theme = theme;
+    }
+    activeRows.push(row);
   }
   return { tombstonedIds, activeRows };
+}
+
+async function applyIngestEntryThemes(rows: SyncIngestRow[]): Promise<boolean> {
+  if (!isThemesEnabled()) {
+    return false;
+  }
+  let changed = false;
+  for (const row of rows) {
+    if (row.theme === undefined) {
+      continue;
+    }
+    try {
+      if (await applyRemoteEntryTheme(row.id, row.theme)) {
+        changed = true;
+      }
+    } catch (e) {
+      if (import.meta.env.DEV) {
+        console.error("[chinotto sync] entry theme apply failed", row.id, e);
+      }
+    }
+  }
+  return changed;
+}
+
+function userThemesCollection(db: Firestore, uid: string): CollectionReference<DocumentData> {
+  return collection(db, "users", uid, "user_themes");
+}
+
+function userThemeIngestQuery(coll: CollectionReference<DocumentData>) {
+  return query(coll, orderBy("updatedAt", "desc"), limit(USER_THEME_QUERY_LIMIT));
+}
+
+function userThemeTombstoneQuery(coll: CollectionReference<DocumentData>) {
+  return query(
+    coll,
+    where("deletedAt", "!=", null),
+    orderBy("deletedAt", "desc"),
+    limit(USER_THEME_QUERY_LIMIT)
+  );
+}
+
+async function applyRemoteUserThemeSnapshot(
+  docs: QueryDocumentSnapshot<DocumentData>[],
+  onIngested: () => void
+): Promise<void> {
+  if (!isThemesEnabled()) {
+    return;
+  }
+  const { tombstonedIds, activeRows } = partitionUserThemeDocs(
+    docs.map((d) => ({ id: d.id, data: () => d.data() }))
+  );
+  let changed = false;
+  if (tombstonedIds.length > 0) {
+    try {
+      const removed = await applyRemoteUserThemeTombstones(tombstonedIds);
+      if (removed > 0) {
+        changed = true;
+      }
+    } catch (e) {
+      if (import.meta.env.DEV) {
+        console.error("[chinotto sync] user theme tombstone apply failed", e);
+      }
+    }
+  }
+  if (activeRows.length > 0) {
+    try {
+      const applied = await ingestRemoteUserThemes(activeRows);
+      if (applied > 0) {
+        changed = true;
+      }
+    } catch (e) {
+      if (import.meta.env.DEV) {
+        console.error("[chinotto sync] user theme ingest failed", e);
+      }
+    }
+  }
+  if (changed) {
+    onIngested();
+  }
 }
 
 async function applyRemoteTombstonesById(ids: string[]): Promise<number> {
@@ -282,8 +388,17 @@ async function runFirestoreIngestBackfill(
     const activeRowsSafe = activeRows.filter((r) => !lastTombstoneQueryDocIds.has(r.id));
     if (activeRowsSafe.length > 0) {
       try {
+        let batchChanged = false;
         const inserted = await ingestFirestoreEntries(activeRowsSafe);
-        insertedTotal += inserted;
+        if (inserted > 0) {
+          batchChanged = true;
+        }
+        if (await applyIngestEntryThemes(activeRowsSafe)) {
+          batchChanged = true;
+        }
+        if (batchChanged) {
+          insertedTotal += Math.max(inserted, 1);
+        }
       } catch (e) {
         if (import.meta.env.DEV) {
           console.error("[chinotto sync] ingest backfill batch failed", e);
@@ -340,7 +455,10 @@ export type FirestoreEntryPush = {
  * Upsert `users/{uid}/entries/{id}` so mobile (and other clients) receive new or restored thoughts.
  * Uses merge; `deletedAt` is cleared so Cmd+Z after a synced delete can revive the doc remotely.
  */
-export async function pushEntryUpsertToFirestore(entry: FirestoreEntryPush): Promise<boolean> {
+export async function pushEntryUpsertToFirestore(
+  entry: FirestoreEntryPush,
+  theme?: EntryTheme | null
+): Promise<boolean> {
   if (!isFirebaseSyncConfigured()) {
     return false;
   }
@@ -359,17 +477,17 @@ export async function pushEntryUpsertToFirestore(entry: FirestoreEntryPush): Pro
   }
   const db = getOrInitFirestore();
   const ref = doc(db, "users", user.uid, "entries", entry.id);
+  const payload: Record<string, unknown> = {
+    text: trimmed,
+    createdAt: Timestamp.fromMillis(ms),
+    updatedAt: serverTimestamp(),
+    deletedAt: deleteField(),
+  };
+  if (isThemesEnabled() && theme !== undefined) {
+    payload.theme = theme == null ? null : toFirestoreEntryThemeWire(theme);
+  }
   try {
-    await setDoc(
-      ref,
-      {
-        text: trimmed,
-        createdAt: Timestamp.fromMillis(ms),
-        updatedAt: serverTimestamp(),
-        deletedAt: deleteField(),
-      },
-      { merge: true }
-    );
+    await setDoc(ref, payload, { merge: true });
     return true;
   } catch (e) {
     if (isFirestoreSessionAccessLostError(e)) {
@@ -457,11 +575,14 @@ async function runLocalEntriesFirestoreBackfillUploadInner(
       if (shouldAbort()) {
         return;
       }
-      const ok = await pushEntryUpsertToFirestore({
-        id: entry.id,
-        text: entry.text,
-        created_at: entry.created_at,
-      });
+      const ok = await pushEntryUpsertToFirestore(
+        {
+          id: entry.id,
+          text: entry.text,
+          created_at: entry.created_at,
+        },
+        isThemesEnabled() ? await getEntryTheme(entry.id) : undefined
+      );
       if (!ok) {
         failed += 1;
         if (shouldAbort()) {
@@ -596,6 +717,8 @@ export function startDesktopFirestoreIngest(onIngested: () => void): () => void 
 
   let unsubIngest: (() => void) | undefined;
   let unsubTombstones: (() => void) | undefined;
+  let unsubUserThemes: (() => void) | undefined;
+  let unsubUserThemeTombstones: (() => void) | undefined;
   let tombstonePollTimer: ReturnType<typeof setInterval> | undefined;
   let ingestBackfillAbort = false;
 
@@ -611,6 +734,10 @@ export function startDesktopFirestoreIngest(onIngested: () => void): () => void 
     unsubIngest = undefined;
     unsubTombstones?.();
     unsubTombstones = undefined;
+    unsubUserThemes?.();
+    unsubUserThemes = undefined;
+    unsubUserThemeTombstones?.();
+    unsubUserThemeTombstones = undefined;
   };
 
   const unsubAuth = onAuthStateChanged(auth, (user) => {
@@ -622,9 +749,11 @@ export function startDesktopFirestoreIngest(onIngested: () => void): () => void 
     ingestBackfillAbort = false;
     const uidAtStart = user.uid;
     let coll: ReturnType<typeof collection>;
+    let userThemeColl: ReturnType<typeof collection>;
     try {
       const db = getOrInitFirestore();
       coll = collection(db, "users", user.uid, "entries");
+      userThemeColl = userThemesCollection(db, user.uid);
     } catch (e) {
       console.error("[chinotto sync] Firestore init failed after sign-in; ingest skipped.", e);
       return;
@@ -639,6 +768,7 @@ export function startDesktopFirestoreIngest(onIngested: () => void): () => void 
 
     void (async () => {
       await flushSyncTombstoneOutbox();
+      await flushSyncUserThemeOutbox();
       const stillSignedIn = () =>
         !ingestBackfillAbort &&
         auth.currentUser != null &&
@@ -697,6 +827,9 @@ export function startDesktopFirestoreIngest(onIngested: () => void): () => void 
               if (inserted > 0) {
                 changed = true;
               }
+              if (await applyIngestEntryThemes(activeRowsSafe)) {
+                changed = true;
+              }
             } catch (e) {
               if (import.meta.env.DEV) {
                 console.error("[chinotto sync] ingest failed", e);
@@ -707,6 +840,7 @@ export function startDesktopFirestoreIngest(onIngested: () => void): () => void 
             onIngested();
           }
           await flushSyncTombstoneOutbox();
+          await flushSyncUserThemeOutbox();
         },
         (err) => {
           console.error("[chinotto sync] ingest snapshot error", err);
@@ -728,9 +862,62 @@ export function startDesktopFirestoreIngest(onIngested: () => void): () => void 
             onIngested();
           }
           await flushSyncTombstoneOutbox();
+          await flushSyncUserThemeOutbox();
         },
         (err) => {
           console.error("[chinotto sync] tombstone snapshot error", err);
+          if (isFirestoreSessionAccessLostError(err)) {
+            handleIngestSessionAccessLost();
+          }
+        }
+      );
+
+      void getDocs(userThemeIngestQuery(userThemeColl)).then(async (snap) => {
+        if (!stillSignedIn()) {
+          return;
+        }
+        await applyRemoteUserThemeSnapshot(
+          snap.docs as QueryDocumentSnapshot<DocumentData>[],
+          onIngested
+        );
+      });
+
+      unsubUserThemes = onSnapshot(
+        userThemeIngestQuery(userThemeColl),
+        async (snap) => {
+          await applyRemoteUserThemeSnapshot(
+            snap.docs as QueryDocumentSnapshot<DocumentData>[],
+            onIngested
+          );
+        },
+        (err) => {
+          console.error("[chinotto sync] user theme ingest error", err);
+          if (isFirestoreSessionAccessLostError(err)) {
+            handleIngestSessionAccessLost();
+          }
+        }
+      );
+
+      unsubUserThemeTombstones = onSnapshot(
+        userThemeTombstoneQuery(userThemeColl),
+        async (snap) => {
+          if (!isThemesEnabled()) {
+            return;
+          }
+          const ids = snap.docs.map((d) => d.id);
+          try {
+            const removed = await applyRemoteUserThemeTombstones(ids);
+            if (removed > 0) {
+              onIngested();
+            }
+          } catch (e) {
+            if (import.meta.env.DEV) {
+              console.error("[chinotto sync] user theme tombstone snapshot failed", e);
+            }
+          }
+        },
+        (err) => {
+          console.error("[chinotto sync] user theme tombstone snapshot error", err);
           if (isFirestoreSessionAccessLostError(err)) {
             handleIngestSessionAccessLost();
           }
@@ -819,6 +1006,8 @@ export async function signInWithAppleCredential(credentialJson: BridgedOAuthCred
   }
 
   await flushSyncTombstoneOutbox();
+  await flushSyncUserThemeOutbox();
+  void backfillLocalThemesToRemote();
 }
 
 export async function signOutFirebaseSync(): Promise<void> {
@@ -853,6 +1042,11 @@ export function invalidateFirebaseSyncAfterRemoteSessionLost(source: string): Pr
       await clearSyncTombstoneOutboxAll();
     } catch (err) {
       console.warn("[chinotto sync] clear tombstone outbox failed", err);
+    }
+    try {
+      await clearSyncUserThemeOutboxAll();
+    } catch (err) {
+      console.warn("[chinotto sync] clear user theme outbox failed", err);
     }
     try {
       await signOutFirebaseSync();

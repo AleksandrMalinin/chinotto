@@ -3,7 +3,7 @@ import { emit } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { ChinottoLogo } from "@/components/ChinottoLogo";
-import { generateEmbedding, classifyEntryTheme, getEntry } from "@/features/entries/entryApi";
+import { generateEmbedding, classifyEntryTheme, createEntry, getEntry } from "@/features/entries/entryApi";
 import {
   SPACE_SCOPE_STORAGE_KEY,
   captureSpaceId,

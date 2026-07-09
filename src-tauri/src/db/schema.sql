@@ -67,6 +67,21 @@ CREATE TABLE IF NOT EXISTS sync_tombstone_outbox (
   enqueued_at TEXT NOT NULL
 );
 
+-- User theme ids removed on desktop: Firestore pull must not re-insert while remote doc still exists.
+CREATE TABLE IF NOT EXISTS firestore_ingest_suppressed_theme_ids (
+  id TEXT PRIMARY KEY,
+  suppressed_at TEXT NOT NULL
+);
+
+-- Pending Firestore user_theme writes (sync Phase C). One row per theme_id (coalesced).
+CREATE TABLE IF NOT EXISTS sync_user_theme_outbox (
+  theme_id TEXT PRIMARY KEY,
+  op TEXT NOT NULL CHECK (op IN ('upsert', 'tombstone')),
+  label TEXT,
+  sort_order INTEGER,
+  enqueued_at TEXT NOT NULL
+);
+
 -- Private thread links (Slice 1: local registry; hosted read in Slice 2).
 CREATE TABLE IF NOT EXISTS share_threads (
   token TEXT PRIMARY KEY,

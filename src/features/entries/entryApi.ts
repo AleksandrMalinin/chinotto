@@ -71,12 +71,17 @@ export type EntryTheme = {
 };
 
 import { isThemesEnabled } from "@/lib/themeSettings";
+import { scheduleEntryThemePush } from "@/lib/entryThemePush";
 
 export function classifyEntryTheme(entryId: string): void {
   if (!isThemesEnabled()) return;
-  invoke("classify_entry_theme", { entryId }).catch((err) => {
-    console.warn("[chinotto] classify_entry_theme failed", entryId, err);
-  });
+  invoke("classify_entry_theme", { entryId })
+    .then(() => {
+      scheduleEntryThemePush(entryId);
+    })
+    .catch((err) => {
+      console.warn("[chinotto] classify_entry_theme failed", entryId, err);
+    });
 }
 
 export async function getEntryTheme(
@@ -90,9 +95,10 @@ export async function setEntryTheme(
   themeId: string | null,
   locked: boolean
 ): Promise<void> {
-  return invoke("set_entry_theme", {
+  await invoke("set_entry_theme", {
     input: { entryId, themeId, locked },
   });
+  scheduleEntryThemePush(entryId);
 }
 
 export async function findSimilarEntries(

@@ -529,7 +529,7 @@ export default function App() {
           }
           if (!trailLinkedInitialDeferRef.current) {
             trailLinkedInitialDeferRef.current = true;
-            trailLinkedDeferTimerRef.current = window.setTimeout(() => {
+            trailLinkedDeferTimerRef.current = setTimeout(() => {
               trailLinkedDeferTimerRef.current = null;
               void refreshTrailLinkedIds();
             }, TRAIL_LINKED_IDS_DEFER_MS);
