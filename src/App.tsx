@@ -49,10 +49,12 @@ import {
   listThoughtTrailEntryIds,
   listThemeCounts,
   listThemeCountsRecent,
+  listUserThemes,
   type CaptureContinuationHint,
   type ContinuationMarker,
   type Resurfaced,
   type ThemeCount,
+  type UserTheme,
 } from "./features/entries/entryApi";
 import {
   JumpToDatePopover,
@@ -255,6 +257,7 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [searchThemeFilter, setSearchThemeFilter] = useState<string | null>(null);
   const [themeCounts, setThemeCounts] = useState<ThemeCount[]>([]);
+  const [userThemes, setUserThemes] = useState<UserTheme[]>([]);
   const [themesEnabled, setThemesEnabled] = useState(() => isThemesEnabled());
   const [themeNudge, setThemeNudge] = useState<ThemeCount | null>(null);
   const [loading, setLoading] = useState(true);
@@ -363,6 +366,16 @@ export default function App() {
       .then(setThemeCounts)
       .catch(() => setThemeCounts([]));
   }, [themesEnabled]);
+
+  const loadUserThemes = useCallback(() => {
+    void listUserThemes()
+      .then(setUserThemes)
+      .catch(() => setUserThemes([]));
+  }, []);
+
+  useEffect(() => {
+    loadUserThemes();
+  }, [loadUserThemes]);
 
   const openSearch = useCallback(() => {
     entryInputRef.current?.collapseComposeExpand();
@@ -2189,6 +2202,7 @@ export default function App() {
                 />
                 {themesEnabled ? (
                   <SearchThemeChips
+                    userThemes={userThemes}
                     counts={themeCounts}
                     selectedThemeId={searchThemeFilter}
                     onSelectTheme={setSearchThemeFilter}
@@ -2324,6 +2338,7 @@ export default function App() {
           onEntrySpaceChange={handleEntryDetailSpaceChange}
           onThemeSearch={handleThemeSearchFromDetail}
           themesEnabled={themesEnabled}
+          userThemes={userThemes}
           emphasizeTrail={detailEmphasizeTrail}
         />
       ) : (
