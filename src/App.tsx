@@ -316,6 +316,8 @@ export default function App() {
   const [detailEmphasizeTrail, setDetailEmphasizeTrail] = useState(false);
   const [searchSelectedIndex, setSearchSelectedIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  /** Skips one debounced refresh after theme-browse prefetch fills `entries`. */
+  const prefetchedThemeSearchRef = useRef(false);
   const jumpToDateButtonRef = useRef<HTMLButtonElement>(null);
   const strandCalendarRef = useRef<HTMLButtonElement>(null);
   const jumpPopoverAnchorRef = useRef<HTMLElement | null>(null);
@@ -385,15 +387,27 @@ export default function App() {
   }, [loadThemeCounts]);
 
   const openSearchWithTheme = useCallback(
-    (themeId: string) => {
+    async (themeId: string) => {
       entryInputRef.current?.collapseComposeExpand();
       setJumpPopoverOpen(false);
-      setSearchThemeFilter(themeId);
       setSearch("");
+      setSearchSelectedIndex(0);
+
+      if (themesEnabled) {
+        try {
+          const list = await searchEntries("", spaceFilterParam, themeId);
+          prefetchedThemeSearchRef.current = true;
+          setEntries(list);
+        } catch {
+          prefetchedThemeSearchRef.current = false;
+        }
+      }
+
+      setSearchThemeFilter(themeId);
       setIsSearchOpen(true);
       loadThemeCounts();
     },
-    [loadThemeCounts]
+    [loadThemeCounts, themesEnabled, spaceFilterParam]
   );
 
   const searchRef = useRef(search);
@@ -534,6 +548,10 @@ export default function App() {
     const q = search.trim();
     if (!q && (!searchThemeFilter || !themesEnabled)) {
       refresh("");
+      return;
+    }
+    if (prefetchedThemeSearchRef.current) {
+      prefetchedThemeSearchRef.current = false;
       return;
     }
     const t = setTimeout(() => refresh(search), 120);
@@ -1258,10 +1276,17 @@ export default function App() {
   ]);
 
   useEffect(() => {
-    if (isSearchOpen) {
-      setSearchOverlayClosing(false);
-      searchInputRef.current?.focus();
-    }
+    if (!isSearchOpen) return;
+    setSearchOverlayClosing(false);
+    document.documentElement.classList.add("search-open");
+    document.body.classList.add("search-open");
+    requestAnimationFrame(() => {
+      searchInputRef.current?.focus({ preventScroll: true });
+    });
+    return () => {
+      document.documentElement.classList.remove("search-open");
+      document.body.classList.remove("search-open");
+    };
   }, [isSearchOpen]);
 
   useEffect(() => {
@@ -1586,14 +1611,13 @@ export default function App() {
   useEffect(() => {
     if (!selectedEntry) return;
     if (loading) return;
+    if (isSearchOpen) return;
     if (entries.some((e) => e.id === selectedEntry.id)) return;
     setSelectedEntry(null);
-  }, [entries, selectedEntry, loading]);
+  }, [entries, selectedEntry, loading, isSearchOpen]);
 
   const handleThemeSearchFromDetail = useCallback(
     (themeId: string) => {
-      setSelectedEntry(null);
-      setDetailEmphasizeTrail(false);
       openSearchWithTheme(themeId);
     },
     [openSearchWithTheme]
@@ -2324,7 +2348,7 @@ export default function App() {
               Back to now
             </button>
           </div>
-          {loading ? (
+          {loading && !selectedEntry && !isSearchOpen ? (
         <p className="stream-loading">Loading…</p>
       ) : selectedEntry ? (
         <EntryDetail
@@ -2501,6 +2525,7 @@ export default function App() {
                           <ThemeClusterNudge
                             themeId={themeNudge.themeId}
                             count={themeNudge.count}
+                            userThemes={userThemes}
                             onBrowse={() => {
                               setThemeNudge(null);
                               handleThemeSearchFromDetail(themeNudge.themeId);
@@ -2588,6 +2613,10 @@ export default function App() {
           onIconVariantChange={setIconVariantId}
           themesEnabled={themesEnabled}
           onThemesEnabledChange={setThemesEnabled}
+          onUserThemesChange={() => {
+            loadUserThemes();
+            loadThemeCounts();
+          }}
         />
       )}
       {isStreamShowcaseOpen && (
