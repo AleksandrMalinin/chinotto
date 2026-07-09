@@ -1,5 +1,4 @@
 import type { Entry } from "../types/entry";
-import { formatContinuationDate } from "./formatContinuationDate";
 import {
   parseReadablePlainText,
   type ReadableBlock,
@@ -10,11 +9,12 @@ export type ShareThreadHtmlInput = {
   contextNote?: string;
   expiresAt: string;
   entries: Entry[];
+  relatedEntries?: Entry[];
 };
 
 const CHINOTTO_SITE_URL = "https://getchinotto.app";
 
-function chinottoLogoSvg(size = 40): string {
+function chinottoLogoSvg(size = 28): string {
   return `<svg class="brand-logo" width="${size}" height="${size}" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
   <circle cx="32" cy="32" r="22" stroke="currentColor" stroke-width="2" fill="none"/>
   <circle cx="32" cy="23" r="5" fill="currentColor"/>
@@ -82,11 +82,93 @@ function renderBlocks(blocks: ReadableBlock[]): string {
     .join("");
 }
 
-function formatEntryTimestamp(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
+function formatCompactTimestamp(iso: string): string {
+  const d = new Date(iso);
+  const date = d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   });
+  const time = d.toLocaleString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `${date} · ${time}`;
+}
+
+function relativeBeatLabel(
+  currentIso: string,
+  previousIso: string | null
+): string | null {
+  if (!previousIso) return null;
+  const deltaMs =
+    new Date(currentIso).getTime() - new Date(previousIso).getTime();
+  if (deltaMs <= 0) return null;
+  const days = Math.round(deltaMs / 86_400_000);
+  if (days > 0) {
+    return days === 1 ? "1 day later" : `${days} days later`;
+  }
+  const hours = Math.round(deltaMs / 3_600_000);
+  if (hours > 0) {
+    return hours === 1 ? "1 hour later" : `${hours} hours later`;
+  }
+  const minutes = Math.round(deltaMs / 60_000);
+  if (minutes > 0) {
+    return minutes === 1 ? "1 minute later" : `${minutes} minutes later`;
+  }
+  return "moments later";
+}
+
+function beatTimestamp(currentIso: string, previousIso: string | null): string {
+  const stamp = formatCompactTimestamp(currentIso);
+  const rel = relativeBeatLabel(currentIso, previousIso);
+  return rel ? `${stamp} · ${rel}` : stamp;
+}
+
+function formatRelatedStamp(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const withYear = d.getFullYear() !== now.getFullYear();
+  const date = d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    ...(withYear ? { year: "numeric" as const } : {}),
+  });
+  const time = d.toLocaleString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `${date} · ${time}`;
+}
+
+function relatedEntryIsCompact(entry: Entry): boolean {
+  const from = entry.continuation_from;
+  if (from != null && from > 0 && from <= entry.text.length) return false;
+  const text = entry.text.trim();
+  if (!text || text.includes("\n")) return false;
+  const blocks = parseReadablePlainText(text);
+  if (blocks.length !== 1 || blocks[0].type !== "paragraph") return false;
+  return blocks[0].lines.length === 1;
+}
+
+function renderRelatedEntry(entry: Entry): string {
+  const stamp = escapeHtml(formatRelatedStamp(entry.created_at));
+  const dt = escapeHtml(entry.created_at);
+  if (relatedEntryIsCompact(entry)) {
+    const block = parseReadablePlainText(entry.text)[0]!;
+    const snippet =
+      block.type === "paragraph" ? renderLine(block.lines[0]!) : "";
+    return `      <li class="related-entry">
+        <p class="related-line">
+          <time class="related-when" datetime="${dt}">${stamp}</time><span class="related-snippet">${snippet}</span>
+        </p>
+      </li>`;
+  }
+  const body = renderEntryBody(entry);
+  return `      <li class="related-entry related-entry--full">
+        <time class="related-when" datetime="${dt}">${stamp}</time>
+        ${body}
+      </li>`;
 }
 
 function renderEntryBody(entry: Entry): string {
@@ -101,11 +183,19 @@ function renderEntryBody(entry: Entry): string {
   let html = `<div class="readable">${renderBlocks(parseReadablePlainText(primary))}</div>`;
   if (secondary.trim()) {
     const label = entry.continuation_at
-      ? `<p class="readable-continuation-label">Added ${escapeHtml(formatContinuationDate(entry.continuation_at))}</p>`
+      ? `<p class="readable-continuation-label">Added ${escapeHtml(formatCompactTimestamp(entry.continuation_at))}</p>`
       : "";
     html += `<section class="readable-continuation">${label}<div class="readable">${renderBlocks(parseReadablePlainText(secondary))}</div></section>`;
   }
   return html;
+}
+
+function formatShortDate(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function dateRangeLabel(entries: Entry[]): string {
@@ -113,299 +203,364 @@ function dateRangeLabel(entries: Entry[]): string {
   const sorted = [...entries].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   );
-  const first = formatEntryTimestamp(sorted[0].created_at);
-  const last = formatEntryTimestamp(sorted[sorted.length - 1].created_at);
+  const first = formatShortDate(sorted[0].created_at);
+  const last = formatShortDate(sorted[sorted.length - 1].created_at);
   if (first === last) return first;
+  const firstDate = new Date(sorted[0].created_at);
+  const lastDate = new Date(sorted[sorted.length - 1].created_at);
+  if (firstDate.getFullYear() === lastDate.getFullYear()) {
+    const start = firstDate.toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+    });
+    const end = lastDate.toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+    return `${start} – ${end}`;
+  }
   return `${first} – ${last}`;
 }
 
+/*
+ * Editorial share page: flat canvas, typographic hierarchy, whitespace grouping.
+ * No cards, glow, or chrome — section breaks are margin + hairline rules only.
+ */
 const SHARE_CSS = `
   :root {
     color-scheme: dark;
     --bg: #0a0a0e;
-    --bg-elevated: #0f0f14;
     --fg: #e4e4e9;
-    --fg-strong: rgba(255, 255, 255, 0.96);
-    --muted: #9b9fa9;
-    --meta: rgba(255, 255, 255, 0.55);
-    --border: rgba(255, 255, 255, 0.08);
-    --border-strong: rgba(138, 148, 200, 0.18);
-    --accent: rgba(160, 170, 255, 0.92);
-    --accent-soft: rgba(160, 170, 255, 0.55);
-    --accent-bar: rgba(138, 148, 200, 0.42);
-    --glow-violet: rgba(100, 110, 180, 0.14);
-    --glow-blue: rgba(70, 100, 180, 0.1);
-    --panel-shadow: 0 28px 90px rgba(0, 0, 0, 0.42);
+    --fg-dim: #9b9fa9;
+    --meta: rgba(255, 255, 255, 0.5);
+    --rule: rgba(255, 255, 255, 0.08);
+    --accent: rgba(160, 170, 255, 0.88);
+    --measure: 34rem;
+    --space-sm: 0.5rem;
+    --space-md: 1rem;
+    --space-lg: 1.75rem;
+    --space-xl: 2.5rem;
   }
   * { box-sizing: border-box; }
   html { min-height: 100%; }
   body {
     margin: 0;
-    min-height: 100%;
-    padding: 2.75rem 1.25rem 4rem;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    padding: 2rem 1.15rem 2rem;
     font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
-    line-height: 1.5;
-    background-color: var(--bg);
-    background-image:
-      radial-gradient(ellipse 90% 55% at 50% -8%, var(--glow-violet), transparent 58%),
-      radial-gradient(ellipse 55% 45% at 100% 0%, var(--glow-blue), transparent 52%),
-      radial-gradient(ellipse 40% 35% at 0% 100%, rgba(60, 70, 120, 0.06), transparent 55%);
+    line-height: 1.6;
+    letter-spacing: 0.005em;
+    background: var(--bg);
     color: var(--fg);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
-  .shell {
-    max-width: 36rem;
-    margin: 0 auto;
-    text-align: center;
-    animation: shell-in 0.55s ease-out both;
-  }
-  @keyframes shell-in {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  .masthead {
-    margin-bottom: 2rem;
-  }
-  .brand {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.55rem;
-    margin-bottom: 1.75rem;
-    color: var(--accent);
-    text-decoration: none;
-    transition: color 0.15s ease, opacity 0.15s ease;
-  }
-  .brand:hover {
-    color: var(--fg-strong);
-    opacity: 0.92;
-  }
-  .brand-name {
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
-  .brand:hover .brand-name {
-    color: var(--fg);
-  }
-  .eyebrow {
-    margin: 0 0 0.65rem;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
-  .page-title {
-    margin: 0 0 1rem;
-    font-size: clamp(1.65rem, 5vw, 2rem);
-    font-weight: 300;
-    letter-spacing: -0.03em;
-    line-height: 1.2;
-    color: var(--fg-strong);
-  }
-  .meta-row {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 0.45rem;
-    margin: 0 0 1.25rem;
-  }
-  .meta-chip {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.28rem 0.65rem;
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.04em;
-    color: var(--meta);
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-  }
-  .page-context {
-    margin: 0 auto;
-    max-width: 30rem;
-    padding: 0.85rem 1rem;
-    font-size: 15px;
-    line-height: 1.55;
-    color: var(--fg);
-    text-align: center;
-    background: linear-gradient(135deg, rgba(100, 120, 180, 0.08), rgba(80, 100, 150, 0.06));
-    border: 1px solid var(--border-strong);
-    border-radius: 0.75rem;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  }
-  .thread-panel {
-    padding: 1.35rem 1.15rem 1.5rem;
-    text-align: left;
-    background: linear-gradient(160deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012));
-    border: 1px solid var(--border);
-    border-radius: 1rem;
-    box-shadow: var(--panel-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  }
-  .thread {
+  .document {
+    flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 0;
+    width: 100%;
+    max-width: var(--measure);
+    margin: 0 auto;
   }
-  .beat {
-    margin: 0;
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
     padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
     border: 0;
   }
-  .beat + .beat {
-    margin-top: 1.5rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid var(--border);
+  .document-header {
+    margin-bottom: 0;
+    padding-bottom: var(--space-lg);
+    border-bottom: 1px solid var(--rule);
   }
-  .beat-head {
+  .masthead-top {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 0.55rem;
-    margin-bottom: 0.85rem;
-    text-align: center;
+    flex-wrap: wrap;
+    gap: 0.55rem 0.65rem;
+    margin-bottom: 0.4rem;
   }
-  .beat-index {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    color: var(--accent-soft);
+  .document-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--fg-dim);
+    text-decoration: none;
   }
-  .beat-time {
+  .document-brand:hover {
+    color: var(--fg);
+    text-decoration: none;
+  }
+  .brand-logo {
+    flex-shrink: 0;
+    color: rgba(160, 170, 255, 0.8);
+  }
+  .document-brand-name {
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+  }
+  .document-eyebrow {
+    margin: 0;
     font-size: 11px;
     font-weight: 500;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--meta);
   }
-  .beat-body {
-    max-width: 32rem;
-    margin: 0 auto;
+  .masthead-top .document-eyebrow::before {
+    content: "·";
+    margin-right: 0.65rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    color: rgba(255, 255, 255, 0.22);
+  }
+  .document-lede {
+    margin: 0;
+    max-width: 28rem;
+    font-size: 13px;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.62);
+  }
+  .document-intent {
+    margin: 0.6rem 0 0;
+    padding-left: 0.75rem;
+    border-left: 2px solid rgba(160, 170, 255, 0.38);
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.55;
+    color: var(--fg);
+  }
+  .thread-meta {
+    margin: 0 0 0.65rem;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--meta);
+  }
+  .thread {
+    display: flex;
+    flex-direction: column;
+    padding-top: var(--space-xl);
+  }
+  .beat {
+    margin: 0;
+  }
+  .beat + .beat {
+    margin-top: var(--space-lg);
+  }
+  .beat-time {
+    display: block;
+    margin: 0 0 var(--space-sm);
+    font-size: 11px;
+    line-height: 1.4;
+    letter-spacing: 0.02em;
+    color: var(--meta);
   }
   .readable {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.6rem;
+    word-break: break-word;
+    color: var(--fg);
   }
   .readable-p {
     margin: 0;
-    line-height: 1.58;
-    color: rgba(255, 255, 255, 0.9);
+    line-height: 1.6;
   }
   .readable-list {
     margin: 0;
-    padding-left: 1.2rem;
+    padding-left: 1.15rem;
     list-style: disc;
   }
   .readable-list li {
-    line-height: 1.58;
-    color: rgba(255, 255, 255, 0.9);
+    line-height: 1.6;
   }
   .readable-list li + li {
-    margin-top: 0.25rem;
+    margin-top: 0.2rem;
   }
   .readable-blockquote {
     margin: 0;
-    padding-left: 0.85rem;
+    padding-left: 0.75rem;
     border-left: 2px solid rgba(255, 255, 255, 0.18);
     color: rgba(255, 255, 255, 0.62);
   }
   .readable-blockquote-line {
     margin: 0;
-    line-height: 1.58;
+    line-height: 1.6;
   }
   .readable-blockquote-line + .readable-blockquote-line {
-    margin-top: 0.35rem;
+    margin-top: 0.3rem;
   }
   .readable-question {
-    color: var(--fg-strong);
+    color: rgba(255, 255, 255, 0.96);
   }
   .readable-continuation {
-    margin: 0.2rem 0 0;
-    padding: 0.15rem 0 0 0.9rem;
-    border-left: 2px solid var(--accent-bar);
+    margin: 0.5rem 0 0;
+    padding-left: 0.75rem;
+    border-left: 2px solid color-mix(in srgb, var(--accent) 38%, transparent);
   }
   .readable-continuation-label {
-    margin: 0 0 0.4rem;
-    font-size: 12px;
+    margin: 0 0 0.35rem;
+    font-size: 11px;
     color: var(--meta);
   }
   .readable-continuation .readable-p,
   .readable-continuation .readable-list,
   .readable-continuation .readable-blockquote {
-    color: rgba(255, 255, 255, 0.78);
+    color: rgba(255, 255, 255, 0.76);
   }
   a {
     color: var(--accent);
     text-decoration: underline;
-    text-decoration-color: rgba(160, 170, 255, 0.35);
+    text-decoration-color: rgba(160, 170, 255, 0.28);
     text-underline-offset: 2px;
   }
   a:hover {
-    text-decoration-color: rgba(160, 170, 255, 0.7);
+    text-decoration-color: rgba(160, 170, 255, 0.55);
   }
-  .page-footer {
-    margin-top: 2.25rem;
-    padding-top: 1.35rem;
-    border-top: 1px solid var(--border);
-    font-size: 12px;
-    line-height: 1.55;
+  .related {
+    margin-top: var(--space-xl);
+    padding-top: var(--space-lg);
+    border-top: 1px solid var(--rule);
+  }
+  .related-title {
+    margin: 0 0 0.35rem;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
     color: var(--meta);
   }
-  .footer-brand {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.45rem;
-    margin-bottom: 0.65rem;
-    color: var(--muted);
-    text-decoration: none;
-    transition: color 0.15s ease;
+  .related-lede {
+    margin: 0 0 0.85rem;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--meta);
   }
-  .footer-brand:hover {
-    color: var(--fg);
-    text-decoration: none;
+  .related-entries {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
   }
-  .footer-brand .brand-logo {
-    width: 18px;
-    height: 18px;
-    opacity: 0.85;
-  }
-  .page-footer p {
+  .related-entry {
     margin: 0;
   }
-  .page-footer p + p {
-    margin-top: 0.35rem;
+  .related-line {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
   }
-  .page-footer a {
+  .related-when {
     font-size: 12px;
-    text-decoration: none;
-    color: var(--muted);
+    color: var(--meta);
   }
-  .page-footer a:hover {
-    color: var(--fg);
-    text-decoration: underline;
+  .related-line .related-when::after {
+    content: " — ";
+    color: rgba(255, 255, 255, 0.38);
+  }
+  .related-snippet {
+    color: rgba(255, 255, 255, 0.72);
+  }
+  .related-entry--full .related-when {
+    display: block;
+    margin: 0 0 0.35rem;
+    font-size: 11px;
+    line-height: 1.35;
+  }
+  .related-entry--full .related-when::after {
+    content: none;
+  }
+  .related-entry--full .readable {
+    font-size: 13px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.72);
+  }
+  .document-end {
+    margin-top: auto;
+    padding-top: var(--space-xl);
+  }
+  .document-footer {
+    margin: 0;
+    padding-top: var(--space-md);
+    border-top: 1px solid var(--rule);
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--meta);
+  }
+  .studio-signature {
+    margin: 1.15rem 0 0;
+    padding: 0;
+    text-align: center;
+    font-size: 10px;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    color: rgba(160, 170, 255, 0.48);
+    pointer-events: none;
   }
   @media (max-width: 480px) {
-    body { padding: 2rem 1rem 3rem; }
-    .thread-panel { padding: 1.1rem 0.95rem 1.25rem; }
+    body { padding: 1.5rem 1rem 2rem; }
+    .beat + .beat { margin-top: 1.35rem; }
+    .document-intent { font-size: 14px; }
   }
-  @media (prefers-reduced-motion: reduce) {
-    .shell { animation: none; }
+  @media print {
+    body {
+      min-height: auto;
+      padding: 0;
+      background: #fff;
+      color: #111;
+    }
+    .document-header,
+    .related,
+    .document-footer {
+      border-color: rgba(0, 0, 0, 0.12);
+    }
+    .document-brand,
+    .brand-logo,
+    a,
+    .studio-signature {
+      color: #333;
+    }
+    .beat-time,
+    .thread-meta,
+    .document-lede,
+    .document-eyebrow,
+    .related-lede,
+    .related-when,
+    .document-footer {
+      color: #555;
+    }
+    .studio-signature {
+      opacity: 1;
+    }
   }
 `;
 
-function pageTitle(contextNote: string | undefined, count: number): string {
+function pageMetaLine(count: number, range: string): string {
+  const thoughts = `${count} thought${count === 1 ? "" : "s"}`;
+  return range ? `${thoughts} · ${range}` : thoughts;
+}
+
+function documentTitle(contextNote: string | undefined, entries: Entry[]): string {
   const note = contextNote?.trim();
   if (note) return note;
-  return count === 1 ? "One thought" : "A thread of thoughts";
+  const first = entries[0]?.text.trim();
+  if (first) return first.length > 60 ? `${first.slice(0, 57)}…` : first;
+  return "Shared thread";
 }
 
 function ogDescription(
@@ -415,41 +570,64 @@ function ogDescription(
   const note = contextNote?.trim();
   if (note) return note;
   const first = entries[0]?.text.trim();
-  if (!first) return "A read-only thread shared from Chinotto.";
+  if (!first) return "A private read-only thread shared from Chinotto.";
   return first.length > 160 ? `${first.slice(0, 157)}…` : first;
+}
+
+function renderRelatedSection(entries: Entry[]): string {
+  if (entries.length === 0) return "";
+  const sorted = [...entries].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
+  const items = sorted.map((entry) => renderRelatedEntry(entry)).join("\n");
+  return `    <section class="related" aria-labelledby="related-thoughts-title">
+      <h2 class="related-title" id="related-thoughts-title">Related thoughts</h2>
+      <p class="related-lede">Connected context — not part of the thread above.</p>
+      <ul class="related-entries">
+${items}
+      </ul>
+    </section>`;
 }
 
 export function buildShareThreadHtml(input: ShareThreadHtmlInput): string {
   const sorted = [...input.entries].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   );
+  const related = (input.relatedEntries ?? []).filter(
+    (entry) => !sorted.some((beat) => beat.id === entry.id)
+  );
   const count = sorted.length;
   const note = input.contextNote?.trim() ?? "";
-  const title = pageTitle(note || undefined, count);
+  const title = documentTitle(note || undefined, sorted);
   const description = escapeHtml(ogDescription(input.contextNote, sorted));
+  const brand = `<div class="masthead-top">
+      <a class="document-brand" href="${CHINOTTO_SITE_URL}" rel="noopener noreferrer">
+        ${chinottoLogoSvg(22)}
+        <span class="document-brand-name">Chinotto</span>
+      </a>
+      <span class="document-eyebrow">Shared thread</span>
+    </div>`;
+  const lede = note
+    ? ""
+    : `<p class="document-lede">A private read-only thread of thoughts, shared with you.</p>`;
+  const intent = note
+    ? `<p class="document-intent">${escapeHtml(note)}</p>`
+    : "";
   const articles = sorted
     .map((entry, index) => {
       const body = renderEntryBody(entry);
-      const indexLabel = String(index + 1).padStart(2, "0");
-      return `<article class="beat">
-  <div class="beat-head">
-    <span class="beat-index" aria-hidden="true">${indexLabel}</span>
-    <time class="beat-time" datetime="${escapeHtml(entry.created_at)}">${escapeHtml(formatEntryTimestamp(entry.created_at))}</time>
-  </div>
-  <div class="beat-body">${body}</div>
-</article>`;
+      const previousIso = index > 0 ? sorted[index - 1].created_at : null;
+      const stamp = escapeHtml(beatTimestamp(entry.created_at, previousIso));
+      return `      <section class="beat">
+        <time class="beat-time" datetime="${escapeHtml(entry.created_at)}">${stamp}</time>
+        ${body}
+      </section>`;
     })
     .join("\n");
 
-  const contextBlock =
-    note && title !== note
-      ? `<p class="page-context">${escapeHtml(note)}</p>`
-      : "";
-
-  const expires = escapeHtml(formatContinuationDate(input.expiresAt));
-  const range = escapeHtml(dateRangeLabel(sorted));
-  const logo = chinottoLogoSvg(44);
-  const footerLogo = chinottoLogoSvg(18);
+  const expires = escapeHtml(formatCompactTimestamp(input.expiresAt));
+  const threadMeta = escapeHtml(pageMetaLine(count, dateRangeLabel(sorted)));
+  const relatedBlock = renderRelatedSection(related);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -461,42 +639,34 @@ export function buildShareThreadHtml(input: ShareThreadHtmlInput): string {
   <meta property="og:title" content="${escapeHtml(title)} · Chinotto" />
   <meta property="og:description" content="${description}" />
   <meta property="og:type" content="article" />
+  <meta name="theme-color" content="#0a0a0e" />
   <title>${escapeHtml(title)} · Chinotto</title>
+  <link rel="icon" type="image/svg+xml" href="${CHINOTTO_SITE_URL}/favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&amp;display=swap" rel="stylesheet" />
   <style>${SHARE_CSS}</style>
 </head>
 <body>
-  <div class="shell">
-    <header class="masthead">
-      <a class="brand" href="${CHINOTTO_SITE_URL}" rel="noopener noreferrer">
-        ${logo}
-        <span class="brand-name">Chinotto</span>
-      </a>
-      <p class="eyebrow">Shared thread</p>
-      <h1 class="page-title">${escapeHtml(title)}</h1>
-      <div class="meta-row">
-        <span class="meta-chip">${count} thought${count === 1 ? "" : "s"}</span>
-        <span class="meta-chip">${range}</span>
-        <span class="meta-chip">Oldest first</span>
-      </div>
-      ${contextBlock}
+  <article class="document">
+    <h1 class="sr-only">${escapeHtml(title)}</h1>
+    <header class="document-header">
+      ${brand}
+      ${lede}
+      ${intent}
     </header>
-    <main class="thread-panel">
-      <div class="thread">
-        ${articles}
-      </div>
-    </main>
-    <footer class="page-footer">
-      <a class="footer-brand" href="${CHINOTTO_SITE_URL}" rel="noopener noreferrer">
-        ${footerLogo}
-        <span>Chinotto</span>
-      </a>
-      <p>Read-only · Expires ${expires}</p>
-      <p><a href="${CHINOTTO_SITE_URL}" rel="noopener noreferrer">getchinotto.app</a></p>
-    </footer>
-  </div>
+    <section class="thread" aria-label="Thread">
+      <p class="thread-meta">${threadMeta}</p>
+${articles}
+    </section>
+${relatedBlock}
+    <div class="document-end">
+      <footer class="document-footer">
+        Read-only · Expires ${expires}
+      </footer>
+      <p class="studio-signature" aria-hidden="true">Bogart Labs</p>
+    </div>
+  </article>
 </body>
 </html>`;
 }
