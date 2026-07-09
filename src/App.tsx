@@ -1705,6 +1705,20 @@ export default function App() {
     });
   }, []);
 
+  const handleDevPreviewCaptureHint = useCallback(() => {
+    if (!import.meta.env.DEV) return;
+    setSelectedEntry(null);
+    setMemoryEcho(null);
+    const anchor = entries[0];
+    setCaptureContinuationHint({
+      entry_id: anchor?.id ?? "",
+      preview:
+        anchor?.text ??
+        "API refactor needs error handling pass before release deadline",
+      days_earlier: 2,
+    });
+  }, [entries]);
+
   const handleDevToggleEmptyStreamPreview = useCallback(() => {
     if (!import.meta.env.DEV) return;
     const next = !getDevPreviewEmptyStream();
@@ -1917,6 +1931,16 @@ export default function App() {
                       }}
                     >
                       Preview resurface
+                    </button>
+                    <button
+                      type="button"
+                      className="app-header-dev-item"
+                      onClick={() => {
+                        handleDevPreviewCaptureHint();
+                        closeDevMenu();
+                      }}
+                    >
+                      Preview capture hint
                     </button>
                     <button
                       type="button"

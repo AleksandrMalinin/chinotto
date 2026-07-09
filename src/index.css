@@ -5524,7 +5524,7 @@ body.welcome .app-bg {
 
 .capture-continuation-hint {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
   margin: 0.35rem 0 0.15rem;
@@ -5534,10 +5534,26 @@ body.welcome .app-bg {
   border: 1px solid rgba(255, 255, 255, 0.07);
 }
 
+.capture-continuation-hint-body {
+  flex: 1;
+  min-width: 0;
+}
+
 .capture-continuation-hint-text {
   margin: 0;
   font-size: 12px;
   color: var(--meta-fg);
+}
+
+.capture-continuation-hint-preview {
+  margin: 0.2rem 0 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--fg);
+  opacity: 0.82;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .capture-continuation-hint-actions {

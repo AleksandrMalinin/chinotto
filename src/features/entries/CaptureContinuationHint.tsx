@@ -1,3 +1,4 @@
+import { streamPreviewFirstLine } from "@/lib/streamPreviewFirstLine";
 import type { CaptureContinuationHint } from "./entryApi";
 
 type Props = {
@@ -15,12 +16,26 @@ export function CaptureContinuationHint({
     hint.days_earlier === 0
       ? "today"
       : `${hint.days_earlier} day${hint.days_earlier === 1 ? "" : "s"} ago`;
+  const previewLine = streamPreviewFirstLine(hint.preview).trim();
 
   return (
-    <div className="capture-continuation-hint" role="status">
-      <p className="capture-continuation-hint-text">
-        Continues a thought from {when}
-      </p>
+    <div
+      className="capture-continuation-hint"
+      role="status"
+      aria-label={
+        previewLine
+          ? `Continues a thought from ${when}: ${previewLine}`
+          : `Continues a thought from ${when}`
+      }
+    >
+      <div className="capture-continuation-hint-body">
+        <p className="capture-continuation-hint-text">
+          Continues a thought from {when}
+        </p>
+        {previewLine ? (
+          <p className="capture-continuation-hint-preview">{previewLine}</p>
+        ) : null}
+      </div>
       <div className="capture-continuation-hint-actions">
         <button type="button" className="capture-continuation-hint-open" onClick={onOpen}>
           Open
