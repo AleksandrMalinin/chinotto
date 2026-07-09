@@ -1,6 +1,5 @@
 import {
   useRef,
-  useEffect,
   useLayoutEffect,
   useImperativeHandle,
   forwardRef,
@@ -20,6 +19,8 @@ type Props = {
   onComposeExpandedChange?: (expanded: boolean) => void;
   /** Reading focus: quieter single-line capture above an open thought. */
   compact?: boolean;
+  /** When false, capture is not in the tab order (e.g. while intro is open). */
+  inputTabIndex?: number;
   placeholder?: string;
   captureAriaLabel?: string;
 };
@@ -36,6 +37,7 @@ export const EntryInput = forwardRef<EntryInputRef, Props>(function EntryInput(
     showExpandTrigger = true,
     onComposeExpandedChange,
     compact = false,
+    inputTabIndex = 0,
     placeholder,
     captureAriaLabel,
   },
@@ -122,11 +124,6 @@ export const EntryInput = forwardRef<EntryInputRef, Props>(function EntryInput(
     tryAutoExpand(draft, { ignoreUserCollapsed: ignoreCollapsed });
   }, [draft, expanded, tryAutoExpand]);
 
-  useEffect(() => {
-    if (expanded) return;
-    inputRef.current?.focus();
-  }, [expanded]);
-
   function handleInlineKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Escape") {
       if (expanded) return;
@@ -167,7 +164,7 @@ export const EntryInput = forwardRef<EntryInputRef, Props>(function EntryInput(
           }
           value={expanded ? "" : draft}
           readOnly={expanded}
-          tabIndex={expanded ? -1 : 0}
+          tabIndex={expanded ? -1 : inputTabIndex}
           aria-hidden={expanded}
           onKeyDown={handleInlineKeyDown}
           onChange={(e) => {

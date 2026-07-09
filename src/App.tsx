@@ -1987,6 +1987,7 @@ export default function App() {
               showExpandTrigger={showComposeExpandTrigger}
               onComposeExpandedChange={setComposeExpanded}
               compact={Boolean(selectedEntry)}
+              inputTabIndex={introDismissed ? 0 : -1}
               placeholder={capturePlaceholder}
               captureAriaLabel={capturePlaceholder.replace(/…$/, "")}
             />
