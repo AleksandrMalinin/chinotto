@@ -18,8 +18,6 @@ type Props = {
   onPickWeek: (week: TimeStrandWeek) => void;
   onOpenCalendar?: () => void;
   calendarAnchorRef?: React.Ref<HTMLButtonElement>;
-  /** When true, caption hints that older thoughts are reachable via the strand. */
-  hasEarlierArchive?: boolean;
 };
 
 const VB_H = 88;
@@ -70,7 +68,6 @@ export function TimeStrand({
   onPickWeek,
   onOpenCalendar,
   calendarAnchorRef,
-  hasEarlierArchive = false,
 }: Props) {
   const gradId = useId().replace(/:/g, "");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -277,11 +274,7 @@ export function TimeStrand({
       </div>
 
       <div className="time-strand-footer">
-        <p className="time-strand-caption">
-          {hasEarlierArchive
-            ? "Older thoughts live in the weeks below — tap a lit week to jump"
-            : "Tap a lit week to jump"}
-        </p>
+        <p className="time-strand-caption">Tap a lit week to jump</p>
         {onOpenCalendar ? (
           <button
             ref={calendarAnchorRef}

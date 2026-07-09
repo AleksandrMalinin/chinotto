@@ -525,8 +525,6 @@ export default function App() {
 
   const showOpenSectionTitle = homePartition.openEntries.length > 1;
   const showRecentSectionTitle = homePartition.recentEntries.length > 2;
-  const hasEarlierArchive = homePartition.earlierEntries.length > 0;
-
   const mainStreamEmpty = entries.length === 0;
 
   const showHomeDepthZone =
@@ -2220,10 +2218,11 @@ export default function App() {
                       ) : null}
                       <TimeStrand
                         entries={entries}
-                        hasEarlierArchive={hasEarlierArchive}
                         calendarAnchorRef={strandCalendarRef}
                         onOpenCalendar={() =>
-                          openJumpCalendar(strandCalendarRef.current)
+                          openJumpCalendar(strandCalendarRef.current, {
+                            sheet: true,
+                          })
                         }
                         onPickWeek={(week) => {
                           void handleJumpDatePick(week.jumpYmd);
