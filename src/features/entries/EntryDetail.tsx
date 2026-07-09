@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { EntryTextWithLinks } from "./EntryTextWithLinks";
 import { track } from "@/lib/analytics";
 import {
-  ENTRY_THEMES,
-  shouldShowThemeInMeta,
+  recallThemeOptions,
+  SYSTEM_THEME_LINKS,
   themeLabel,
+  type UserTheme,
 } from "@/lib/entryThemes";
 import {
   findSimilarEntries,
@@ -15,7 +16,7 @@ import {
   getThoughtTrail,
   listSpaces,
   markEntryContinuation,
-  setEntryTheme,
+  setEntryTheme as persistEntryTheme,
   type ContinuationMarker,
   type EntryTheme,
   type SpaceRow,
@@ -49,6 +50,8 @@ type Props = {
   onThemeSearch?: (themeId: string) => void;
   /** When false, theme meta and override are hidden (settings). */
   themesEnabled?: boolean;
+  /** User-defined themes for labels and manual override. */
+  userThemes?: UserTheme[];
   /** Scroll/focus thought trail when opened from resurface. */
   emphasizeTrail?: boolean;
 };
@@ -81,6 +84,7 @@ export function EntryDetail({
   onEntrySpaceChange,
   onThemeSearch,
   themesEnabled = true,
+  userThemes = [],
   emphasizeTrail = false,
 }: Props) {
   const [related, setRelated] = useState<Entry[]>([]);
@@ -94,7 +98,7 @@ export function EntryDetail({
   const [spaceLensDismissed, setSpaceLensDismissed] = useState(false);
   const [entryTheme, setEntryTheme] = useState<EntryTheme | null>(null);
   const [themeSaving, setThemeSaving] = useState(false);
-  const [themeLensDismissed, setThemeLensDismissed] = useState(false);
+  const [themePickerOpen, setThemePickerOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
 
   const spaceSegments = useMemo(() => {
@@ -117,27 +121,25 @@ export function EntryDetail({
 
   const themeSegments = useMemo(
     () => [
-      ...ENTRY_THEMES.map((t) => ({
+      {
+        themeId: SYSTEM_THEME_LINKS,
+        label: "Links",
+        key: SYSTEM_THEME_LINKS,
+      },
+      ...recallThemeOptions(userThemes).map((t) => ({
         themeId: t.id,
         label: t.label,
         key: t.id,
       })),
       { themeId: null as string | null, label: "None", key: "none" },
     ],
-    []
+    [userThemes]
   );
 
-  const visibleTheme = useMemo(() => {
-    if (!themesEnabled || !entryTheme) return null;
-    if (!shouldShowThemeInMeta(entryTheme.confidence, entryTheme.locked)) {
-      return null;
-    }
-    return entryTheme;
-  }, [entryTheme, themesEnabled]);
-
-  const currentThemeLabel = visibleTheme
-    ? themeLabel(visibleTheme.themeId)
-    : null;
+  const assignedThemeId = entryTheme?.themeId ?? null;
+  const assignedThemeLabel = assignedThemeId
+    ? themeLabel(assignedThemeId, userThemes)
+    : "None";
 
   const textRef = useRef<HTMLTextAreaElement>(null);
   const textAtEditStartRef = useRef("");
@@ -158,7 +160,7 @@ export function EntryDetail({
     hasInsertedContinuationBreakRef.current = false;
     setShareOpen(false);
     setEntryTheme(null);
-    setThemeLensDismissed(false);
+    setThemePickerOpen(false);
   }, [entry.id, onWriteExpandedChange]);
 
   useEffect(() => {
@@ -175,6 +177,18 @@ export function EntryDetail({
   useEffect(() => {
     setSpaceLensDismissed(false);
   }, [entry.id]);
+
+  useEffect(() => {
+    if (!themePickerOpen) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setThemePickerOpen(false);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [themePickerOpen]);
 
   useEffect(() => {
     if (!editable || !isEditingText || writeExpanded) return;
@@ -425,16 +439,18 @@ export function EntryDetail({
   };
 
   const activateTheme = async (next: string | null) => {
-    const current = visibleTheme?.themeId ?? null;
+    const current = assignedThemeId;
     if (next === current) return;
     setThemeSaving(true);
     try {
-      await setEntryTheme(entry.id, next, true);
+      await persistEntryTheme(entry.id, next, true);
       const row = await getEntryTheme(entry.id);
       setEntryTheme(row);
-      setThemeLensDismissed(true);
+      setThemePickerOpen(false);
       const ae = document.activeElement;
       if (ae instanceof HTMLElement) ae.blur();
+    } catch (err) {
+      console.warn("[chinotto] persistEntryTheme failed", entry.id, err);
     } finally {
       setThemeSaving(false);
     }
@@ -534,7 +550,7 @@ export function EntryDetail({
           </button>
         </div>
       </div>
-      {(onEntrySpaceChange || currentThemeLabel) ? (
+      {(onEntrySpaceChange || themesEnabled) ? (
         <div className="entry-detail-meta">
           <time className="entry-detail-time" dateTime={entry.created_at}>
             {formatTimestamp(entry.created_at)}
@@ -608,89 +624,80 @@ export function EntryDetail({
               </div>
             </div>
           ) : null}
-          {currentThemeLabel && visibleTheme ? (
-            <div
-              tabIndex={0}
-              className={[
-                themeSaving
-                  ? "entry-detail-space-hover entry-detail-space-hover--busy entry-detail-theme-lens"
-                  : "entry-detail-space-hover entry-detail-theme-lens",
-                themeLensDismissed ? "entry-detail-space-hover--dismissed" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              onMouseDown={(e) => {
-                if (e.button === 0) (e.currentTarget as HTMLElement).focus();
-              }}
-              onMouseLeave={(e) => {
-                const root = e.currentTarget as HTMLElement;
-                const to = e.relatedTarget as Node | null;
-                if (to && root.contains(to)) return;
-                requestAnimationFrame(() => {
-                  requestAnimationFrame(() => {
-                    if (!root.matches(":hover")) setThemeLensDismissed(false);
-                  });
-                });
-              }}
-              aria-label={`Theme: ${currentThemeLabel}. Hover to change, click to search.`}
-            >
-              <div
-                className="entry-detail-space-hover-hint"
-                role={onThemeSearch ? "button" : undefined}
-                onClick={() => {
-                  if (onThemeSearch && visibleTheme) {
-                    onThemeSearch(visibleTheme.themeId);
-                  }
-                }}
-              >
-                <span
-                  className="space-scope-tab space-scope-tab--active entry-detail-lens-tab"
-                  aria-hidden="true"
-                >
-                  {currentThemeLabel}
-                </span>
-              </div>
-              <div className="entry-detail-space-hover-panel">
-                <div
-                  className={
-                    themeSaving
-                      ? "header-space-lens-inner entry-detail-lens-inner entry-detail-lens-inner--busy"
-                      : "header-space-lens-inner entry-detail-lens-inner"
-                  }
-                  role="tablist"
-                  aria-label="Change theme"
-                >
-                  {themeSegments.map((seg) => {
-                    const active =
-                      (visibleTheme.themeId ?? null) === (seg.themeId ?? null);
-                    return (
-                      <button
-                        key={seg.key}
-                        type="button"
-                        role="tab"
-                        disabled={themeSaving}
-                        aria-selected={active}
-                        className={
-                          active
-                            ? "space-scope-tab space-scope-tab--active entry-detail-lens-tab"
-                            : "space-scope-tab entry-detail-lens-tab"
-                        }
-                        onClick={() => void activateTheme(seg.themeId)}
-                      >
-                        {seg.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          ) : null}
         </div>
       ) : (
         <time className="entry-detail-time" dateTime={entry.created_at}>
           {formatTimestamp(entry.created_at)}
         </time>
       )}
+      {themesEnabled ? (
+        <div className="entry-detail-theme-block">
+          {themePickerOpen ? (
+            <div
+              className={
+                themeSaving
+                  ? "entry-detail-theme-picker entry-detail-theme-picker--busy"
+                  : "entry-detail-theme-picker"
+              }
+              role="radiogroup"
+              aria-label="Choose theme"
+            >
+              {themeSegments.map((seg) => {
+                const active = assignedThemeId === (seg.themeId ?? null);
+                return (
+                  <button
+                    key={seg.key}
+                    type="button"
+                    role="radio"
+                    disabled={themeSaving}
+                    aria-checked={active}
+                    className={
+                      active
+                        ? "entry-detail-theme-chip entry-detail-theme-chip--active"
+                        : "entry-detail-theme-chip"
+                    }
+                    onClick={() => {
+                      if (active) {
+                        setThemePickerOpen(false);
+                        return;
+                      }
+                      void activateTheme(seg.themeId);
+                    }}
+                  >
+                    {seg.label}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="entry-detail-theme-summary">
+              <button
+                type="button"
+                className={
+                  assignedThemeId
+                    ? "entry-detail-theme-trigger entry-detail-theme-trigger--set"
+                    : "entry-detail-theme-trigger"
+                }
+                aria-expanded={false}
+                aria-label={`Theme: ${assignedThemeLabel}. Choose theme`}
+                onClick={() => setThemePickerOpen(true)}
+              >
+                {assignedThemeLabel}
+              </button>
+              {assignedThemeId && onThemeSearch ? (
+                <button
+                  type="button"
+                  className="entry-detail-theme-browse"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => onThemeSearch(assignedThemeId)}
+                >
+                  Browse
+                </button>
+              ) : null}
+            </div>
+          )}
+        </div>
+      ) : null}
       {editable && onEntryTextChange ? (
         <div className={writingZoneClass}>
           {isEditingText ? (
