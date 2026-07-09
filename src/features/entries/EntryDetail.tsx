@@ -37,6 +37,8 @@ type Props = {
     entryId: string,
     spaceId: string | null
   ) => void | Promise<void>;
+  /** Scroll/focus thought trail when opened from resurface. */
+  emphasizeTrail?: boolean;
 };
 
 function formatTimestamp(iso: string): string {
@@ -65,11 +67,13 @@ export function EntryDetail({
   onEntryContinuationMarked,
   onEntrySynced,
   onEntrySpaceChange,
+  emphasizeTrail = false,
 }: Props) {
   const [related, setRelated] = useState<Entry[]>([]);
   const [relatedLoading, setRelatedLoading] = useState(true);
   const [trail, setTrail] = useState<Entry[]>([]);
   const [trailLoading, setTrailLoading] = useState(true);
+  const [continuationTrailHint, setContinuationTrailHint] = useState(false);
   const [spaceOptions, setSpaceOptions] = useState<SpaceRow[]>([]);
   const [spaceSaving, setSpaceSaving] = useState(false);
   /** After picking a space, :hover can stay true while the cursor rests on the control — fold until pointer leaves. */
@@ -106,6 +110,7 @@ export function EntryDetail({
     setIsEditingText(false);
     setWriteExpanded(false);
     setSimilarExpanded(false);
+    setContinuationTrailHint(false);
     onWriteExpandedChange?.(false);
     hasInsertedContinuationBreakRef.current = false;
     setShareOpen(false);
@@ -166,7 +171,18 @@ export function EntryDetail({
     el.style.height = `${Math.max(el.scrollHeight, 88)}px`;
   }, [entry.text, editable, isEditingText, writeExpanded]);
 
+  const trailNeighborsEarly = useMemo(
+    () => trail.filter((e) => e.id !== entry.id),
+    [trail, entry.id]
+  );
+
   useEffect(() => {
+    if (trailLoading) return;
+    if (trailNeighborsEarly.length > 0) {
+      setRelated([]);
+      setRelatedLoading(false);
+      return;
+    }
     let cancelled = false;
     setRelatedLoading(true);
     findSimilarEntries(entry.id)
@@ -179,7 +195,7 @@ export function EntryDetail({
     return () => {
       cancelled = true;
     };
-  }, [entry.id]);
+  }, [entry.id, trailLoading, trailNeighborsEarly.length]);
 
   useEffect(() => {
     let cancelled = false;
@@ -208,7 +224,10 @@ export function EntryDetail({
     });
     void markEntryContinuation(entry.id, fromOffset, text)
       .then((marker) => {
-        if (marker) onEntryContinuationMarked?.(entry.id, marker);
+        if (marker) {
+          onEntryContinuationMarked?.(entry.id, marker);
+          setContinuationTrailHint(true);
+        }
       })
       .catch(() => {});
   };
@@ -372,7 +391,9 @@ export function EntryDetail({
     [trailNeighbors, entry.created_at]
   );
   const showTrail = !trailLoading && trailNeighbors.length > 0;
-  const showRelated = !relatedLoading && related.length > 0;
+  const showRelated = !trailLoading && !showTrail && !relatedLoading && related.length > 0;
+  const shareTrailCount =
+    trailNeighbors.length > 0 ? trailNeighbors.length + 1 : 1;
   const similarVisible = similarExpanded
     ? related
     : related.slice(0, SIMILAR_COLLAPSED_COUNT);
@@ -429,7 +450,7 @@ export function EntryDetail({
             className="entry-detail-toolbar-action"
             onClick={() => setShareOpen(true)}
           >
-            Share
+            {shareTrailCount >= 2 ? "Share thread" : "Share"}
           </button>
         </div>
       </div>
@@ -611,11 +632,25 @@ export function EntryDetail({
       {showTrail ? (
         <ThoughtTrailStrip
           entryId={entry.id}
+          currentEntry={entry}
           currentCreatedAt={entry.created_at}
           earlier={trailEarlier}
           later={trailLater}
           onSelectEntry={onSelectEntry}
+          emphasizeOnMount={emphasizeTrail}
         />
+      ) : null}
+      {continuationTrailHint && trailEarlier.length > 0 ? (
+        <p className="entry-detail-continuation-trail-hint" role="status">
+          Continuation added —{" "}
+          <button
+            type="button"
+            className="entry-detail-continuation-trail-link"
+            onClick={() => onSelectEntry(trailEarlier[trailEarlier.length - 1]!)}
+          >
+            see earlier in trail
+          </button>
+        </p>
       ) : null}
       {showRelated ? (
         <section className="entry-detail-similar" aria-label="Similar thoughts">
