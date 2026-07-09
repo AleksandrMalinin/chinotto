@@ -3442,15 +3442,36 @@ body.welcome .app-bg {
   padding-top: 1.75rem;
 }
 
-.home-depth-zone .memory-echo {
+.home-depth-zone .home-memory-echo-slot {
   margin-top: 0;
   margin-bottom: 0.85rem;
+  width: 100%;
 }
 
-.home-depth-zone--has-echo .memory-echo {
+.home-depth-zone--has-echo .home-memory-echo-slot {
   max-width: 36rem;
   margin-left: auto;
   margin-right: auto;
+}
+
+.home-depth-zone--has-echo .memory-echo {
+  margin-top: 0;
+  padding: 0;
+}
+
+.home-depth-zone--has-echo .memory-echo-meta {
+  margin: 0 0 0.5rem;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  color: var(--meta-fg);
+  text-transform: none;
+  opacity: 1;
+}
+
+.home-depth-zone--has-echo .memory-echo-meta-thread {
+  color: rgba(34, 200, 220, 0.78);
 }
 
 .home-depth-zone--has-echo .memory-echo-body {
@@ -3523,7 +3544,7 @@ body.welcome .app-bg {
   display: none;
 }
 
-.time-strand-scroll--wide {
+.time-strand-scroll--wide .time-strand-stage {
   mask-image: linear-gradient(
     to right,
     transparent,
@@ -3561,8 +3582,13 @@ body.welcome .app-bg {
 
 .time-strand-canvas-wrap {
   position: relative;
-  height: 88px;
   margin: 0 auto;
+  overflow: visible;
+}
+
+.time-strand-stage {
+  position: relative;
+  height: 88px;
 }
 
 .time-strand-scroll:not(.time-strand-scroll--wide) .time-strand-canvas-wrap {
@@ -3574,7 +3600,10 @@ body.welcome .app-bg {
   display: flex;
   justify-content: space-between;
   margin-top: 0.25rem;
-  padding: 0 0.1rem;
+  padding: 0 0.35rem;
+  max-width: 520px;
+  margin-left: auto;
+  margin-right: auto;
   font-size: 10px;
   font-weight: 400;
   letter-spacing: 0.05em;
@@ -3582,6 +3611,11 @@ body.welcome .app-bg {
   color: var(--meta-fg);
   opacity: 0.42;
   pointer-events: none;
+}
+
+.time-strand--wide .time-strand-axis {
+  max-width: none;
+  padding: 0 0.5rem;
 }
 
 .time-strand-svg {
@@ -3644,21 +3678,32 @@ body.welcome .app-bg {
   filter: blur(6px);
 }
 
-.memory-echo-label {
+.memory-echo-meta {
   margin: 0 0 0.45rem;
   font-size: 13px;
   font-weight: 400;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  line-height: 1.4;
   color: var(--meta-fg);
   opacity: 0.85;
+}
+
+.memory-echo-meta-thread {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  color: rgba(34, 200, 220, 0.82);
+}
+
+.memory-echo-card {
+  position: relative;
 }
 
 .memory-echo-body {
   display: block;
   width: 100%;
   margin: 0;
-  padding: 0.85rem 0.95rem 0.75rem;
+  padding: 0.85rem 2.15rem 0.75rem 0.95rem;
   text-align: left;
   border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
   border-radius: 10px;
@@ -3698,8 +3743,9 @@ body.welcome .app-bg {
 
 .memory-echo-dismiss {
   position: absolute;
-  top: 2.35rem;
-  right: 0.35rem;
+  top: 0.45rem;
+  right: 0.45rem;
+  z-index: 1;
   padding: 0.2rem 0.45rem;
   font-size: 1.125rem;
   line-height: 1;
@@ -3822,14 +3868,10 @@ body.welcome .app-bg {
 }
 
 .time-strand-tooltip {
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 0.35rem);
-  transform: translateX(-50%);
   display: inline-flex;
   align-items: baseline;
-  gap: 0.35rem;
-  padding: 0.22rem 0.5rem;
+  gap: 0.3rem;
+  padding: 0.25rem 0.55rem;
   font-size: 11px;
   font-weight: 400;
   letter-spacing: 0.02em;
@@ -3840,7 +3882,28 @@ body.welcome .app-bg {
   border-radius: 4px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
   pointer-events: none;
+  z-index: 40;
   animation: time-strand-tooltip-in 0.18s ease-out both;
+}
+
+.time-strand-tooltip--floating {
+  position: fixed;
+  top: 0;
+  left: 0;
+  transform: translate(-50%, calc(-100% - 10px));
+}
+
+.time-strand-tooltip--floating.time-strand-tooltip--align-start {
+  transform: translate(0, calc(-100% - 10px));
+}
+
+.time-strand-tooltip--floating.time-strand-tooltip--align-end {
+  transform: translate(-100%, calc(-100% - 10px));
+}
+
+.time-strand-tooltip-sep {
+  color: var(--meta-fg);
+  opacity: 0.55;
 }
 
 .time-strand-tooltip-count {
@@ -3853,11 +3916,41 @@ body.welcome .app-bg {
 @keyframes time-strand-tooltip-in {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(4px);
+    transform: translate(-50%, calc(-100% - 6px));
   }
   to {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
+    transform: translate(-50%, calc(-100% - 10px));
+  }
+}
+
+.time-strand-tooltip--floating.time-strand-tooltip--align-start {
+  animation-name: time-strand-tooltip-in-start;
+}
+
+.time-strand-tooltip--floating.time-strand-tooltip--align-end {
+  animation-name: time-strand-tooltip-in-end;
+}
+
+@keyframes time-strand-tooltip-in-start {
+  from {
+    opacity: 0;
+    transform: translate(0, calc(-100% - 6px));
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, calc(-100% - 10px));
+  }
+}
+
+@keyframes time-strand-tooltip-in-end {
+  from {
+    opacity: 0;
+    transform: translate(-100%, calc(-100% - 6px));
+  }
+  to {
+    opacity: 1;
+    transform: translate(-100%, calc(-100% - 10px));
   }
 }
 

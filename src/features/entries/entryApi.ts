@@ -74,6 +74,7 @@ export async function findSimilarEntries(
 export type Resurfaced = {
   entry: Entry;
   reason: string;
+  trail_neighbor_count?: number;
 };
 
 export async function getResurfacedEntry(
@@ -148,6 +149,7 @@ export type CaptureContinuationHint = {
   entry_id: string;
   preview: string;
   days_earlier: number;
+  shared_terms?: string[];
 };
 
 export async function getCaptureContinuationHint(

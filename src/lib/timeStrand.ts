@@ -33,6 +33,9 @@ function weekLabel(weekStart: Date, now: Date): string {
   return weekStart.toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
+    ...(weekStart.getFullYear() !== todayStart.getFullYear()
+      ? { year: "numeric" }
+      : {}),
   });
 }
 

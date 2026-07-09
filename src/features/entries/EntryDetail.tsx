@@ -111,6 +111,8 @@ export function EntryDetail({
     setWriteExpanded(false);
     setSimilarExpanded(false);
     setContinuationTrailHint(false);
+    setTrail([]);
+    setRelated([]);
     onWriteExpandedChange?.(false);
     hasInsertedContinuationBreakRef.current = false;
     setShareOpen(false);

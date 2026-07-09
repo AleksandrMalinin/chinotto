@@ -5,6 +5,7 @@ import { streamPreviewFirstLine } from "@/lib/streamPreviewFirstLine";
 type Props = {
   entry: Entry;
   reason: string;
+  trailNeighborCount?: number;
   onOpen: (entry: Entry) => void;
   onDismiss: () => void;
   /** When false, horizon is drawn by the parent depth zone. */
@@ -21,11 +22,16 @@ function truncate(text: string, max: number): string {
 export function MemoryEcho({
   entry,
   reason,
+  trailNeighborCount,
   onOpen,
   onDismiss,
   showHorizon = true,
 }: Props) {
   const preview = truncate(streamPreviewFirstLine(entry.text), MAX_PREVIEW);
+  const threadHint =
+    trailNeighborCount != null && trailNeighborCount > 0
+      ? `Part of a thread with ${trailNeighborCount} related thought${trailNeighborCount === 1 ? "" : "s"}`
+      : null;
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -50,23 +56,36 @@ export function MemoryEcho({
           <span className="memory-echo-horizon-glow" />
         </div>
       ) : null}
-      <p className="memory-echo-label">{reason}</p>
-      <button
-        type="button"
-        className="memory-echo-body"
-        onClick={() => onOpen(entry)}
-      >
-        <p className="memory-echo-text">{preview}</p>
-        <span className="memory-echo-cta">Continue this thought</span>
-      </button>
-      <button
-        type="button"
-        className="memory-echo-dismiss"
-        onClick={onDismiss}
-        aria-label="Dismiss memory"
-      >
-        ×
-      </button>
+      <p className="memory-echo-meta">
+        <span className="memory-echo-meta-reason">{reason}</span>
+        {threadHint ? (
+          <>
+            <span className="memory-echo-meta-sep" aria-hidden="true">
+              {" "}
+              ·{" "}
+            </span>
+            <span className="memory-echo-meta-thread">{threadHint}</span>
+          </>
+        ) : null}
+      </p>
+      <div className="memory-echo-card">
+        <button
+          type="button"
+          className="memory-echo-body"
+          onClick={() => onOpen(entry)}
+        >
+          <p className="memory-echo-text">{preview}</p>
+          <span className="memory-echo-cta">Continue this thought</span>
+        </button>
+        <button
+          type="button"
+          className="memory-echo-dismiss"
+          onClick={onDismiss}
+          aria-label="Dismiss memory"
+        >
+          ×
+        </button>
+      </div>
     </section>
   );
 }

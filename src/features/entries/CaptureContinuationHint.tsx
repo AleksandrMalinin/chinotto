@@ -1,4 +1,5 @@
 import { streamPreviewFirstLine } from "@/lib/streamPreviewFirstLine";
+import { highlightTrailSharedTerms } from "@/lib/trailHighlight";
 import type { CaptureContinuationHint } from "./entryApi";
 
 type Props = {
@@ -17,6 +18,11 @@ export function CaptureContinuationHint({
       ? "today"
       : `${hint.days_earlier} day${hint.days_earlier === 1 ? "" : "s"} ago`;
   const previewLine = streamPreviewFirstLine(hint.preview).trim();
+  const sharedTerms = hint.shared_terms ?? [];
+  const previewHtml =
+    previewLine && sharedTerms.length > 0
+      ? highlightTrailSharedTerms(previewLine, sharedTerms)
+      : null;
 
   return (
     <div
@@ -33,7 +39,14 @@ export function CaptureContinuationHint({
           Continues a thought from {when}
         </p>
         {previewLine ? (
-          <p className="capture-continuation-hint-preview">{previewLine}</p>
+          previewHtml ? (
+            <p
+              className="capture-continuation-hint-preview"
+              dangerouslySetInnerHTML={{ __html: previewHtml }}
+            />
+          ) : (
+            <p className="capture-continuation-hint-preview">{previewLine}</p>
+          )
         ) : null}
       </div>
       <div className="capture-continuation-hint-actions">

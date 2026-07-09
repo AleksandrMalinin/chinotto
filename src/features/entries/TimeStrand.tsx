@@ -63,6 +63,12 @@ function activeSpans(strand: TimeStrandWeek[]): [number, number][] {
   return spans;
 }
 
+type TooltipPlacement = {
+  x: number;
+  y: number;
+  align: "center" | "start" | "end";
+};
+
 export function TimeStrand({
   entries,
   onPickWeek,
@@ -71,7 +77,9 @@ export function TimeStrand({
 }: Props) {
   const gradId = useId().replace(/:/g, "");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const canvasWrapRef = useRef<HTMLDivElement>(null);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [tooltip, setTooltip] = useState<TooltipPlacement | null>(null);
   const [showPastCue, setShowPastCue] = useState(false);
 
   const strand = useMemo(() => buildTimeStrand(entries), [entries]);
@@ -122,10 +130,50 @@ export function TimeStrand({
     return () => el.removeEventListener("scroll", updatePastCue);
   }, [isScrollable, updatePastCue]);
 
+  const updateTooltip = useCallback(() => {
+    if (hoveredIndex === null) {
+      setTooltip(null);
+      return;
+    }
+    const week = strand[hoveredIndex];
+    if (!week || week.count <= 0) {
+      setTooltip(null);
+      return;
+    }
+    const wrap = canvasWrapRef.current;
+    if (!wrap) return;
+    const node = wrap.querySelector<HTMLElement>(
+      `[data-strand-index="${hoveredIndex}"]`
+    );
+    if (!node) return;
+    const nodeRect = node.getBoundingClientRect();
+    const x = nodeRect.left + nodeRect.width / 2;
+    const y = nodeRect.top;
+    let align: TooltipPlacement["align"] = "center";
+    if (x < 120) align = "start";
+    else if (x > window.innerWidth - 120) align = "end";
+    setTooltip({ x, y, align });
+  }, [hoveredIndex, strand]);
+
+  useLayoutEffect(() => {
+    updateTooltip();
+    if (hoveredIndex === null) return;
+    const scrollEl = scrollRef.current;
+    scrollEl?.addEventListener("scroll", updateTooltip, { passive: true });
+    window.addEventListener("resize", updateTooltip);
+    return () => {
+      scrollEl?.removeEventListener("scroll", updateTooltip);
+      window.removeEventListener("resize", updateTooltip);
+    };
+  }, [hoveredIndex, updateTooltip]);
+
   if (!timeStrandHasDepth(strand)) return null;
 
   return (
-    <section className="time-strand" aria-label="Thinking over time">
+    <section
+      className={`time-strand${isScrollable ? " time-strand--wide" : ""}`}
+      aria-label="Thinking over time"
+    >
       <div className="time-strand-horizon" aria-hidden="true">
         <span className="time-strand-horizon-line" />
         <span className="time-strand-horizon-glow" />
@@ -141,8 +189,13 @@ export function TimeStrand({
           </span>
         ) : null}
 
-        <div className="time-strand-canvas-wrap" style={{ width: vbW }}>
-          <svg
+        <div
+          ref={canvasWrapRef}
+          className="time-strand-canvas-wrap"
+          style={{ width: vbW }}
+        >
+          <div className="time-strand-stage">
+            <svg
             className="time-strand-svg"
             viewBox={`0 0 ${vbW} ${VB_H}`}
             preserveAspectRatio="xMidYMid meet"
@@ -234,6 +287,7 @@ export function TimeStrand({
                   key={week.weekStartYmd}
                   type="button"
                   role="listitem"
+                  data-strand-index={i}
                   className={`time-strand-node${active ? " time-strand-node--active" : ""}`}
                   style={{ left: `${leftPct}%`, top: `${topPct}%` }}
                   onClick={() => active && onPickWeek(week)}
@@ -253,24 +307,17 @@ export function TimeStrand({
                   }
                 >
                   <span className="time-strand-node-hit" aria-hidden="true" />
-                  {hoveredIndex === i && active ? (
-                    <span className="time-strand-tooltip">
-                      {week.label}
-                      <span className="time-strand-tooltip-count">
-                        {week.count}
-                      </span>
-                    </span>
-                  ) : null}
                 </button>
               );
             })}
           </div>
-
-          <div className="time-strand-axis" aria-hidden="true">
-            <span>Earlier</span>
-            <span>This week</span>
           </div>
         </div>
+      </div>
+
+      <div className="time-strand-axis" aria-hidden="true">
+        <span>Earlier</span>
+        <span>This week</span>
       </div>
 
       <div className="time-strand-footer">
@@ -286,6 +333,22 @@ export function TimeStrand({
           </button>
         ) : null}
       </div>
+      {hoveredIndex !== null && tooltip && strand[hoveredIndex]?.count > 0 ? (
+        <div
+          className={`time-strand-tooltip time-strand-tooltip--floating time-strand-tooltip--align-${tooltip.align}`}
+          style={{ left: tooltip.x, top: tooltip.y }}
+          role="tooltip"
+        >
+          {strand[hoveredIndex].label}
+          <span className="time-strand-tooltip-sep" aria-hidden="true">
+            ·
+          </span>
+          <span className="time-strand-tooltip-count">
+            {strand[hoveredIndex].count}{" "}
+            {strand[hoveredIndex].count === 1 ? "thought" : "thoughts"}
+          </span>
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -448,16 +448,16 @@ pub(crate) fn get_resurfaced_entry_impl<R: rand::RngCore>(
     exclude_ids: Vec<String>,
     rng: &mut R,
 ) -> Result<Option<ResurfacedPayload>, String> {
-    let all = db.list_entries().map_err(|e| e.to_string())?;
-    let entries: Vec<recall::ResurfaceEntry> = all
-        .into_iter()
+    let all_rows = db.list_entries().map_err(|e| e.to_string())?;
+    let entries: Vec<recall::ResurfaceEntry> = all_rows
+        .iter()
         .map(|r| recall::ResurfaceEntry {
-            id: r.id,
-            text: r.text,
-            created_at: r.created_at,
+            id: r.id.clone(),
+            text: r.text.clone(),
+            created_at: r.created_at.clone(),
             edit_count: r.edit_count,
             open_count: r.open_count,
-            space_id: r.space_id,
+            space_id: r.space_id.clone(),
         })
         .collect();
     let pinned_ids: std::collections::HashSet<String> = db
@@ -487,15 +487,15 @@ pub(crate) fn get_resurfaced_entry_impl<R: rand::RngCore>(
         .get_entry_by_id(&picked.id)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "entry not found".to_string())?;
-    let all_rows = db.list_entries().map_err(|e| e.to_string())?;
-    let row = if entry_has_trail_neighbor(&row, &all_rows) {
+    let linked = entries_with_trail_link_ids(&all_rows);
+    let row = if linked.contains(&row.id) {
         row
     } else {
         let picked_ts = parse_created_at(&row.created_at).unwrap_or(now);
         let alts: Vec<&db::EntryRow> = all_rows
             .iter()
             .filter(|r| r.id != row.id && !exclude.contains(r.id.as_str()))
-            .filter(|r| entry_has_trail_neighbor(r, &all_rows))
+            .filter(|r| linked.contains(&r.id))
             .filter(|r| {
                 let ts = parse_created_at(&r.created_at).unwrap_or(now);
                 (picked_ts - ts).num_days().unsigned_abs() <= 30
@@ -507,9 +507,15 @@ pub(crate) fn get_resurfaced_entry_impl<R: rand::RngCore>(
             row
         }
     };
+    let trail_neighbor_count = thought_trail_neighbor_count_fast(&row, &all_rows);
     Ok(Some(ResurfacedPayload {
         entry: entry_row_to_payload(&row),
         reason,
+        trail_neighbor_count: if trail_neighbor_count > 0 {
+            Some(trail_neighbor_count)
+        } else {
+            None
+        },
     }))
 }
 
@@ -540,12 +546,16 @@ fn get_thought_trail(db: tauri::State<Db>, entry_id: String) -> Result<Vec<Entry
         .collect())
 }
 
-/// Entry ids that share enough keywords with at least one other entry (stream trail indicator).
+/// Entry ids with enough keyword overlap for a stream trail dot (fast pairwise scan).
 #[tauri::command]
 fn list_thought_trail_entry_ids(db: tauri::State<Db>) -> Result<Vec<String>, String> {
     let all = db.list_entries().map_err(|e| e.to_string())?;
+    Ok(entries_with_trail_link_ids(&all).into_iter().collect())
+}
+
+fn entries_with_trail_link_ids(all: &[db::EntryRow]) -> std::collections::HashSet<String> {
     if all.len() < 2 {
-        return Ok(vec![]);
+        return std::collections::HashSet::new();
     }
     let min_overlap = thought_trail_min_overlap();
     let token_sets: Vec<std::collections::HashSet<String>> = all
@@ -555,14 +565,23 @@ fn list_thought_trail_entry_ids(db: tauri::State<Db>) -> Result<Vec<String>, Str
     let mut linked = std::collections::HashSet::new();
     for i in 0..all.len() {
         for j in (i + 1)..all.len() {
-            let overlap = token_sets[i].intersection(&token_sets[j]).count();
-            if overlap >= min_overlap {
+            if token_sets[i].intersection(&token_sets[j]).count() >= min_overlap {
                 linked.insert(all[i].id.clone());
                 linked.insert(all[j].id.clone());
             }
         }
     }
-    Ok(linked.into_iter().collect())
+    linked
+}
+
+fn thought_trail_neighbor_count_fast(row: &db::EntryRow, all: &[db::EntryRow]) -> usize {
+    let min_overlap = thought_trail_min_overlap();
+    let max_related = thought_trail_max_related();
+    select_thought_trail_candidate_rows(row, all)
+        .into_iter()
+        .filter(|r| keyword_overlap(&row.text, &r.text) >= min_overlap)
+        .take(max_related)
+        .count()
 }
 
 #[derive(serde::Serialize)]
@@ -570,6 +589,8 @@ struct CaptureContinuationHintPayload {
     entry_id: String,
     preview: String,
     days_earlier: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    shared_terms: Option<Vec<String>>,
 }
 
 /// Recent entry that strongly overlaps capture text (continuation nudge after save).
@@ -618,10 +639,16 @@ fn get_capture_continuation_hint(
         } else {
             row.text.clone()
         };
+        let shared = shared_keywords(trimmed, &row.text, 5);
         CaptureContinuationHintPayload {
             entry_id: row.id,
             preview,
             days_earlier: days,
+            shared_terms: if shared.is_empty() {
+                None
+            } else {
+                Some(shared)
+            },
         }
     }))
 }
@@ -1079,13 +1106,6 @@ fn select_thought_trail_candidate_rows<'a>(
         .collect()
 }
 
-fn entry_has_trail_neighbor(row: &db::EntryRow, all: &[db::EntryRow]) -> bool {
-    let min_overlap = thought_trail_min_overlap();
-    all.iter().any(|other| {
-        other.id != row.id && keyword_overlap(&row.text, &other.text) >= min_overlap
-    })
-}
-
 fn build_thought_trail_rows(
     current: &db::EntryRow,
     all: &[db::EntryRow],
@@ -1154,6 +1174,8 @@ struct SpacePayload {
 struct ResurfacedPayload {
     entry: EntryPayload,
     reason: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    trail_neighbor_count: Option<usize>,
 }
 
 #[cfg(target_os = "macos")]

@@ -46,6 +46,7 @@ import {
   listThoughtTrailEntryIds,
   type CaptureContinuationHint,
   type ContinuationMarker,
+  type Resurfaced,
 } from "./features/entries/entryApi";
 import {
   JumpToDatePopover,
@@ -141,6 +142,8 @@ import { applyScopeCanvasToDocument } from "@/lib/scopeCanvas";
 const EXPERIMENTAL_VOICE_CAPTURE = false;
 
 const RESURFACE_SHOW_PROBABILITY = 0.65;
+/** Let resurface run before the O(n²) stream trail-dot scan on cold open. */
+const TRAIL_LINKED_IDS_DEFER_MS = 2000;
 const FEEDBACK_EMAIL = "hello@chinotto.app";
 /** Tiny offset after intro→main handoff so empty onboarding stagger reads clearly. */
 const EMPTY_ONBOARDING_POST_INTRO_DELAY_MS = 750;
@@ -201,7 +204,7 @@ function analyticsLensFromSpaceId(
   return spaceId === "work" || spaceId === "personal" ? spaceId : "inbox";
 }
 
-function devMockResurfaced(): { entry: Entry; reason: string } {
+function devMockResurfaced(): Resurfaced {
   const d = new Date();
   d.setDate(d.getDate() - 3);
   return {
@@ -211,6 +214,7 @@ function devMockResurfaced(): { entry: Entry; reason: string } {
       created_at: d.toISOString(),
     },
     reason: "From 3 days ago.",
+    trail_neighbor_count: 2,
   };
 }
 
@@ -251,10 +255,7 @@ export default function App() {
   const [, setIntroSettled] = useState(false);
   const [iconVariantId, setIconVariantId] = useState(() => getStoredIconVariantId());
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
-  const [memoryEcho, setMemoryEcho] = useState<{
-    entry: Entry;
-    reason: string;
-  } | null>(null);
+  const [memoryEcho, setMemoryEcho] = useState<Resurfaced | null>(null);
   const [voiceCaptureOpen, setVoiceCaptureOpen] = useState(false);
   const [voiceCaptureMode, setVoiceCaptureMode] = useState<"shortcut" | "hold">("shortcut");
   const voiceHoldReleasedBeforeMountRef = useRef(false);
@@ -345,6 +346,8 @@ export default function App() {
   const headerLogoRef = useRef<HTMLButtonElement>(null);
   const shownThisSessionRef = useRef(false);
   const triedResurfaceOnOpenRef = useRef(false);
+  const trailLinkedInitialDeferRef = useRef(false);
+  const trailLinkedDeferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const justAddedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ephemeralTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const detailSaveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -429,7 +432,18 @@ export default function App() {
           setHasEntriesInDb(hasEntriesAfterFullListLoad(list.length));
           const ids = await getPinnedEntryIds();
           setPinnedIds(ids);
-          void refreshTrailLinkedIds();
+          if (trailLinkedDeferTimerRef.current) {
+            clearTimeout(trailLinkedDeferTimerRef.current);
+          }
+          if (!trailLinkedInitialDeferRef.current) {
+            trailLinkedInitialDeferRef.current = true;
+            trailLinkedDeferTimerRef.current = window.setTimeout(() => {
+              trailLinkedDeferTimerRef.current = null;
+              void refreshTrailLinkedIds();
+            }, TRAIL_LINKED_IDS_DEFER_MS);
+          } else {
+            void refreshTrailLinkedIds();
+          }
         }
       } finally {
         setLoading(false);
@@ -550,6 +564,9 @@ export default function App() {
 
   const showHomeDepthZone =
     !showFullStream && !mainStreamEmpty && !selectedEntry && !search.trim();
+
+  const showHomeMemoryEcho =
+    showMemoryEcho && !selectedEntry && !search.trim() && !mainStreamEmpty;
 
   const appBodyClass = [
     selectedEntry ? "app-body--detail-focus" : "",
@@ -1026,6 +1043,21 @@ export default function App() {
       return () => window.removeEventListener("keydown", onKeyDown);
     }
   }, []);
+
+  useEffect(() => {
+    if (!showHomeMemoryEcho) return;
+    const frame = requestAnimationFrame(() => {
+      const slot = document.querySelector(".home-memory-echo-slot");
+      if (!slot) return;
+      const rect = slot.getBoundingClientRect();
+      const fullyVisible =
+        rect.top >= 0 && rect.bottom <= window.innerHeight;
+      if (!fullyVisible) {
+        slot.scrollIntoView({ behavior: "auto", block: "end" });
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [showHomeMemoryEcho, memoryEcho?.entry.id]);
 
   const resurfaceInFlightRef = useRef(false);
   const tryResurface = useCallback(() => {
@@ -1710,12 +1742,14 @@ export default function App() {
     setSelectedEntry(null);
     setMemoryEcho(null);
     const anchor = entries[0];
+    const previewText =
+      anchor?.text ??
+      "API refactor needs error handling pass before release deadline";
     setCaptureContinuationHint({
       entry_id: anchor?.id ?? "",
-      preview:
-        anchor?.text ??
-        "API refactor needs error handling pass before release deadline",
+      preview: previewText,
       days_earlier: 2,
+      shared_terms: ["api", "refactor", "error", "handling", "release"],
     });
   }, [entries]);
 
@@ -2258,17 +2292,17 @@ export default function App() {
                     <div
                       className={[
                         "home-depth-zone",
-                        showMemoryEcho && memoryEcho
-                          ? "home-depth-zone--has-echo"
-                          : "",
+                        showHomeMemoryEcho ? "home-depth-zone--has-echo" : "",
                       ]
                         .filter(Boolean)
                         .join(" ")}
                     >
-                      {showMemoryEcho && memoryEcho ? (
-                        <MemoryEcho
+                      {showHomeMemoryEcho && memoryEcho ? (
+                        <div className="home-memory-echo-slot">
+                          <MemoryEcho
                             entry={memoryEcho.entry}
                             reason={memoryEcho.reason}
+                            trailNeighborCount={memoryEcho.trail_neighbor_count}
                             showHorizon={false}
                             onOpen={(entry) => {
                               const ageDays = Math.floor(
@@ -2290,6 +2324,7 @@ export default function App() {
                               });
                             }}
                           />
+                        </div>
                       ) : null}
                       <TimeStrand
                         entries={entries}
