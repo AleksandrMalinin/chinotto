@@ -14,4 +14,6 @@ export type Entry = {
   topics?: string[];
   /** `spaces.id`; absent or unset means Inbox */
   space_id?: string;
+  /** Shared keywords with the current thought (thought trail neighbors only). */
+  trail_shared?: string[];
 };

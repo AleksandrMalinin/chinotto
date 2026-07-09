@@ -20,7 +20,8 @@ use base64::Engine;
 use chrono::TimeZone;
 use db::{Db, SpaceFilter};
 use keywords::{
-    extract_keywords, keyword_overlap, thought_trail_candidates,
+    capture_continuation_max_days, capture_continuation_min_overlap, extract_keywords,
+    keyword_overlap, shared_keywords, thought_trail_candidates, thought_trail_max_related,
     thought_trail_min_overlap, thought_trail_similarity,
 };
 use std::fs;
@@ -28,6 +29,7 @@ use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::mpsc;
+use rand::seq::SliceRandom;
 use std::sync::Arc;
 use tauri::Emitter;
 use tauri::Manager;
@@ -485,6 +487,26 @@ pub(crate) fn get_resurfaced_entry_impl<R: rand::RngCore>(
         .get_entry_by_id(&picked.id)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "entry not found".to_string())?;
+    let all_rows = db.list_entries().map_err(|e| e.to_string())?;
+    let row = if entry_has_trail_neighbor(&row, &all_rows) {
+        row
+    } else {
+        let picked_ts = parse_created_at(&row.created_at).unwrap_or(now);
+        let alts: Vec<&db::EntryRow> = all_rows
+            .iter()
+            .filter(|r| r.id != row.id && !exclude.contains(r.id.as_str()))
+            .filter(|r| entry_has_trail_neighbor(r, &all_rows))
+            .filter(|r| {
+                let ts = parse_created_at(&r.created_at).unwrap_or(now);
+                (picked_ts - ts).num_days().unsigned_abs() <= 30
+            })
+            .collect();
+        if let Some(alt) = alts.choose(rng) {
+            (*alt).clone()
+        } else {
+            row
+        }
+    };
     Ok(Some(ResurfacedPayload {
         entry: entry_row_to_payload(&row),
         reason,
@@ -499,60 +521,109 @@ fn get_thought_trail(db: tauri::State<Db>, entry_id: String) -> Result<Vec<Entry
         .get_entry_by_id(&entry_id)
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "entry not found".to_string())?;
-    let current_ts = parse_created_at(&current.created_at).unwrap_or_else(chrono::Utc::now);
     let pinned_ids: std::collections::HashSet<String> = db
         .list_pinned_entry_ids()
         .map_err(|e| e.to_string())?
         .into_iter()
         .collect();
     let all = db.list_entries().map_err(|e| e.to_string())?;
-    let candidates: Vec<db::EntryRow> = all
-        .into_iter()
-        .filter(|r| r.id != entry_id)
-        .take(thought_trail_candidates())
-        .collect();
-    let corpus: Vec<std::collections::HashSet<String>> = candidates
+    let rows = build_thought_trail_rows(&current, &all, &pinned_ids);
+    Ok(rows
+        .iter()
+        .map(|r| {
+            if r.id == current.id {
+                entry_row_to_payload(r)
+            } else {
+                entry_row_to_trail_payload(r, &current.text)
+            }
+        })
+        .collect())
+}
+
+/// Entry ids that share enough keywords with at least one other entry (stream trail indicator).
+#[tauri::command]
+fn list_thought_trail_entry_ids(db: tauri::State<Db>) -> Result<Vec<String>, String> {
+    let all = db.list_entries().map_err(|e| e.to_string())?;
+    if all.len() < 2 {
+        return Ok(vec![]);
+    }
+    let min_overlap = thought_trail_min_overlap();
+    let token_sets: Vec<std::collections::HashSet<String>> = all
         .iter()
         .map(|r| keywords::token_set(&r.text))
         .collect();
-    let min_overlap = thought_trail_min_overlap();
+    let mut linked = std::collections::HashSet::new();
+    for i in 0..all.len() {
+        for j in (i + 1)..all.len() {
+            let overlap = token_sets[i].intersection(&token_sets[j]).count();
+            if overlap >= min_overlap {
+                linked.insert(all[i].id.clone());
+                linked.insert(all[j].id.clone());
+            }
+        }
+    }
+    Ok(linked.into_iter().collect())
+}
 
-    let mut scored: Vec<(db::EntryRow, f64)> = candidates
-        .into_iter()
-        .filter(|r| keyword_overlap(&current.text, &r.text) >= min_overlap)
-        .map(|r| {
-            let sim = thought_trail_similarity(&current.text, &r.text, &corpus, 15);
-            let other_ts = parse_created_at(&r.created_at).unwrap_or(current_ts);
-            let days = (current_ts - other_ts).num_days().unsigned_abs() as f64;
-            let time_score = 1.0 / (1.0 + days);
-            let base = 0.6 * sim + 0.4 * time_score;
-            let score = base * importance_boost(importance_score(&r, &pinned_ids));
-            (r, score)
-        })
-        .collect();
-    scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+#[derive(serde::Serialize)]
+struct CaptureContinuationHintPayload {
+    entry_id: String,
+    preview: String,
+    days_earlier: i64,
+}
 
-    let (before, after): (Vec<_>, Vec<_>) = scored
-        .into_iter()
-        .map(|(row, score)| (row, score))
-        .partition(|(r, _)| {
-            parse_created_at(&r.created_at)
-                .map(|t| t < current_ts)
-                .unwrap_or(false)
-        });
-
-    let take_before: Vec<db::EntryRow> = before.into_iter().map(|(r, _)| r).collect();
-    let take_after: Vec<db::EntryRow> = after.into_iter().map(|(r, _)| r).collect();
-
-    let mut before_sorted = take_before;
-    before_sorted.sort_by(|a, b| b.created_at.cmp(&a.created_at));
-    let mut after_sorted = take_after;
-    after_sorted.sort_by(|a, b| a.created_at.cmp(&b.created_at));
-
-    let mut out: Vec<EntryPayload> = before_sorted.iter().map(|r| entry_row_to_payload(r)).collect();
-    out.push(entry_row_to_payload(&current));
-    out.extend(after_sorted.iter().map(|r| entry_row_to_payload(r)));
-    Ok(out)
+/// Recent entry that strongly overlaps capture text (continuation nudge after save).
+#[tauri::command]
+fn get_capture_continuation_hint(
+    db: tauri::State<Db>,
+    text: String,
+    exclude_id: Option<String>,
+) -> Result<Option<CaptureContinuationHintPayload>, String> {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    let min_overlap = capture_continuation_min_overlap();
+    let max_days = capture_continuation_max_days();
+    let now = chrono::Utc::now();
+    let all = db.list_entries().map_err(|e| e.to_string())?;
+    let mut best: Option<(db::EntryRow, usize, i64)> = None;
+    for row in all {
+        if exclude_id.as_deref() == Some(row.id.as_str()) {
+            continue;
+        }
+        let overlap = keyword_overlap(trimmed, &row.text);
+        if overlap < min_overlap {
+            continue;
+        }
+        let ts = parse_created_at(&row.created_at).unwrap_or(now);
+        let days = (now - ts).num_days();
+        if days < 0 || days > max_days {
+            continue;
+        }
+        let replace = match &best {
+            None => true,
+            Some((_prev, prev_overlap, prev_days)) => {
+                overlap > *prev_overlap || (overlap == *prev_overlap && days < *prev_days)
+            }
+        };
+        if replace {
+            best = Some((row, overlap, days));
+        }
+    }
+    Ok(best.map(|(row, _, days)| {
+        let preview = if row.text.chars().count() > 80 {
+            let end = row.text.char_indices().nth(80).map(|(i, _)| i).unwrap_or(row.text.len());
+            format!("{}…", row.text[..end].trim_end())
+        } else {
+            row.text.clone()
+        };
+        CaptureContinuationHintPayload {
+            entry_id: row.id,
+            preview,
+            days_earlier: days,
+        }
+    }))
 }
 
 #[tauri::command]
@@ -934,6 +1005,8 @@ struct EntryPayload {
     topics: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     space_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    trail_shared: Option<Vec<String>>,
 }
 
 fn entry_row_to_payload(r: &db::EntryRow) -> EntryPayload {
@@ -956,7 +1029,105 @@ fn entry_row_to_payload(r: &db::EntryRow) -> EntryPayload {
             Some(topics)
         },
         space_id: r.space_id.clone(),
+        trail_shared: None,
     }
+}
+
+fn entry_row_to_trail_payload(r: &db::EntryRow, current_text: &str) -> EntryPayload {
+    let mut payload = entry_row_to_payload(r);
+    let shared = shared_keywords(current_text, &r.text, 5);
+    if !shared.is_empty() {
+        payload.trail_shared = Some(shared);
+    }
+    payload
+}
+
+fn thought_trail_score_row(
+    current: &db::EntryRow,
+    current_ts: chrono::DateTime<chrono::Utc>,
+    r: &db::EntryRow,
+    corpus: &[std::collections::HashSet<String>],
+    pinned_ids: &std::collections::HashSet<String>,
+) -> f64 {
+    let sim = thought_trail_similarity(&current.text, &r.text, corpus, 15);
+    let other_ts = parse_created_at(&r.created_at).unwrap_or(current_ts);
+    let days = (current_ts - other_ts).num_days().unsigned_abs() as f64;
+    let time_score = 1.0 / (1.0 + days);
+    let mut base = 0.6 * sim + 0.4 * time_score;
+    let continuation_active =
+        current.continuation_from.is_some() || r.continuation_from.is_some();
+    if continuation_active && days <= 7.0 {
+        base *= 1.08;
+    }
+    base * importance_boost(importance_score(r, pinned_ids))
+}
+
+fn select_thought_trail_candidate_rows<'a>(
+    current: &'a db::EntryRow,
+    all: &'a [db::EntryRow],
+) -> Vec<db::EntryRow> {
+    let mut others: Vec<&db::EntryRow> = all.iter().filter(|r| r.id != current.id).collect();
+    others.sort_by(|a, b| {
+        keyword_overlap(&current.text, &b.text)
+            .cmp(&keyword_overlap(&current.text, &a.text))
+            .then_with(|| b.created_at.cmp(&a.created_at))
+    });
+    others
+        .into_iter()
+        .take(thought_trail_candidates())
+        .cloned()
+        .collect()
+}
+
+fn entry_has_trail_neighbor(row: &db::EntryRow, all: &[db::EntryRow]) -> bool {
+    let min_overlap = thought_trail_min_overlap();
+    all.iter().any(|other| {
+        other.id != row.id && keyword_overlap(&row.text, &other.text) >= min_overlap
+    })
+}
+
+fn build_thought_trail_rows(
+    current: &db::EntryRow,
+    all: &[db::EntryRow],
+    pinned_ids: &std::collections::HashSet<String>,
+) -> Vec<db::EntryRow> {
+    let current_ts = parse_created_at(&current.created_at).unwrap_or_else(chrono::Utc::now);
+    let candidates = select_thought_trail_candidate_rows(current, all);
+    let corpus: Vec<std::collections::HashSet<String>> = candidates
+        .iter()
+        .map(|r| keywords::token_set(&r.text))
+        .collect();
+    let min_overlap = thought_trail_min_overlap();
+    let max_related = thought_trail_max_related();
+
+    let mut scored: Vec<(db::EntryRow, f64)> = candidates
+        .into_iter()
+        .filter(|r| keyword_overlap(&current.text, &r.text) >= min_overlap)
+        .map(|r| {
+            let score = thought_trail_score_row(current, current_ts, &r, &corpus, pinned_ids);
+            (r, score)
+        })
+        .collect();
+    scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+    let top: Vec<db::EntryRow> = scored
+        .into_iter()
+        .take(max_related)
+        .map(|(row, _)| row)
+        .collect();
+
+    let (mut before, mut after): (Vec<db::EntryRow>, Vec<db::EntryRow>) = top.into_iter().partition(|r| {
+        parse_created_at(&r.created_at)
+            .map(|t| t < current_ts)
+            .unwrap_or(false)
+    });
+    before.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    after.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+
+    let mut out = before;
+    out.push(current.clone());
+    out.extend(after);
+    out
 }
 
 #[derive(serde::Serialize)]
@@ -1024,7 +1195,7 @@ fn run_native_speech_recognition(
 }
 
 #[tauri::command]
-fn set_app_icon(_app: tauri::AppHandle, png_base64: String) -> Result<(), String> {
+fn set_app_icon(app: tauri::AppHandle, png_base64: String) -> Result<(), String> {
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(png_base64.trim())
         .map_err(|e| e.to_string())?;
@@ -1222,6 +1393,8 @@ pub fn run() {
             find_similar_entries,
             get_resurfaced_entry,
             get_thought_trail,
+            list_thought_trail_entry_ids,
+            get_capture_continuation_hint,
             pin_entry,
             unpin_entry,
             get_pinned_entry_ids,

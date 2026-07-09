@@ -112,3 +112,21 @@ pub fn thought_trail_candidates() -> usize {
 pub fn thought_trail_max_related() -> usize {
     4
 }
+
+/// Shared non-stopword tokens between two texts (sorted, capped).
+pub fn shared_keywords(text_a: &str, text_b: &str, limit: usize) -> Vec<String> {
+    let a = token_set(text_a);
+    let b = token_set(text_b);
+    let mut shared: Vec<String> = a.intersection(&b).cloned().collect();
+    shared.sort();
+    shared.truncate(limit);
+    shared
+}
+
+pub fn capture_continuation_min_overlap() -> usize {
+    3
+}
+
+pub fn capture_continuation_max_days() -> i64 {
+    7
+}
