@@ -263,6 +263,8 @@ body.chinotto-card-open {
 .app-shell {
   position: relative;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   background-color: var(--bg);
   transition: background-color 0.45s ease-out;
 }
@@ -556,7 +558,12 @@ html[data-space-scope="inbox"] .entry-input-row:not(.entry-input-row--detail-foc
 .app {
   position: relative;
   z-index: 1;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   max-width: 1100px;
+  width: 100%;
   margin: 0 auto;
   padding: 36px 32px 4.5rem;
 }
@@ -566,6 +573,7 @@ html[data-space-scope="inbox"] .entry-input-row:not(.entry-input-row--detail-foc
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+  flex-shrink: 0;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.25s ease-out;
@@ -3787,10 +3795,11 @@ body.search-open {
   margin-bottom: 0.25rem;
 }
 
-.app-body--home {
+.app-body {
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 9rem);
+  min-height: 0;
 }
 
 .app-body--home .entry-input-row {
@@ -3809,13 +3818,13 @@ body.search-open {
   background: color-mix(in srgb, var(--fg) 4.5%, transparent);
 }
 
-.app-body--home .stream-section:not(:has(.stream-section-title)) {
-  margin-bottom: 0.75rem;
+.app-body--home .stream-section {
+  margin-bottom: 0.5rem;
 }
 
 .app-body--home .home-depth-zone {
   margin-top: auto;
-  padding-top: 1.75rem;
+  padding-top: 1rem;
 }
 
 .home-depth-zone .home-memory-echo-slot {
@@ -3865,6 +3874,11 @@ body.search-open {
 
 .home-depth-zone .time-strand {
   margin-top: 0;
+}
+
+.app-body--home .time-strand-horizon {
+  height: 1.1rem;
+  margin-bottom: 0.2rem;
 }
 
 .time-strand {
