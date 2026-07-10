@@ -7,7 +7,7 @@ import {
 } from "@/lib/iconVariants";
 import { setDesktopIcon } from "@/lib/setDesktopIcon";
 import { isOptIn, setOptIn } from "@/lib/analytics";
-import { isThemesEnabled, setThemesEnabled } from "@/lib/themeSettings";
+import { setThemesEnabled } from "@/lib/themeSettings";
 import { ENTER_KEY_GLYPH } from "@/lib/keyboardLabels";
 import { APP_VERSION } from "@/lib/appVersion";
 import { UserThemesEditor } from "@/features/entries/UserThemesEditor";

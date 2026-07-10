@@ -113,4 +113,22 @@ describe("EntryStream non-empty", () => {
     expect(screen.queryByText(/Meow/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Cool/)).not.toBeInTheDocument();
   });
+
+  it("marks the newest entry row for compact stream typography", () => {
+    const newest: Entry = {
+      id: "e-newest",
+      text: "Latest thought",
+      created_at: new Date().toISOString(),
+    };
+    const older: Entry = {
+      id: "e-older",
+      text: "Earlier thought",
+      created_at: new Date(Date.now() - 86_400_000).toISOString(),
+    };
+    const { container } = render(<EntryStream entries={[newest, older]} />);
+    const newestRow = container.querySelector(".entry-row--newest");
+    expect(newestRow).toBeTruthy();
+    expect(newestRow?.textContent).toContain("Latest thought");
+    expect(container.querySelectorAll(".entry-row--newest")).toHaveLength(1);
+  });
 });

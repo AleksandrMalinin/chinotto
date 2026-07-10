@@ -1,11 +1,9 @@
-import { classifyEntryTheme, generateEmbedding, getEntry } from "@/features/entries/entryApi";
-import { pushEntryUpsertToFirestore } from "@/lib/desktopFirestoreSync";
+import { classifyEntryTheme, generateEmbedding } from "@/features/entries/entryApi";
+import { pushEntryThemeToRemote } from "@/lib/entryThemePush";
 
 /** After local SQLite text save: push merge to Firestore (when sync on) and refresh side indexes. */
 export function syncSavedEntryTextToRemote(entryId: string): void {
-  void getEntry(entryId).then((row) => {
-    if (row) void pushEntryUpsertToFirestore(row);
-  });
+  void pushEntryThemeToRemote(entryId);
   generateEmbedding(entryId);
   classifyEntryTheme(entryId);
 }

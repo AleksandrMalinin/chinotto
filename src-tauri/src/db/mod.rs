@@ -718,6 +718,8 @@ impl Db {
             rusqlite::params![id, label, sort_order, created_at],
         )
         .map_err(|e| e.to_string())?;
+        self.enqueue_sync_user_theme_upsert(&id, label, sort_order)
+            .map_err(|e| e.to_string())?;
         Ok(UserThemeRow {
             id,
             label: label.to_string(),
@@ -740,6 +742,8 @@ impl Db {
             rusqlite::params![id, label],
         )
         .map_err(|e| e.to_string())?;
+        self.enqueue_sync_user_theme_upsert(id, label, existing.sort_order)
+            .map_err(|e| e.to_string())?;
         Ok(UserThemeRow {
             id: id.to_string(),
             label: label.to_string(),
@@ -748,6 +752,13 @@ impl Db {
     }
 
     pub fn delete_user_theme(&self, id: &str) -> Result<(), String> {
+        if self.get_user_theme(id).map_err(|e| e.to_string())?.is_none() {
+            return Err("theme not found".into());
+        }
+        self.enqueue_sync_user_theme_tombstone(id)
+            .map_err(|e| e.to_string())?;
+        self.add_user_theme_ingest_suppression(id)
+            .map_err(|e| e.to_string())?;
         let conn = self.0.lock().unwrap();
         let changed = conn
             .execute("DELETE FROM user_themes WHERE id = ?1", [id])
@@ -920,6 +931,8 @@ impl Db {
         conn.execute("DELETE FROM entries", [])?;
         conn.execute("DELETE FROM firestore_ingest_suppressed_ids", [])?;
         conn.execute("DELETE FROM sync_tombstone_outbox", [])?;
+        conn.execute("DELETE FROM firestore_ingest_suppressed_theme_ids", [])?;
+        conn.execute("DELETE FROM sync_user_theme_outbox", [])?;
         Ok(())
     }
 
@@ -966,6 +979,212 @@ impl Db {
             [entry_id],
         )?;
         Ok(())
+    }
+
+    pub fn enqueue_sync_user_theme_upsert(
+        &self,
+        theme_id: &str,
+        label: &str,
+        sort_order: i32,
+    ) -> Result<(), rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let at = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT OR REPLACE INTO sync_user_theme_outbox (theme_id, op, label, sort_order, enqueued_at)
+             VALUES (?1, 'upsert', ?2, ?3, ?4)",
+            rusqlite::params![theme_id, label, sort_order, at],
+        )?;
+        Ok(())
+    }
+
+    pub fn enqueue_sync_user_theme_tombstone(&self, theme_id: &str) -> Result<(), rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let at = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT OR REPLACE INTO sync_user_theme_outbox (theme_id, op, label, sort_order, enqueued_at)
+             VALUES (?1, 'tombstone', NULL, NULL, ?2)",
+            rusqlite::params![theme_id, at],
+        )?;
+        Ok(())
+    }
+
+    pub fn list_sync_user_theme_outbox(
+        &self,
+    ) -> Result<Vec<(String, String, Option<String>, Option<i32>)>, rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT theme_id, op, label, sort_order FROM sync_user_theme_outbox ORDER BY enqueued_at ASC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+            ))
+        })?;
+        rows.collect()
+    }
+
+    pub fn remove_sync_user_theme_outbox(&self, theme_id: &str) -> Result<(), rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        conn.execute(
+            "DELETE FROM sync_user_theme_outbox WHERE theme_id = ?1",
+            [theme_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn clear_sync_user_theme_outbox_all(&self) -> Result<(), rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        conn.execute("DELETE FROM sync_user_theme_outbox", [])?;
+        Ok(())
+    }
+
+    pub fn enqueue_all_local_user_themes_for_sync(&self) -> Result<(), rusqlite::Error> {
+        let themes = self.list_user_themes()?;
+        for theme in themes {
+            self.enqueue_sync_user_theme_upsert(&theme.id, &theme.label, theme.sort_order)?;
+        }
+        Ok(())
+    }
+
+    pub fn list_entry_ids_with_themes(&self) -> Result<Vec<String>, rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT entry_id FROM entry_themes")?;
+        let rows = stmt.query_map([], |row| row.get(0))?;
+        rows.collect()
+    }
+
+    pub fn add_user_theme_ingest_suppression(&self, theme_id: &str) -> Result<(), rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let at = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT OR REPLACE INTO firestore_ingest_suppressed_theme_ids (id, suppressed_at) VALUES (?1, ?2)",
+            [theme_id, at.as_str()],
+        )?;
+        Ok(())
+    }
+
+    pub fn clear_user_theme_ingest_suppression(&self, theme_id: &str) -> Result<(), rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        conn.execute(
+            "DELETE FROM firestore_ingest_suppressed_theme_ids WHERE id = ?1",
+            [theme_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn apply_remote_entry_theme(
+        &self,
+        entry_id: &str,
+        theme: Option<&EntryThemeRow>,
+    ) -> Result<bool, rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let locked: Option<i32> = conn
+            .query_row(
+                "SELECT locked FROM entry_themes WHERE entry_id = ?1",
+                [entry_id],
+                |row| row.get(0),
+            )
+            .ok();
+        if locked.unwrap_or(0) != 0 {
+            return Ok(false);
+        }
+        if theme.is_none() {
+            let n = conn.execute(
+                "DELETE FROM entry_themes WHERE entry_id = ?1 AND locked = 0",
+                [entry_id],
+            )?;
+            return Ok(n > 0);
+        }
+        let theme = theme.unwrap();
+        let classified_at = chrono::Utc::now().to_rfc3339();
+        let locked_i = if theme.locked { 1 } else { 0 };
+        let n = conn.execute(
+            "INSERT INTO entry_themes (entry_id, theme_id, confidence, source, locked, classified_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             ON CONFLICT(entry_id) DO UPDATE SET
+               theme_id = excluded.theme_id,
+               confidence = excluded.confidence,
+               source = excluded.source,
+               locked = excluded.locked,
+               classified_at = excluded.classified_at
+             WHERE locked = 0",
+            rusqlite::params![
+                entry_id,
+                theme.theme_id,
+                theme.confidence,
+                theme.source,
+                locked_i,
+                classified_at
+            ],
+        )?;
+        Ok(n > 0)
+    }
+
+    pub fn ingest_remote_user_themes(
+        &self,
+        rows: &[(String, String, i32)],
+    ) -> Result<u32, rusqlite::Error> {
+        if rows.is_empty() {
+            return Ok(0);
+        }
+        let conn = self.0.lock().unwrap();
+        let mut applied: u32 = 0;
+        for (id, label, sort_order) in rows {
+            let label = label.trim();
+            if label.is_empty() {
+                continue;
+            }
+            let suppressed: i32 = conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM firestore_ingest_suppressed_theme_ids WHERE id = ?1)",
+                [id.as_str()],
+                |r| r.get(0),
+            )?;
+            if suppressed != 0 {
+                continue;
+            }
+            let created_at = chrono::Utc::now().to_rfc3339();
+            let n = conn.execute(
+                "INSERT INTO user_themes (id, label, keywords, sort_order, created_at)
+                 VALUES (?1, ?2, '[]', ?3, ?4)
+                 ON CONFLICT(id) DO UPDATE SET label = excluded.label, sort_order = excluded.sort_order",
+                rusqlite::params![id.as_str(), label, sort_order, created_at],
+            )?;
+            if n > 0 {
+                applied += 1;
+            }
+        }
+        Ok(applied)
+    }
+
+    pub fn apply_remote_user_theme_tombstones(&self, theme_ids: &[String]) -> Result<u32, rusqlite::Error> {
+        if theme_ids.is_empty() {
+            return Ok(0);
+        }
+        let conn = self.0.lock().unwrap();
+        let mut removed: u32 = 0;
+        for theme_id in theme_ids {
+            let suppressed: i32 = conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM firestore_ingest_suppressed_theme_ids WHERE id = ?1)",
+                [theme_id.as_str()],
+                |r| r.get(0),
+            )?;
+            if suppressed != 0 {
+                continue;
+            }
+            conn.execute("DELETE FROM entry_themes WHERE theme_id = ?1", [theme_id.as_str()])?;
+            let n = conn.execute("DELETE FROM user_themes WHERE id = ?1", [theme_id.as_str()])?;
+            if n > 0 {
+                removed += 1;
+            }
+            conn.execute(
+                "DELETE FROM firestore_ingest_suppressed_theme_ids WHERE id = ?1",
+                [theme_id.as_str()],
+            )?;
+        }
+        Ok(removed)
     }
 
     /// Remote tombstone (or sync apply): remove local row without adding suppression; clear suppression for this id.

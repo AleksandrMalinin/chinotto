@@ -197,6 +197,122 @@ fn delete_local_entries_for_sync(
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct RemoteEntryThemeIn {
+    theme_id: String,
+    confidence: f64,
+    source: String,
+    locked: bool,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ApplyRemoteEntryThemeIn {
+    entry_id: String,
+    theme: Option<RemoteEntryThemeIn>,
+}
+
+#[tauri::command]
+fn apply_remote_entry_theme(
+    db: tauri::State<Db>,
+    input: ApplyRemoteEntryThemeIn,
+) -> Result<bool, String> {
+    let theme = input.theme.map(|t| crate::db::EntryThemeRow {
+        theme_id: t.theme_id,
+        confidence: t.confidence,
+        source: t.source,
+        locked: t.locked,
+    });
+    db.apply_remote_entry_theme(&input.entry_id, theme.as_ref())
+        .map_err(|e| e.to_string())
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RemoteUserThemeIn {
+    id: String,
+    label: String,
+    sort_order: i32,
+}
+
+#[tauri::command]
+fn ingest_remote_user_themes(
+    db: tauri::State<Db>,
+    rows: Vec<RemoteUserThemeIn>,
+) -> Result<u32, String> {
+    let batch: Vec<(String, String, i32)> = rows
+        .into_iter()
+        .map(|r| (r.id, r.label, r.sort_order))
+        .collect();
+    db.ingest_remote_user_themes(&batch)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn apply_remote_user_theme_tombstones(
+    db: tauri::State<Db>,
+    theme_ids: Vec<String>,
+) -> Result<u32, String> {
+    db.apply_remote_user_theme_tombstones(&theme_ids)
+        .map_err(|e| e.to_string())
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UserThemeOutboxRowOut {
+    theme_id: String,
+    op: String,
+    label: Option<String>,
+    sort_order: Option<i32>,
+}
+
+#[tauri::command]
+fn list_sync_user_theme_outbox(db: tauri::State<Db>) -> Result<Vec<UserThemeOutboxRowOut>, String> {
+    db.list_sync_user_theme_outbox()
+        .map(|rows| {
+            rows.into_iter()
+                .map(|(theme_id, op, label, sort_order)| UserThemeOutboxRowOut {
+                    theme_id,
+                    op,
+                    label,
+                    sort_order,
+                })
+                .collect()
+        })
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn remove_sync_user_theme_outbox(db: tauri::State<Db>, theme_id: String) -> Result<(), String> {
+    db.remove_sync_user_theme_outbox(&theme_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn clear_sync_user_theme_outbox_all(db: tauri::State<Db>) -> Result<(), String> {
+    db.clear_sync_user_theme_outbox_all()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn clear_user_theme_ingest_suppression(db: tauri::State<Db>, theme_id: String) -> Result<(), String> {
+    db.clear_user_theme_ingest_suppression(&theme_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn enqueue_all_local_user_themes_for_sync(db: tauri::State<Db>) -> Result<(), String> {
+    db.enqueue_all_local_user_themes_for_sync()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn list_entry_ids_with_themes(db: tauri::State<Db>) -> Result<Vec<String>, String> {
+    db.list_entry_ids_with_themes()
+        .map_err(|e| e.to_string())
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct CreateEntryIn {
     text: String,
     #[serde(default)]
@@ -1575,6 +1691,15 @@ pub fn run() {
             clear_sync_tombstone_outbox_all,
             clear_firestore_ingest_suppression,
             delete_local_entries_for_sync,
+            apply_remote_entry_theme,
+            ingest_remote_user_themes,
+            apply_remote_user_theme_tombstones,
+            list_sync_user_theme_outbox,
+            remove_sync_user_theme_outbox,
+            clear_sync_user_theme_outbox_all,
+            clear_user_theme_ingest_suppression,
+            enqueue_all_local_user_themes_for_sync,
+            list_entry_ids_with_themes,
             create_entry,
             restore_entry,
             update_entry,

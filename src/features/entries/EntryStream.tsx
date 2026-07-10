@@ -277,6 +277,7 @@ const EntryRow = memo(function EntryRow({
   onEntryDelete,
   onEntryHover,
   hasTrailLink,
+  isNewest = false,
 }: {
   entry: Entry;
   showHighlights: boolean;
@@ -292,6 +293,7 @@ const EntryRow = memo(function EntryRow({
   onEntryDelete?: (entry: Entry) => void;
   onEntryHover?: (entry: Entry | null) => void;
   hasTrailLink?: boolean;
+  isNewest?: boolean;
 }) {
   const [hover, setHover] = useState(false);
   const [editValue, setEditValue] = useState(entry.text);
@@ -482,6 +484,7 @@ const EntryRow = memo(function EntryRow({
     isSettling && "entry-row-settling",
     onEntryClick && "entry-row-clickable",
     isPinned && "entry-row-pinned",
+    isNewest && "entry-row--newest",
   ]
     .filter(Boolean)
     .join(" ");
@@ -547,6 +550,7 @@ function StreamSection({
   pinnedEntryIds,
   trailLinkedIds,
   showSectionTitle = true,
+  newestEntryId = null,
 }: {
   section: string;
   entries: Entry[];
@@ -569,6 +573,7 @@ function StreamSection({
   pinnedEntryIds?: ReadonlySet<string>;
   trailLinkedIds?: ReadonlySet<string>;
   showSectionTitle?: boolean;
+  newestEntryId?: string | null;
 }) {
   const isDeleting = (id: string) => deletingIds?.has(id) ?? false;
   const ephemeral = ephemeralEntryIds ?? new Set();
@@ -621,6 +626,7 @@ function StreamSection({
                   onEntryDelete={onEntryDelete}
                   onEntryHover={onEntryHover}
                   hasTrailLink={trailLinkedIds?.has(entry.id)}
+                  isNewest={entry.id === newestEntryId}
                 />
               </div>
             </motion.li>
@@ -660,6 +666,9 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
   showSectionTitle = true,
 }) {
   const reduceMotion = useReducedMotion();
+
+  const newestEntryId =
+    entries.length > 0 && !showHighlights ? entries[0].id : null;
 
   const sections = useMemo(() => {
     if (sectionTitle) {
@@ -737,6 +746,7 @@ export const EntryStream = memo<EntryStreamProps>(function EntryStream({
           pinnedEntryIds={pinnedEntryIds}
           trailLinkedIds={trailLinkedIds}
           showSectionTitle={showSectionTitle}
+          newestEntryId={newestEntryId}
         />
       ))}
     </div>
