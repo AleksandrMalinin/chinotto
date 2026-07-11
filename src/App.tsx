@@ -1532,8 +1532,6 @@ export default function App() {
   );
 
   const handleEntryDetailTextChange = useCallback((entryId: string, text: string) => {
-    setEntries((prev) => prev.map((e) => (e.id === entryId ? { ...e, text } : e)));
-    setSelectedEntry((prev) => (prev && prev.id === entryId ? { ...prev, text } : prev));
     detailDraftsRef.current.set(entryId, text);
     const existing = detailSaveTimersRef.current.get(entryId);
     if (existing) clearTimeout(existing);
@@ -1542,7 +1540,9 @@ export default function App() {
       const latest = detailDraftsRef.current.get(entryId);
       if (latest == null) return;
       updateEntry(entryId, latest)
-        .then(() => {
+        .then(() => getEntry(entryId))
+        .then((fresh) => {
+          if (!fresh) return;
           if (detailDraftsRef.current.get(entryId) === latest) {
             detailDraftsRef.current.delete(entryId);
             track({
@@ -1551,6 +1551,12 @@ export default function App() {
               text_length: latest.length,
             });
           }
+          setEntries((prev) =>
+            prev.map((e) => (e.id === entryId ? fresh : e))
+          );
+          setSelectedEntry((prev) =>
+            prev && prev.id === entryId ? fresh : prev
+          );
           syncSavedEntryTextToRemote(entryId);
         })
         .catch(() => {});

@@ -379,12 +379,22 @@ fn restore_entry(db: tauri::State<Db>, input: RestoreEntryIn) -> Result<String, 
 }
 
 #[tauri::command]
-fn generate_embedding(db: tauri::State<Db>, entry_id: String) -> Result<(), String> {
-    let entry = db
-        .get_entry_by_id(&entry_id)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| "entry not found".to_string())?;
-    store_embedding_for_entry(&db, &entry_id, &entry.text)
+fn generate_embedding(app: tauri::AppHandle, entry_id: String) -> Result<(), String> {
+    let text = {
+        let db = app.state::<Db>();
+        let entry = db
+            .get_entry_by_id(&entry_id)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "entry not found".to_string())?;
+        entry.text
+    };
+    std::thread::spawn(move || {
+        let db = app.state::<Db>();
+        if let Err(e) = store_embedding_for_entry(&db, &entry_id, &text) {
+            log::warn!("embedding refresh failed for {}: {}", entry_id, e);
+        }
+    });
+    Ok(())
 }
 
 #[derive(serde::Serialize)]
@@ -1139,12 +1149,6 @@ fn update_entry(db: tauri::State<Db>, entry_id: String, text: String) -> Result<
         .ok_or_else(|| "entry not found".to_string())?;
     db.update_entry_text(&entry_id, &text)
         .map_err(|e| e.to_string())?;
-    let trimmed = text.trim();
-    if !trimmed.is_empty() {
-        if let Err(e) = store_embedding_for_entry(&db, &entry_id, trimmed) {
-            log::warn!("embedding refresh failed for {}: {}", entry_id, e);
-        }
-    }
     Ok(())
 }
 

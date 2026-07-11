@@ -147,6 +147,7 @@ export function EntryDetail({
   const editable = Boolean(onEntryTextChange);
   const [isEditingText, setIsEditingText] = useState(false);
   const [writeExpanded, setWriteExpanded] = useState(false);
+  const [editDraft, setEditDraft] = useState(entry.text);
   const [similarExpanded, setSimilarExpanded] = useState(false);
 
   useEffect(() => {
@@ -156,12 +157,23 @@ export function EntryDetail({
     setContinuationTrailHint(false);
     setTrail([]);
     setRelated([]);
+    setEditDraft(entry.text);
     onWriteExpandedChange?.(false);
     hasInsertedContinuationBreakRef.current = false;
     setShareOpen(false);
     setEntryTheme(null);
     setThemePickerOpen(false);
   }, [entry.id, onWriteExpandedChange]);
+
+  useEffect(() => {
+    if (isEditingText || writeExpanded) return;
+    setEditDraft(entry.text);
+  }, [entry.text, entry.continuation_at, isEditingText, writeExpanded]);
+
+  const persistEditDraft = (text: string) => {
+    setEditDraft(text);
+    onEntryTextChange?.(entry.id, text);
+  };
 
   useEffect(() => {
     if (!editable || isEditingText || writeExpanded) return;
@@ -228,7 +240,7 @@ export function EntryDetail({
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${Math.max(el.scrollHeight, 88)}px`;
-  }, [entry.text, editable, isEditingText, writeExpanded]);
+  }, [editDraft, editable, isEditingText, writeExpanded]);
 
   useEffect(() => {
     let cancelled = false;
@@ -281,7 +293,7 @@ export function EntryDetail({
   };
 
   const beginEditingText = () => {
-    textAtEditStartRef.current = entry.text;
+    textAtEditStartRef.current = editDraft;
     hasInsertedContinuationBreakRef.current = false;
     setIsEditingText(true);
   };
@@ -289,7 +301,7 @@ export function EntryDetail({
   const openWriteExpanded = () => {
     if (!editable) return;
     if (!isEditingText) {
-      textAtEditStartRef.current = entry.text;
+      textAtEditStartRef.current = editDraft;
       hasInsertedContinuationBreakRef.current = false;
     }
     setWriteExpanded(true);
@@ -298,7 +310,7 @@ export function EntryDetail({
 
   const closeWriteExpanded = () => {
     if (!writeExpanded) return;
-    finalizeContinuationOnBlur(entry.text);
+    finalizeContinuationOnBlur(editDraft);
     setWriteExpanded(false);
     onWriteExpandedChange?.(false);
     setIsEditingText(false);
@@ -321,7 +333,7 @@ export function EntryDetail({
     hasInsertedContinuationBreakRef.current = true;
     const end = el.value.length;
     el.setRangeText(`\n${native.data}`, end, end, "end");
-    onEntryTextChange?.(entry.id, el.value);
+    persistEditDraft(el.value);
     noteContinuationStart(end + 1, el.value);
   };
 
@@ -339,7 +351,7 @@ export function EntryDetail({
     ) {
       e.preventDefault();
       hasInsertedContinuationBreakRef.current = true;
-      onEntryTextChange?.(entry.id, `${el.value}\n${pasted}`);
+      persistEditDraft(`${el.value}\n${pasted}`);
       noteContinuationStart(el.value.length + 1, `${el.value}\n${pasted}`);
       requestAnimationFrame(moveCaretToEnd);
     }
@@ -361,7 +373,7 @@ export function EntryDetail({
     const detected = detectContinuationAppend(textAtEditStartRef.current, finalText);
     if (!detected) return;
     if (detected.normalizedText !== finalText) {
-      onEntryTextChange?.(entry.id, detected.normalizedText);
+      persistEditDraft(detected.normalizedText);
     }
     noteContinuationStart(detected.fromOffset, detected.normalizedText);
   };
@@ -713,7 +725,7 @@ export function EntryDetail({
               aria-hidden={writeExpanded}
               tabIndex={writeExpanded ? -1 : 0}
               readOnly={writeExpanded}
-              value={entry.text}
+              value={editDraft}
               rows={4}
               onFocus={() => {
                 if (writeExpanded) return;
@@ -727,7 +739,7 @@ export function EntryDetail({
               }}
               onBlur={() => {
                 if (writeExpanded) return;
-                handleTextBlur(textRef.current?.value ?? entry.text);
+                handleTextBlur(textRef.current?.value ?? editDraft);
               }}
               onInput={(e) => {
                 const el = e.currentTarget;
@@ -752,7 +764,7 @@ export function EntryDetail({
                 }
               }}
               onPaste={handleTextPaste}
-              onChange={(e) => onEntryTextChange(entry.id, e.target.value)}
+              onChange={(e) => persistEditDraft(e.target.value)}
             />
           ) : (
             <div
@@ -867,8 +879,8 @@ export function EntryDetail({
       ) : null}
       <DetailWriteOverlay
         open={writeExpanded}
-        value={entry.text}
-        onChange={(text) => onEntryTextChange?.(entry.id, text)}
+        value={editDraft}
+        onChange={persistEditDraft}
         onClose={closeWriteExpanded}
         onBeforeInput={handleTextBeforeInput}
         onPaste={handleTextPaste}

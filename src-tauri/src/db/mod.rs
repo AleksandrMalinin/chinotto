@@ -2035,6 +2035,22 @@ mod tests {
     }
 
     #[test]
+    fn update_entry_text_keeps_continuation_at_after_later_edits() {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        db.create_entry("e1", "hello", "2025-01-01T12:00:00Z", None)
+            .unwrap();
+        db.update_entry_text("e1", "hello\nmore").unwrap();
+        db.mark_entry_continuation("e1", 6, "hello\nmore").unwrap();
+        let first = db.get_entry_by_id("e1").unwrap().unwrap();
+        let first_at = first.continuation_at.clone().unwrap();
+
+        db.update_entry_text("e1", "hello\nmore and more").unwrap();
+        let second = db.get_entry_by_id("e1").unwrap().unwrap();
+        assert_eq!(second.continuation_from, Some(6));
+        assert_eq!(second.continuation_at, Some(first_at));
+    }
+
+    #[test]
     fn update_entry_text_clears_invalid_continuation_marker() {
         let db = Db::open(PathBuf::from(":memory:")).unwrap();
         db.create_entry("e1", "hello", "2025-01-01T12:00:00Z", None)
