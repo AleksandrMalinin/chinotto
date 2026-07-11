@@ -183,7 +183,7 @@ function renderEntryBody(entry: Entry): string {
   let html = `<div class="readable">${renderBlocks(parseReadablePlainText(primary))}</div>`;
   if (secondary.trim()) {
     const label = entry.continuation_at
-      ? `<p class="readable-continuation-label">Added ${escapeHtml(formatCompactTimestamp(entry.continuation_at))}</p>`
+      ? `<p class="readable-continuation-label">Continued on ${escapeHtml(formatCompactTimestamp(entry.continuation_at))}</p>`
       : "";
     html += `<section class="readable-continuation">${label}<div class="readable">${renderBlocks(parseReadablePlainText(secondary))}</div></section>`;
   }

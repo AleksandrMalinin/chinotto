@@ -118,7 +118,7 @@ function ReadableDetailBody({
       <section className="entry-readable-continuation" aria-label="Continued later">
         {continuationAt ? (
           <p className="entry-readable-continuation-label">
-            Added {formatContinuationDate(continuationAt)}
+            Continued on {formatContinuationDate(continuationAt)}
           </p>
         ) : null}
         <ReadableBlocks blocks={continuationBlocks} />
