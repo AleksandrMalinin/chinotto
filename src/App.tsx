@@ -100,7 +100,6 @@ import {
   getDevPreviewEmptyStream,
   setDevPreviewEmptyStream,
 } from "@/lib/devPreviewEmptyStream";
-import { isDevHeaderMenuVisible } from "@/lib/devHeaderMenu";
 import {
   adjustUiZoom,
   applyStoredUiZoom,
@@ -2187,7 +2186,7 @@ export default function App() {
                     .join(" · ")}
                 </span>
               )}
-              {isDevHeaderMenuVisible() && introDismissed && (
+              {import.meta.env.DEV && introDismissed && (
                 <details ref={devMenuRef} className="app-header-dev-dropdown">
                   <summary className="app-header-dev-summary">Dev</summary>
                   <div className="app-header-dev-panel">
