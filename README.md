@@ -5,7 +5,7 @@
 # Chinotto
 
 *Capture first.  
-Revisit later.*
+Continue later.*
 
 Chinotto is a minimal desktop thinking tool built for the moment a thought appears.  
 Capture it instantly — without projects, folders, or workspaces.
