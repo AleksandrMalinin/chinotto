@@ -26,15 +26,17 @@ Local-first. Desktop only. Optional device sync with the mobile app when you ena
 - Spaces (All, Inbox, Work, Personal)
 - Jump to any day in your history
 - Thought trails and related thoughts in context
+- Recall themes — optional labels to filter and revisit threads of thought
+- Share selected thoughts as a hosted read link
 - Quiet recall when a past thought still matters
-- Optional sync with Chinotto mobile
+- Optional sync with Chinotto mobile (entries and recall themes when both apps support it)
 
 ## Data ownership
 
 - **Export** — entries can be exported as Markdown
 - **Backup** — automatic local backups
 
-See [Privacy](docs/privacy.md) for local storage, optional sync, and analytics.
+See [Privacy](docs/privacy.md) for local storage, optional sync, sharing, and analytics.
 
 ## Updates
 

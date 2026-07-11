@@ -4,6 +4,18 @@ These sections feed the **GitHub Release** description in CI (see `.github/workf
 
 Add **`## vX.Y.Z`** before you push tag **`vX.Y.Z`**.
 
+## v3.0.0
+
+- **Home stream:** bounded home layout with depth zone, time strand week river, and memory-echo resurfacing card (`TimeStrand`, `MemoryEcho`, `homeStreamPartition.ts`, `timeStrandWeek.ts`)
+- **Entry detail:** read mode, continuation marking, expanded writing overlay, thought-trail strip navigation, related-thoughts rails, and share entry point (`EntryDetail.tsx`, `ThoughtTrailStrip.tsx`, `detailExpandedWriting`)
+- **Readable text:** plain-text rendering for URLs and line breaks in stream and detail (`readablePlainText.ts`, continuation columns in `schema.sql`)
+- **Thought trails:** improved keyword ranking, shared-term highlighting, trail marks in stream rows, and related-thoughts selection in share dialog (`keywords.rs`, `trailSharedTermHighlight.ts`, `thought_trail` commands)
+- **Share threads:** local `share_threads` registry, HTML export, hosted snapshot upload to `getchinotto.app/t/{token}` (`shareThreadHtml.ts`, `shareThreadUpload.ts`, `ShareThreadDialog.tsx`, Tauri `create_share_thread` / `revoke_share_thread`)
+- **Recall themes:** user theme CRUD, manual picker in detail, search theme chips, link-based classification, settings editor (`user_themes` table, `themeRepository` paths in `db/mod.rs`, `themeSettings.ts`)
+- **Sync (themes):** push/pull `users/{uid}/user_themes` and optional entry `theme` field over Firestore when recall themes are enabled (`desktopFirestoreSync.ts`, `firestoreSyncTheme.ts`, `userThemeFlush.ts`, `themeSyncBackfill.ts`)
+- **UI:** compact stream row typography; jump calendar as sheet; intro screen simplification; semantic surface tokens for chrome and search
+- **Docs:** maintainer specs removed from the public git tree (`docs/internal/` local-only via `.gitignore`); README, architecture, and privacy updated for themes, sharing, and sync scope
+
 ## v2.2.3
 
 - **UI (background):** reduce visible banding in the ambient cosmic glow (`--bg-fade`, `oklab` gradient interpolation, eased radial stops in `src/index.css`); remove ineffective grain overlay on `.app-bg`

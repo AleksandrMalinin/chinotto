@@ -10,7 +10,11 @@ Chinotto is **local-first**. Your thoughts stay on your device in a SQLite datab
 
 ## Optional sync
 
-When you enable sync and sign in with Apple, entries can sync with the Chinotto mobile app via Firebase. Sync is optional; the app remains fully usable without it.
+When you enable sync and sign in with Apple, entries can sync with the Chinotto mobile app via Firebase. Recall themes can sync too when enabled on both devices. Sync is optional; the app remains fully usable without it.
+
+## Optional sharing
+
+When you create a share link from entry detail, Chinotto uploads a **snapshot** of the selected thoughts (text and share metadata you choose) to the hosted read service at `getchinotto.app`. The link expires after the period you pick. Your full local database is not uploaded. Sharing is explicit and optional.
 
 ## Analytics (opt-in)
 
