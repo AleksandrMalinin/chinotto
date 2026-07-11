@@ -100,6 +100,7 @@ import {
   getDevPreviewEmptyStream,
   setDevPreviewEmptyStream,
 } from "@/lib/devPreviewEmptyStream";
+import { isDevHeaderMenuVisible } from "@/lib/devHeaderMenu";
 import {
   adjustUiZoom,
   applyStoredUiZoom,
@@ -657,14 +658,24 @@ export default function App() {
   const showOpenSectionTitle = homePartition.openEntries.length > 1;
   const showRecentSectionTitle = homePartition.recentEntries.length > 2;
   const mainStreamEmpty = entries.length === 0;
+  const useHomeStreamLayout = spaceScope === "all";
 
   const showHomeDepthZone =
-    !showFullStream && !mainStreamEmpty && !selectedEntry && !search.trim();
+    useHomeStreamLayout &&
+    !showFullStream &&
+    !mainStreamEmpty &&
+    !selectedEntry &&
+    !search.trim();
 
   const showHomeMemoryEcho =
-    showMemoryEcho && !selectedEntry && !search.trim() && !mainStreamEmpty;
+    useHomeStreamLayout &&
+    showMemoryEcho &&
+    !selectedEntry &&
+    !search.trim() &&
+    !mainStreamEmpty;
 
   const showHomeThemeNudge =
+    useHomeStreamLayout &&
     themesEnabled &&
     themeNudge !== null &&
     !memoryEcho &&
@@ -672,8 +683,12 @@ export default function App() {
     !search.trim() &&
     !mainStreamEmpty;
 
+  const compactStreamLayout =
+    !selectedEntry && !search.trim();
+
   const appBodyClass = [
     selectedEntry ? "app-body--detail-focus" : "",
+    compactStreamLayout ? "app-body--compact-stream" : "",
     showHomeDepthZone ? "app-body--home" : "",
     detailWriteExpanded ? "app-body--detail-writing" : "",
   ]
@@ -704,27 +719,44 @@ export default function App() {
     return false;
   }, [entries]);
 
-  const showJumpTrigger = useMemo(
+  const captureToolSlotActive = useMemo(
     () =>
       introDismissed &&
-      !loading &&
       !selectedEntry &&
       !search.trim() &&
       !isSearchOpen &&
       showSearchTrigger &&
-      canJumpByDate &&
-      !showHomeDepthZone,
+      canJumpByDate,
     [
       introDismissed,
-      loading,
       selectedEntry,
       search,
       isSearchOpen,
       showSearchTrigger,
       canJumpByDate,
-      showHomeDepthZone,
     ]
   );
+
+  const showCaptureJumpTrigger = useMemo(
+    () =>
+      captureToolSlotActive &&
+      !loading &&
+      !showHomeDepthZone &&
+      (!useHomeStreamLayout || showFullStream),
+    [
+      captureToolSlotActive,
+      loading,
+      showHomeDepthZone,
+      useHomeStreamLayout,
+      showFullStream,
+    ]
+  );
+
+  const openJumpCalendarFromTrigger = useCallback(() => {
+    jumpPopoverAnchorRef.current = jumpToDateButtonRef.current;
+    setJumpPopoverSheet(false);
+    setJumpPopoverOpen((o) => !o);
+  }, []);
 
   useEffect(() => {
     if (!hasEntriesInDb) setIsStreamShowcaseOpen(false);
@@ -758,6 +790,10 @@ export default function App() {
 
   useEffect(() => {
     setShowFullStream(false);
+    if (spaceScope !== "all") {
+      setMemoryEcho(null);
+      setThemeNudge(null);
+    }
   }, [spaceScope]);
 
   useEffect(() => {
@@ -1209,6 +1245,7 @@ export default function App() {
   }, [themesEnabled, memoryEcho]);
 
   useEffect(() => {
+    if (spaceScope !== "all") return;
     if (
       !mayAttemptResurface({
         introDismissed,
@@ -1229,6 +1266,7 @@ export default function App() {
     }, 600);
     return () => clearTimeout(id);
   }, [
+    spaceScope,
     introDismissed,
     selectedEntry,
     loading,
@@ -1240,6 +1278,7 @@ export default function App() {
   ]);
 
   useEffect(() => {
+    if (spaceScope !== "all") return;
     if (
       !mayAttemptThemeNudge({
         themesEnabled,
@@ -1263,6 +1302,7 @@ export default function App() {
     }, 2200);
     return () => clearTimeout(id);
   }, [
+    spaceScope,
     themesEnabled,
     memoryEcho,
     introDismissed,
@@ -1327,13 +1367,22 @@ export default function App() {
         (e.metaKey || e.ctrlKey) &&
         e.shiftKey
       ) {
-        const anchor = showJumpTrigger
-          ? jumpToDateButtonRef.current
-          : strandCalendarRef.current;
-        if (!anchor) return;
+        if (!canJumpByDate) return;
         e.preventDefault();
-        jumpPopoverAnchorRef.current = anchor;
-        setJumpPopoverSheet(!showJumpTrigger);
+        const strandAnchor = strandCalendarRef.current;
+        if (
+          showCaptureJumpTrigger &&
+          jumpToDateButtonRef.current
+        ) {
+          jumpPopoverAnchorRef.current = jumpToDateButtonRef.current;
+          setJumpPopoverSheet(false);
+        } else if (strandAnchor) {
+          jumpPopoverAnchorRef.current = strandAnchor;
+          setJumpPopoverSheet(true);
+        } else {
+          jumpPopoverAnchorRef.current = null;
+          setJumpPopoverSheet(true);
+        }
         setJumpPopoverOpen((o) => !o);
       }
       if (e.key === "n" && (e.metaKey || e.ctrlKey)) {
@@ -1374,7 +1423,8 @@ export default function App() {
     isSearchOpen,
     composeExpanded,
     jumpPopoverOpen,
-    showJumpTrigger,
+    canJumpByDate,
+    showCaptureJumpTrigger,
     handleSearchClose,
     openSearch,
   ]);
@@ -2137,7 +2187,7 @@ export default function App() {
                     .join(" · ")}
                 </span>
               )}
-              {import.meta.env.DEV && introDismissed && (
+              {isDevHeaderMenuVisible() && introDismissed && (
                 <details ref={devMenuRef} className="app-header-dev-dropdown">
                   <summary className="app-header-dev-summary">Dev</summary>
                   <div className="app-header-dev-panel">
@@ -2260,7 +2310,13 @@ export default function App() {
           )}
           <div className={appBodyClass ? `app-body ${appBodyClass}` : "app-body"}>
           <div
-            className={`entry-input-row${selectedEntry ? " entry-input-row--detail-focus" : ""}`}
+            className={[
+              "entry-input-row",
+              selectedEntry ? "entry-input-row--detail-focus" : "",
+              captureToolSlotActive ? "entry-input-row--with-jump" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
           >
             <EntryInput
               ref={entryInputRef}
@@ -2274,22 +2330,21 @@ export default function App() {
               captureAriaLabel={capturePlaceholder.replace(/…$/, "")}
             />
             <div
-              className={`entry-input-row-aside ${showJumpTrigger ? "entry-input-row-aside--with-jump" : ""}`}
+              className={`entry-input-row-aside ${captureToolSlotActive ? "entry-input-row-aside--with-jump" : ""}`}
             >
-              {showJumpTrigger ? (
+              {captureToolSlotActive ? (
                 <Button
                   ref={jumpToDateButtonRef}
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="jump-date-trigger"
-                  onClick={() => {
-                    jumpPopoverAnchorRef.current = jumpToDateButtonRef.current;
-                    setJumpPopoverSheet(false);
-                    setJumpPopoverOpen((o) => !o);
-                  }}
+                  className={`jump-date-trigger${showCaptureJumpTrigger ? "" : " jump-date-trigger--reserved"}`}
+                  onClick={openJumpCalendarFromTrigger}
                   aria-label="Jump to date (⌘⇧J)"
+                  aria-hidden={!showCaptureJumpTrigger}
+                  tabIndex={showCaptureJumpTrigger ? 0 : -1}
                   aria-expanded={jumpPopoverOpen}
+                  disabled={!showCaptureJumpTrigger}
                 >
                   <JumpToDateTriggerIcon />
                 </Button>
@@ -2397,6 +2452,30 @@ export default function App() {
                   revealEmptyOnboarding={emptyOnboardingIntroReady}
                   emptyLensMessage={emptyLensMessage}
                   emptyOnboarding={emptyOnboardingForStream}
+                />
+              ) : !useHomeStreamLayout ? (
+                <EntryStream
+                  entries={entries}
+                  showHighlights={false}
+                  justAddedEntryId={justAddedEntryId}
+                  ephemeralEntryIds={ephemeralEntryIds}
+                  editingEntryId={editingEntryId}
+                  settlingEntryIds={settlingEntryIds}
+                  onEntryUpdate={handleEntryUpdate}
+                  onStartLateEdit={handleStartLateEdit}
+                  onEndEdit={handleEndEdit}
+                  onEntryClick={handleOpenEntry}
+                  pinnedEntryIds={pinnedEntryIdSet}
+                  onPinToggle={handlePinToggle}
+                  onEntryDelete={handleEntryDelete}
+                  deletingIds={deletingIds}
+                  onDeleteAnimationEnd={handleDeleteAnimationEnd}
+                  onEntryHover={(entry) =>
+                    setHoveredEntryId(entry ? entry.id : null)
+                  }
+                  trailLinkedIds={trailLinkedIds}
+                  deferEmptyPanelMotion={!emptyOnboardingIntroReady}
+                  revealEmptyOnboarding={emptyOnboardingIntroReady}
                 />
               ) : (
                 <>
