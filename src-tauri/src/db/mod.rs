@@ -705,19 +705,22 @@ impl Db {
         }
         let id = uuid::Uuid::new_v4().to_string();
         let created_at = chrono::Utc::now().to_rfc3339();
-        let conn = self.0.lock().unwrap();
-        let sort_order: i32 = conn
-            .query_row(
-                "SELECT COALESCE(MAX(sort_order), 0) + 1 FROM user_themes",
-                [],
-                |r| r.get(0),
+        let sort_order: i32 = {
+            let conn = self.0.lock().unwrap();
+            let sort_order: i32 = conn
+                .query_row(
+                    "SELECT COALESCE(MAX(sort_order), 0) + 1 FROM user_themes",
+                    [],
+                    |r| r.get(0),
+                )
+                .map_err(|e| e.to_string())?;
+            conn.execute(
+                "INSERT INTO user_themes (id, label, keywords, sort_order, created_at) VALUES (?1, ?2, '[]', ?3, ?4)",
+                rusqlite::params![id, label, sort_order, created_at],
             )
             .map_err(|e| e.to_string())?;
-        conn.execute(
-            "INSERT INTO user_themes (id, label, keywords, sort_order, created_at) VALUES (?1, ?2, '[]', ?3, ?4)",
-            rusqlite::params![id, label, sort_order, created_at],
-        )
-        .map_err(|e| e.to_string())?;
+            sort_order
+        };
         self.enqueue_sync_user_theme_upsert(&id, label, sort_order)
             .map_err(|e| e.to_string())?;
         Ok(UserThemeRow {
@@ -736,12 +739,14 @@ impl Db {
             .get_user_theme(id)
             .map_err(|e| e.to_string())?
             .ok_or_else(|| "theme not found".to_string())?;
-        let conn = self.0.lock().unwrap();
-        conn.execute(
-            "UPDATE user_themes SET label = ?2 WHERE id = ?1",
-            rusqlite::params![id, label],
-        )
-        .map_err(|e| e.to_string())?;
+        {
+            let conn = self.0.lock().unwrap();
+            conn.execute(
+                "UPDATE user_themes SET label = ?2 WHERE id = ?1",
+                rusqlite::params![id, label],
+            )
+            .map_err(|e| e.to_string())?;
+        }
         self.enqueue_sync_user_theme_upsert(id, label, existing.sort_order)
             .map_err(|e| e.to_string())?;
         Ok(UserThemeRow {
@@ -1968,6 +1973,23 @@ mod tests {
         db.enqueue_sync_tombstone("b").unwrap();
         db.clear_sync_tombstone_outbox_all().unwrap();
         assert!(db.list_sync_tombstone_outbox().unwrap().is_empty());
+    }
+
+    #[test]
+    fn create_and_update_user_theme_enqueues_sync_outbox() {
+        let db = Db::open(PathBuf::from(":memory:")).unwrap();
+        let created = db.create_user_theme("Ideas").unwrap();
+        assert_eq!(created.label, "Ideas");
+        let outbox = db.list_sync_user_theme_outbox().unwrap();
+        assert_eq!(outbox.len(), 1);
+        assert_eq!(outbox[0].0, created.id);
+        assert_eq!(outbox[0].1, "upsert");
+
+        let updated = db.update_user_theme(&created.id, "Notes").unwrap();
+        assert_eq!(updated.label, "Notes");
+        let outbox = db.list_sync_user_theme_outbox().unwrap();
+        assert_eq!(outbox.len(), 1);
+        assert_eq!(outbox[0].2.as_deref(), Some("Notes"));
     }
 
     #[test]
